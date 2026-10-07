@@ -1,0 +1,375 @@
+/*
+ * Trans design system — tokens & base styles.
+ *
+ * Structure follows Vercel Geist: every colour scale has 10 steps (100–1000)
+ * and each step has one job:
+ *   100–300  component backgrounds (default / hover / active)
+ *   400–600  borders (default / hover / active)
+ *   700–800  high-contrast solid backgrounds (default / hover)
+ *   900      secondary text & icons
+ *   1000     primary text & icons
+ *
+ * Orange is the brand accent. It is used sparingly: focus ring, active nav
+ * indicator, links, the one "accent" button per view. It is never a status
+ * colour — shipment states use blue / amber / green / red / gray.
+ *
+ * z-index scale (use only these): z-10 sticky, z-20 topbar, z-30 sidebar &
+ * mobile nav, z-40 popovers / menus / tooltips, z-50 dialogs & toasts.
+ */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+@import "@fontsource/ibm-plex-sans-arabic/400.css";
+@import "@fontsource/ibm-plex-sans-arabic/500.css";
+@import "@fontsource/ibm-plex-sans-arabic/600.css";
+
+/* Scan the shared library so apps generate its classes. */
+@source "../";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------------
+ * Raw scales — light
+ * ------------------------------------------------------------------------ */
+:root {
+  color-scheme: light;
+
+  --background-100: #ffffff;
+  --background-200: #fafafa;
+
+  --gray-100: #f2f2f2;
+  --gray-200: #ebebeb;
+  --gray-300: #e3e3e3;
+  --gray-400: #e5e5e5;
+  --gray-500: #d1d1d1;
+  --gray-600: #a8a8a8;
+  --gray-700: #8f8f8f;
+  --gray-800: #7a7a7a;
+  --gray-900: #5c5c5c;
+  --gray-1000: #171717;
+
+  --gray-alpha-100: rgb(0 0 0 / 0.05);
+  --gray-alpha-200: rgb(0 0 0 / 0.08);
+  --gray-alpha-300: rgb(0 0 0 / 0.1);
+  --gray-alpha-400: rgb(0 0 0 / 0.08);
+  --gray-alpha-500: rgb(0 0 0 / 0.18);
+  --gray-alpha-600: rgb(0 0 0 / 0.34);
+
+  --orange-100: #fff5ee;
+  --orange-200: #ffead9;
+  --orange-300: #ffdcc2;
+  --orange-400: #ffc9a1;
+  --orange-500: #ffa868;
+  --orange-600: #ff8233;
+  --orange-700: #ff5f00;
+  --orange-800: #e85600;
+  --orange-900: #b83f00;
+  --orange-1000: #3d1600;
+
+  --blue-100: #f0f6ff;
+  --blue-200: #e3eeff;
+  --blue-400: #b8d3ff;
+  --blue-700: #0068d6;
+  --blue-900: #0057b8;
+
+  --green-100: #effbf1;
+  --green-200: #dcf5e1;
+  --green-400: #a8e5b5;
+  --green-700: #2b9a4a;
+  --green-900: #1d7a37;
+
+  --amber-100: #fff8eb;
+  --amber-200: #fff0d1;
+  --amber-400: #ffd98a;
+  --amber-700: #f5a300;
+  --amber-900: #a35c00;
+
+  --red-100: #fff0f0;
+  --red-200: #ffe3e3;
+  --red-400: #ffbdbd;
+  --red-700: #e5383b;
+  --red-900: #c41d24;
+}
+
+/* ---------------------------------------------------------------------------
+ * Raw scales — dark
+ * ------------------------------------------------------------------------ */
+.dark {
+  color-scheme: dark;
+
+  --background-100: #0a0a0a;
+  --background-200: #000000;
+
+  --gray-100: #1a1a1a;
+  --gray-200: #1f1f1f;
+  --gray-300: #292929;
+  --gray-400: #2e2e2e;
+  --gray-500: #454545;
+  --gray-600: #5e5e5e;
+  --gray-700: #8f8f8f;
+  --gray-800: #7c7c7c;
+  --gray-900: #a1a1a1;
+  --gray-1000: #ededed;
+
+  --gray-alpha-100: rgb(255 255 255 / 0.06);
+  --gray-alpha-200: rgb(255 255 255 / 0.09);
+  --gray-alpha-300: rgb(255 255 255 / 0.13);
+  --gray-alpha-400: rgb(255 255 255 / 0.14);
+  --gray-alpha-500: rgb(255 255 255 / 0.24);
+  --gray-alpha-600: rgb(255 255 255 / 0.4);
+
+  --orange-100: #1f0f05;
+  --orange-200: #2b1406;
+  --orange-300: #3d1b07;
+  --orange-400: #5c2a0a;
+  --orange-500: #8a3e0d;
+  --orange-600: #c75410;
+  --orange-700: #ff6a14;
+  --orange-800: #ff8133;
+  --orange-900: #ff9a57;
+  --orange-1000: #fff1e8;
+
+  --blue-100: #0b1a2e;
+  --blue-200: #0f2440;
+  --blue-400: #173d6b;
+  --blue-700: #3291ff;
+  --blue-900: #6ab0ff;
+
+  --green-100: #0b1f12;
+  --green-200: #0f2a18;
+  --green-400: #1a4a2a;
+  --green-700: #3fbf63;
+  --green-900: #6fd48a;
+
+  --amber-100: #1f1606;
+  --amber-200: #2b1e07;
+  --amber-400: #4d360c;
+  --amber-700: #ffb224;
+  --amber-900: #ffc861;
+
+  --red-100: #2a0e0f;
+  --red-200: #361213;
+  --red-400: #5c1d20;
+  --red-700: #ff4d55;
+  --red-900: #ff7a80;
+}
+
+/* ---------------------------------------------------------------------------
+ * Tailwind theme. The default palette is cleared on purpose: only tokens
+ * defined here can be used, which keeps every view on-system.
+ * ------------------------------------------------------------------------ */
+@theme inline {
+  --color-*: initial;
+
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  --color-background-100: var(--background-100);
+  --color-background-200: var(--background-200);
+
+  --color-gray-100: var(--gray-100);
+  --color-gray-200: var(--gray-200);
+  --color-gray-300: var(--gray-300);
+  --color-gray-400: var(--gray-400);
+  --color-gray-500: var(--gray-500);
+  --color-gray-600: var(--gray-600);
+  --color-gray-700: var(--gray-700);
+  --color-gray-800: var(--gray-800);
+  --color-gray-900: var(--gray-900);
+  --color-gray-1000: var(--gray-1000);
+
+  --color-gray-alpha-100: var(--gray-alpha-100);
+  --color-gray-alpha-200: var(--gray-alpha-200);
+  --color-gray-alpha-300: var(--gray-alpha-300);
+  --color-gray-alpha-400: var(--gray-alpha-400);
+  --color-gray-alpha-500: var(--gray-alpha-500);
+  --color-gray-alpha-600: var(--gray-alpha-600);
+
+  --color-orange-100: var(--orange-100);
+  --color-orange-200: var(--orange-200);
+  --color-orange-300: var(--orange-300);
+  --color-orange-400: var(--orange-400);
+  --color-orange-500: var(--orange-500);
+  --color-orange-600: var(--orange-600);
+  --color-orange-700: var(--orange-700);
+  --color-orange-800: var(--orange-800);
+  --color-orange-900: var(--orange-900);
+  --color-orange-1000: var(--orange-1000);
+
+  --color-blue-100: var(--blue-100);
+  --color-blue-200: var(--blue-200);
+  --color-blue-400: var(--blue-400);
+  --color-blue-700: var(--blue-700);
+  --color-blue-900: var(--blue-900);
+
+  --color-green-100: var(--green-100);
+  --color-green-200: var(--green-200);
+  --color-green-400: var(--green-400);
+  --color-green-700: var(--green-700);
+  --color-green-900: var(--green-900);
+
+  --color-amber-100: var(--amber-100);
+  --color-amber-200: var(--amber-200);
+  --color-amber-400: var(--amber-400);
+  --color-amber-700: var(--amber-700);
+  --color-amber-900: var(--amber-900);
+
+  --color-red-100: var(--red-100);
+  --color-red-200: var(--red-200);
+  --color-red-400: var(--red-400);
+  --color-red-700: var(--red-700);
+  --color-red-900: var(--red-900);
+
+  /* shadcn semantic aliases, so `shadcn add` output works on-system. */
+  --color-background: var(--background-100);
+  --color-foreground: var(--gray-1000);
+  --color-card: var(--background-100);
+  --color-card-foreground: var(--gray-1000);
+  --color-popover: var(--background-100);
+  --color-popover-foreground: var(--gray-1000);
+  --color-primary: var(--gray-1000);
+  --color-primary-foreground: var(--background-100);
+  --color-secondary: var(--gray-100);
+  --color-secondary-foreground: var(--gray-1000);
+  --color-muted: var(--gray-100);
+  --color-muted-foreground: var(--gray-900);
+  --color-accent: var(--gray-alpha-100);
+  --color-accent-foreground: var(--gray-1000);
+  --color-destructive: var(--red-700);
+  --color-border: var(--gray-alpha-400);
+  --color-input: var(--gray-alpha-400);
+  --color-ring: var(--orange-800);
+
+  --font-sans: "Geist Variable", "IBM Plex Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  /* Radii: 6px on-page controls, 12px cards / menus / modals, 16px fullscreen. */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+
+  --animate-caret-blink: caret-blink 1.1s ease-out infinite;
+
+  @keyframes caret-blink {
+    0%,
+    70%,
+    100% {
+      opacity: 1;
+    }
+    20%,
+    50% {
+      opacity: 0;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Type presets (Geist naming). Size / line-height / weight bundled, so
+ * views never hand-tune typography. Large headings use Geist's negative
+ * tracking — part of the Vercel look this project explicitly targets.
+ * Register any new preset in `src/lib/utils.ts` (tailwind-merge config).
+ * ------------------------------------------------------------------------ */
+@utility text-heading-72 { font-size: 4.5rem; line-height: 4.5rem; letter-spacing: -0.06em; font-weight: 600; }
+@utility text-heading-64 { font-size: 4rem; line-height: 4rem; letter-spacing: -0.06em; font-weight: 600; }
+@utility text-heading-56 { font-size: 3.5rem; line-height: 3.5rem; letter-spacing: -0.055em; font-weight: 600; }
+@utility text-heading-48 { font-size: 3rem; line-height: 3.5rem; letter-spacing: -0.05em; font-weight: 600; }
+@utility text-heading-40 { font-size: 2.5rem; line-height: 3rem; letter-spacing: -0.05em; font-weight: 600; }
+@utility text-heading-32 { font-size: 2rem; line-height: 2.5rem; letter-spacing: -0.04em; font-weight: 600; }
+@utility text-heading-24 { font-size: 1.5rem; line-height: 2rem; letter-spacing: -0.03em; font-weight: 600; }
+@utility text-heading-20 { font-size: 1.25rem; line-height: 1.625rem; letter-spacing: -0.02em; font-weight: 600; }
+@utility text-heading-16 { font-size: 1rem; line-height: 1.5rem; letter-spacing: -0.02em; font-weight: 600; }
+@utility text-heading-14 { font-size: 0.875rem; line-height: 1.25rem; letter-spacing: -0.02em; font-weight: 600; }
+
+@utility text-label-20 { font-size: 1.25rem; line-height: 2rem; font-weight: 400; }
+@utility text-label-18 { font-size: 1.125rem; line-height: 1.25rem; font-weight: 400; }
+@utility text-label-16 { font-size: 1rem; line-height: 1.25rem; font-weight: 400; }
+@utility text-label-14 { font-size: 0.875rem; line-height: 1.25rem; font-weight: 400; }
+@utility text-label-13 { font-size: 0.8125rem; line-height: 1rem; font-weight: 400; }
+@utility text-label-12 { font-size: 0.75rem; line-height: 1rem; font-weight: 400; }
+@utility text-label-mono-14 { font-family: var(--font-mono); font-size: 0.875rem; line-height: 1.25rem; font-weight: 400; }
+@utility text-label-mono-13 { font-family: var(--font-mono); font-size: 0.8125rem; line-height: 1.25rem; font-weight: 400; }
+@utility text-label-mono-12 { font-family: var(--font-mono); font-size: 0.75rem; line-height: 1rem; font-weight: 400; }
+
+@utility text-copy-24 { font-size: 1.5rem; line-height: 2.25rem; font-weight: 400; }
+@utility text-copy-20 { font-size: 1.25rem; line-height: 2.25rem; font-weight: 400; }
+@utility text-copy-18 { font-size: 1.125rem; line-height: 1.75rem; font-weight: 400; }
+@utility text-copy-16 { font-size: 1rem; line-height: 1.5rem; font-weight: 400; }
+@utility text-copy-14 { font-size: 0.875rem; line-height: 1.375rem; font-weight: 400; }
+@utility text-copy-13 { font-size: 0.8125rem; line-height: 1.25rem; font-weight: 400; }
+@utility text-copy-mono-13 { font-family: var(--font-mono); font-size: 0.8125rem; line-height: 1.25rem; font-weight: 400; }
+
+@utility text-button-16 { font-size: 1rem; line-height: 1.25rem; font-weight: 500; }
+@utility text-button-14 { font-size: 0.875rem; line-height: 1.25rem; font-weight: 500; }
+@utility text-button-12 { font-size: 0.75rem; line-height: 1rem; font-weight: 500; }
+
+/* Shared focus treatment: 2px ring in the brand accent with a background gap. */
+@utility focus-ring {
+  outline: none;
+  &:focus-visible {
+    box-shadow:
+      0 0 0 2px var(--background-100),
+      0 0 0 4px var(--orange-800);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Base
+ * ------------------------------------------------------------------------ */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--gray-alpha-400);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-background-100 text-gray-1000 font-sans antialiased;
+    font-feature-settings: "liga", "calt";
+  }
+
+  /* Arabic script breaks with negative tracking (letters are joined). */
+  :lang(ar) [class*="text-heading-"] {
+    letter-spacing: normal;
+  }
+
+  ::selection {
+    background-color: var(--orange-300);
+    color: var(--gray-1000);
+  }
+
+  [data-theme-switching] *,
+  [data-theme-switching] *::before,
+  [data-theme-switching] *::after {
+    transition: none !important;
+  }
+
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-mono);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
