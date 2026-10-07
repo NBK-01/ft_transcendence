@@ -5,6 +5,16 @@ const fr: CommonResources = {
     name: "ShipTrack",
     tagline: "Vos expéditions, en temps réel.",
   },
+  actions: {
+    close: "Fermer",
+    cancel: "Annuler",
+    confirm: "Confirmer",
+    continue: "Continuer",
+    delete: "Supprimer",
+    save: "Enregistrer",
+    copy: "Copier",
+    copied: "Copié",
+  },
   nav: {
     main: "Navigation principale",
     home: "Accueil",

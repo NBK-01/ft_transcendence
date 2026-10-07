@@ -8,6 +8,16 @@ const en = {
     name: "ShipTrack",
     tagline: "Shipping operations, in real time.",
   },
+  actions: {
+    close: "Close",
+    cancel: "Cancel",
+    confirm: "Confirm",
+    continue: "Continue",
+    delete: "Delete",
+    save: "Save changes",
+    copy: "Copy",
+    copied: "Copied",
+  },
   nav: {
     main: "Main navigation",
     home: "Home",

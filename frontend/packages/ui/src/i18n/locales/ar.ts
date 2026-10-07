@@ -5,6 +5,16 @@ const ar: CommonResources = {
     name: "ShipTrack",
     tagline: "عمليات الشحن، لحظة بلحظة.",
   },
+  actions: {
+    close: "إغلاق",
+    cancel: "إلغاء",
+    confirm: "تأكيد",
+    continue: "متابعة",
+    delete: "حذف",
+    save: "حفظ التغييرات",
+    copy: "نسخ",
+    copied: "تم النسخ",
+  },
   nav: {
     main: "التنقل الرئيسي",
     home: "الرئيسية",
