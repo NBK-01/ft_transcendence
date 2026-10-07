@@ -1,0 +1,19 @@
+{
+  "name": "trans-frontend",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter \"./apps/*\" dev",
+    "dev:client": "pnpm --filter @trans/client dev",
+    "dev:admin": "pnpm --filter @trans/admin dev",
+    "build": "pnpm --filter \"./apps/*\" build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "storybook": "pnpm --filter @trans/ui storybook",
+    "build-storybook": "pnpm --filter @trans/ui build-storybook"
+  }
+}
