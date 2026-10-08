@@ -34,7 +34,16 @@ function applyTheme(resolved: ResolvedTheme) {
   requestAnimationFrame(() => root.removeAttribute("data-theme-switching"));
 }
 
-export function ThemeProvider({ children, defaultTheme = "system" }: { children: ReactNode; defaultTheme?: Theme }) {
+export function ThemeProvider({
+  children,
+  defaultTheme = "system",
+  forcedTheme,
+}: {
+  children: ReactNode;
+  defaultTheme?: Theme;
+  /** Overrides the user's choice (used by Storybook's toolbar). */
+  forcedTheme?: ResolvedTheme;
+}) {
   const [theme, setThemeState] = useState<Theme>(() => readStoredTheme(defaultTheme));
   const [systemDark, setSystemDark] = useState(() => darkQuery().matches);
 
@@ -45,7 +54,7 @@ export function ThemeProvider({ children, defaultTheme = "system" }: { children:
     return () => query.removeEventListener("change", onChange);
   }, []);
 
-  const resolvedTheme: ResolvedTheme = theme === "system" ? (systemDark ? "dark" : "light") : theme;
+  const resolvedTheme: ResolvedTheme = forcedTheme ?? (theme === "system" ? (systemDark ? "dark" : "light") : theme);
 
   useEffect(() => applyTheme(resolvedTheme), [resolvedTheme]);
 
