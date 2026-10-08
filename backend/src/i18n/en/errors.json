@@ -1,0 +1,17 @@
+{
+  "MISSING_REQUIRED_DATA": "{field} is required",
+  "INVALID_FIELD_VALUE": "Invalid value provided",
+  "THIRD_PARTY_SERVICE_ERROR": "A dependent service ({service}) is currently unavailable",
+  "INVALID_WEBHOOK_SIGNATURE": "Invalid webhook signature for provider {provider}",
+  "MISSING_AUTH_CONTEXT": "Authentication context is missing",
+  "USER_NOT_FOUND": "User {id} not found",
+  "USER_ALREADY_EXISTS": "An account with email {email} already exists",
+  "OTP_NOT_FOUND": "No verification code found for {identifier}, or it has expired",
+  "OTP_INVALID": "Invalid verification code",
+  "OTP_BLOCKED": "Too many failed attempts. Try again in {blockWindowSeconds} seconds",
+  "OTP_PROGRESSIVE_BLOCK": "Too many verification code requests ({tierDescription}). Try again in {waitTimeSeconds} seconds",
+  "INVALID_CREDENTIALS": "Invalid email or password",
+  "INVALID_REFRESH_TOKEN": "Invalid or expired refresh token",
+  "INVALID_RESET_TOKEN": "Invalid or expired password reset token",
+  "ACCOUNT_NOT_VERIFIED": "Please verify your email before logging in"
+}
