@@ -101,6 +101,10 @@ const ar: CommonResources = {
     mockSignedUp: "تم إنشاء الحساب (معاينة — لا يوجد خادم بعد).",
     mockVerified: "تم قبول الرمز (معاينة — لا يوجد خادم بعد).",
     mockResent: "تم إرسال رمز جديد (معاينة).",
+    panelTitle: "كل مرحلة، مرئية.",
+    panelBody: "يرى العملاء والمُرسِلون والسائقون الشحنة نفسها، وتُحدَّث لحظة تحرّكها.",
+    panelLive: "مباشر",
+    panelTracking: "التتبّع",
     or: "أو",
   },
   validation: {

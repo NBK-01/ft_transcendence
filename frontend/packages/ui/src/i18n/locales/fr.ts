@@ -102,6 +102,10 @@ const fr: CommonResources = {
     mockSignedUp: "Compte créé (aperçu — pas encore de backend).",
     mockVerified: "Code accepté (aperçu — pas encore de backend).",
     mockResent: "Un nouveau code a été envoyé (aperçu).",
+    panelTitle: "Chaque étape, visible.",
+    panelBody: "Clients, dispatcheurs et livreurs voient la même expédition, mise à jour dès qu'elle bouge.",
+    panelLive: "En direct",
+    panelTracking: "Suivi",
     or: "ou",
   },
   validation: {

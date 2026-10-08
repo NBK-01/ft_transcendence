@@ -35,9 +35,16 @@ export function Logo({
   return (
     <span className={cn("inline-flex items-center gap-2", className)} {...props}>
       <LogoMark />
-      <span className="text-heading-16">{t("brand.name")}</span>
+      <span data-wordmark className="text-heading-16">
+        {t("brand.name")}
+      </span>
       {label && (
-        <span className="rounded-sm border border-gray-alpha-400 px-1.5 text-label-mono-12 text-gray-900">{label}</span>
+        <span
+          data-wordmark
+          className="rounded-sm border border-gray-alpha-400 px-1.5 text-label-mono-12 text-gray-900"
+        >
+          {label}
+        </span>
       )}
     </span>
   );

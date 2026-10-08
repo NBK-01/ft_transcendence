@@ -104,6 +104,10 @@ const en = {
     mockSignedUp: "Account created (preview — no backend yet).",
     mockVerified: "Code accepted (preview — no backend yet).",
     mockResent: "A new code was sent (preview).",
+    panelTitle: "Every hand-off, visible.",
+    panelBody: "Customers, dispatchers and drivers see the same shipment, updated the moment it moves.",
+    panelLive: "Live",
+    panelTracking: "Tracking",
     or: "or",
   },
   validation: {
