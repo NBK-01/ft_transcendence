@@ -18,6 +18,14 @@ const en = {
     copy: "Copy",
     copied: "Copied",
   },
+  status: {
+    requested: "Requested",
+    confirmed: "Confirmed",
+    in_transit: "In transit",
+    out_for_delivery: "Out for delivery",
+    delivered: "Delivered",
+    cancelled: "Cancelled",
+  },
   nav: {
     main: "Main navigation",
     home: "Home",

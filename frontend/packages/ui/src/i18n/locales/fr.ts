@@ -15,6 +15,14 @@ const fr: CommonResources = {
     copy: "Copier",
     copied: "Copié",
   },
+  status: {
+    requested: "Demandée",
+    confirmed: "Confirmée",
+    in_transit: "En transit",
+    out_for_delivery: "En cours de livraison",
+    delivered: "Livrée",
+    cancelled: "Annulée",
+  },
   nav: {
     main: "Navigation principale",
     home: "Accueil",

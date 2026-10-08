@@ -15,6 +15,14 @@ const ar: CommonResources = {
     copy: "نسخ",
     copied: "تم النسخ",
   },
+  status: {
+    requested: "مطلوبة",
+    confirmed: "مؤكدة",
+    in_transit: "قيد النقل",
+    out_for_delivery: "خرجت للتوصيل",
+    delivered: "تم التسليم",
+    cancelled: "ملغاة",
+  },
   nav: {
     main: "التنقل الرئيسي",
     home: "الرئيسية",
