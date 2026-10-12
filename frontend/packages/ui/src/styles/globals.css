@@ -246,7 +246,9 @@
   --color-ring: var(--orange-800);
 
   --font-sans: "Geist Variable", "IBM Plex Sans Arabic", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Geist Mono Variable", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  /* Plex Arabic before the system monospace: Arabic must never fall back to a
+     monospace font, which breaks letter joining. */
+  --font-mono: "Geist Mono Variable", "IBM Plex Sans Arabic", ui-monospace, "SFMono-Regular", Menlo, monospace;
 
   /* Radii: 6px on-page controls, 12px cards / menus / modals, 16px fullscreen. */
   --radius-sm: 4px;

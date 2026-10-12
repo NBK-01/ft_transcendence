@@ -1,0 +1,3 @@
+@import "@trans/ui/globals.css";
+
+/* App-only classes live in ./src and are picked up by Tailwind's automatic source detection. */

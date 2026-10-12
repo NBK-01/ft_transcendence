@@ -12,6 +12,21 @@ import { cn } from "@trans/ui/lib/utils";
 export type LegalSection = { id: string; title: string; body: string[] };
 export type LegalDocument = { title: string; intro: string; sections: LegalSection[] };
 
+/** Date the legal texts in the locale files were last revised. Bump it when they change. */
+export const LEGAL_UPDATED_AT = "2026-10-07";
+
+/** Route component for /privacy and /terms: reads the translated document from i18n. */
+export function LegalPage({ kind, logoLabel }: { kind: "privacy" | "terms"; logoLabel?: string }) {
+  const { t } = useTranslation("common");
+  const doc = t(`legal.${kind}`, { returnObjects: true }) as LegalDocument;
+  return (
+    <>
+      <title>{`${doc.title} · ${t("brand.name")}`}</title>
+      <LegalLayout document={doc} updatedAt={LEGAL_UPDATED_AT} logoLabel={logoLabel} />
+    </>
+  );
+}
+
 /** Highlights the section currently in view in the table of contents. */
 function useActiveSection(ids: string[]) {
   const [active, setActive] = useState(ids[0]);
