@@ -1,0 +1,126 @@
+import { http, HttpResponse } from "msw/http";
+import { setupServer } from "msw/node";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { api, configureApi } from "./client";
+import { ApiError } from "./errors";
+import { handlers } from "./mocks/handlers";
+import { tokens } from "./session";
+import type { User } from "./types";
+
+// Same handlers the dev app uses — tests and mocks can't drift apart.
+const server = setupServer(...handlers);
+
+const memoryStorage = () => {
+  const store = new Map<string, string>();
+  return {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => void store.set(key, value),
+    removeItem: (key: string) => void store.delete(key),
+    clear: () => store.clear(),
+  };
+};
+
+const onSessionExpired = vi.fn();
+
+beforeAll(() => {
+  vi.stubGlobal("localStorage", memoryStorage());
+  configureApi({ baseUrl: "http://api.test/api", getLanguage: () => "fr", onSessionExpired });
+  server.listen({ onUnhandledFrame: "error" });
+});
+beforeEach(() => {
+  tokens.clear();
+  onSessionExpired.mockClear();
+});
+afterEach(() => {
+  server.resetHandlers();
+  server.events.removeAllListeners();
+});
+afterAll(() => server.close());
+
+/** Counts refresh calls while keeping the real mock behaviour. */
+function countRefreshes() {
+  let count = 0;
+  server.events.on("request:start", ({ request }) => {
+    if (request.url.endsWith("/auth/refresh")) count += 1;
+  });
+  return () => count;
+}
+
+describe("api client", () => {
+  it("sends the Bearer token and Accept-Language", async () => {
+    let seen: Headers | undefined;
+    server.use(
+      http.get("*/api/echo", ({ request }) => {
+        seen = request.headers;
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    tokens.set({ accessToken: "mock-access-x", refreshToken: "mock-refresh-x" });
+
+    await api.get("/echo");
+
+    expect(seen?.get("Authorization")).toBe("Bearer mock-access-x");
+    expect(seen?.get("Accept-Language")).toBe("fr");
+  });
+
+  it("after a reload (no access token), refreshes first instead of sending a doomed request", async () => {
+    localStorage.setItem("trans-refresh-token", "mock-refresh-1");
+    const refreshes = countRefreshes();
+
+    const me = await api.get<User>("/auth/me");
+
+    expect(me.email).toBe("amina@example.com");
+    expect(refreshes()).toBe(1);
+  });
+
+  it("on concurrent 401s, refreshes once and retries every request", async () => {
+    tokens.set({ accessToken: "stale-token", refreshToken: "mock-refresh-1" });
+    const refreshes = countRefreshes();
+
+    const results = await Promise.all([api.get<User>("/auth/me"), api.get<User>("/auth/me"), api.get<User>("/auth/me")]);
+
+    expect(results.map((user) => user.name)).toEqual(Array(3).fill("Amina El Idrissi"));
+    expect(refreshes()).toBe(1);
+    expect(tokens.getAccess()).toMatch(/^mock-access-/);
+  });
+
+  it("when refresh fails, clears the session and reports it", async () => {
+    tokens.set({ accessToken: "stale-token", refreshToken: "revoked-token" });
+
+    await expect(api.get("/auth/me")).rejects.toMatchObject({ status: 401 });
+
+    expect(tokens.hasSession()).toBe(false);
+    expect(onSessionExpired).toHaveBeenCalledOnce();
+  });
+
+  it("turns backend error bodies into ApiError with errorCode", async () => {
+    const error = await api
+      .post("/auth/login", { email: "amina@example.com", password: "wrong" }, { auth: false })
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ kind: "http", status: 401, errorCode: 2002, isClientError: true });
+    expect(onSessionExpired).not.toHaveBeenCalled();
+  });
+
+  it("reports network failures as kind 'network'", async () => {
+    server.use(http.get("*/api/down", () => HttpResponse.error()));
+
+    await expect(api.get("/down", { auth: false })).rejects.toMatchObject({ kind: "network", status: 0 });
+  });
+
+  it("drops empty query params", async () => {
+    let url = "";
+    server.use(
+      http.get("*/api/shipments", ({ request }) => {
+        url = request.url;
+        return HttpResponse.json([]);
+      }),
+    );
+
+    await api.get("/shipments", { auth: false, query: { status: "in_transit", q: "", page: 2, branch: undefined } });
+
+    expect(new URL(url).search).toBe("?status=in_transit&page=2");
+  });
+});
