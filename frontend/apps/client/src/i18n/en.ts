@@ -11,6 +11,7 @@ const en = {
     columns: { trackingId: "Tracking ID", route: "Route", status: "Status", updatedAt: "Last update" },
     emptyTitle: "No shipments yet",
     emptyBody: "Shipments you send will appear here with their live status.",
+    newShipment: "New shipment",
     errorTitle: "Couldn't load your shipments",
     errorBody: "Check your connection and try again.",
     retry: "Try again",

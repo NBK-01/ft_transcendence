@@ -21,6 +21,9 @@ const SHIPMENTS: Shipment[] = [
   { trackingId: "TRK-5E2D18", origin: "Sidon", destination: "Byblos", status: "cancelled", updatedAt: minutesAgo(60 * 24 * 9) },
 ];
 
+/** VITE_MOCK_EMPTY=true: pretend the user has no shipments, to preview the empty state. */
+const MOCK_EMPTY = import.meta.env.VITE_MOCK_EMPTY === "true";
+
 export const shipmentHandlers = [
   http.get("*/api/shipments", ({ request }) => {
     const params = new URL(request.url).searchParams;
@@ -30,7 +33,7 @@ export const shipmentHandlers = [
     const q = params.get("q")?.trim().toLowerCase() ?? "";
     const status = params.get("status");
 
-    const sorted = SHIPMENTS.filter(
+    const sorted = (MOCK_EMPTY ? [] : SHIPMENTS).filter(
       (shipment) =>
         (!q || shipment.trackingId.toLowerCase().includes(q)) && (!status || shipment.status === status),
     ).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));

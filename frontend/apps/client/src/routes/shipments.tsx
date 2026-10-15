@@ -1,4 +1,4 @@
-import { ArrowRight, Package, SearchX, TriangleAlert } from "lucide-react";
+import { ArrowRight, Package, Plus, SearchX, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { EmptyState } from "@trans/ui/blocks/empty-state";
@@ -53,11 +53,36 @@ export function ShipmentsPage() {
           }
         />
       ) : data.items.length === 0 ? (
-        <EmptyState icon={Package} title={t("app:shipments.emptyTitle")} description={t("app:shipments.emptyBody")} />
+        <EmptyState
+          icon={Package}
+          title={t("app:shipments.emptyTitle")}
+          description={t("app:shipments.emptyBody")}
+          action={
+            // TODO: link to the create-shipment page once it exists.
+            <Button variant="accent" prefix={<Plus aria-hidden="true" />}>
+              {t("app:shipments.newShipment")}
+            </Button>
+          }
+        />
       ) : (
         // Previous results stay visible (dimmed) while the new filter loads.
         <ShipmentList shipments={data.items} stale={isPlaceholderData} />
       )}
+    </div>
+  );
+}
+
+function ColumnHeaders() {
+  const { t } = useTranslation("app");
+  return (
+    <div
+      aria-hidden="true"
+      className={`${ROW} hidden border-b border-gray-alpha-400 bg-background-200 py-2 text-label-12 text-gray-900 md:grid`}
+    >
+      <span>{t("shipments.columns.trackingId")}</span>
+      <span>{t("shipments.columns.route")}</span>
+      <span>{t("shipments.columns.status")}</span>
+      <span className="text-end">{t("shipments.columns.updatedAt")}</span>
     </div>
   );
 }
@@ -69,15 +94,7 @@ function ShipmentList({ shipments, stale }: { shipments: Shipment[]; stale: bool
       aria-busy={stale}
       className={`overflow-hidden transition-opacity duration-150 ${stale ? "opacity-60" : ""}`}
     >
-      <div
-        aria-hidden="true"
-        className={`${ROW} hidden border-b border-gray-alpha-400 bg-background-200 py-2 text-label-12 text-gray-900 md:grid`}
-      >
-        <span>{t("shipments.columns.trackingId")}</span>
-        <span>{t("shipments.columns.route")}</span>
-        <span>{t("shipments.columns.status")}</span>
-        <span className="text-end">{t("shipments.columns.updatedAt")}</span>
-      </div>
+      <ColumnHeaders />
       <ul aria-label={t("shipments.listLabel")} className="divide-y divide-gray-alpha-400">
         {shipments.map((shipment) => (
           <ShipmentRow key={shipment.trackingId} shipment={shipment} />
@@ -118,6 +135,7 @@ function ShipmentRow({ shipment }: { shipment: Shipment }) {
 function ShipmentListSkeleton() {
   return (
     <Card className="overflow-hidden" aria-busy="true">
+      <ColumnHeaders />
       <ul className="divide-y divide-gray-alpha-400">
         {Array.from({ length: 5 }, (_, index) => (
           <li key={index} className={ROW}>

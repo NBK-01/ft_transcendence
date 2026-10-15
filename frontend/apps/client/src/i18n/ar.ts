@@ -12,6 +12,7 @@ const ar: ClientResources = {
     columns: { trackingId: "رقم التتبع", route: "المسار", status: "الحالة", updatedAt: "آخر تحديث" },
     emptyTitle: "لا توجد شحنات بعد",
     emptyBody: "ستظهر هنا الشحنات التي ترسلها مع حالتها المباشرة.",
+    newShipment: "شحنة جديدة",
     errorTitle: "تعذّر تحميل شحناتك",
     errorBody: "تحقّق من اتصالك وحاول مرة أخرى.",
     retry: "إعادة المحاولة",
