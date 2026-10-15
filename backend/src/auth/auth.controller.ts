@@ -1,4 +1,5 @@
-import { Controller, Post, Body, Get } from '@nestjs/common';
+import { Controller, Post, Body, Get, Req } from '@nestjs/common';
+import { Request } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -6,6 +7,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
+import { TokenMetadata } from './services/refresh-token.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
@@ -44,8 +46,8 @@ export class AuthController {
   @ApiOperation({ summary: 'Verify OTP and activate account' })
   @ApiResponse({ status: 200, description: 'Account activated, tokens issued' })
   @ApiResponse({ status: 400, description: 'Invalid or expired OTP' })
-  async verifyOtp(@Body() dto: VerifyOtpDto) {
-    return this.authService.verifyOtp(dto);
+  async verifyOtp(@Body() dto: VerifyOtpDto, @Req() req: Request) {
+    return this.authService.verifyOtp(dto, this.metadataFrom(req));
   }
 
   @Public()
@@ -61,19 +63,43 @@ export class AuthController {
   @ApiOperation({ summary: 'Login with email and password' })
   @ApiResponse({ status: 200, description: 'Login successful' })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
-  async login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  async login(@Body() dto: LoginDto, @Req() req: Request) {
+    return this.authService.login(dto, this.metadataFrom(req));
   }
 
   @Public()
   @Post('refresh')
   @ApiOperation({
-    summary: 'Exchange a refresh token for a new access + refresh token pair',
+    summary:
+      'Exchange a refresh token for a new access + refresh token pair (rotates in place)',
   })
   @ApiResponse({ status: 200, description: 'New token pair issued' })
   @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
-  async refresh(@Body() dto: RefreshTokenDto) {
-    return this.authService.refresh(dto.refreshToken);
+  async refresh(@Body() dto: RefreshTokenDto, @Req() req: Request) {
+    return this.authService.refresh(dto.refreshToken, this.metadataFrom(req));
+  }
+
+  @Public()
+  @Post('logout')
+  @ApiOperation({
+    summary: 'Invalidate a single refresh token (this session only)',
+  })
+  @ApiResponse({ status: 200, description: 'Logged out' })
+  async logout(@Body() dto: RefreshTokenDto) {
+    return this.authService.logout(dto.refreshToken);
+  }
+
+  @Post('logout-all')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Invalidate every refresh token for the authenticated user (logout everywhere)',
+  })
+  @ApiResponse({ status: 200, description: 'Logged out of all sessions' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async logoutAll() {
+    const user = this.authContext.requireUser();
+    return this.authService.logoutAll(user.id);
   }
 
   @Public()
@@ -115,5 +141,12 @@ export class AuthController {
   async getCurrentUser() {
     const user = this.authContext.requireUser();
     return this.usersService.getProfile(user.id);
+  }
+
+  private metadataFrom(req: Request): TokenMetadata {
+    return {
+      deviceInfo: req.get('user-agent') ?? undefined,
+      ipAddress: req.ip,
+    };
   }
 }

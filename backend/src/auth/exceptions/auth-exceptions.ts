@@ -8,6 +8,8 @@ export enum AuthErrorCodes {
   InvalidRefreshToken = 2003,
   InvalidResetToken = 2004,
   AccountNotVerified = 2005,
+  RefreshTokenExpired = 2006,
+  SessionInvalidated = 2007,
 }
 
 export enum AuthErrorMessages {
@@ -15,6 +17,8 @@ export enum AuthErrorMessages {
   InvalidRefreshToken = 'errors.INVALID_REFRESH_TOKEN',
   InvalidResetToken = 'errors.INVALID_RESET_TOKEN',
   AccountNotVerified = 'errors.ACCOUNT_NOT_VERIFIED',
+  RefreshTokenExpired = 'errors.REFRESH_TOKEN_EXPIRED',
+  SessionInvalidated = 'errors.SESSION_INVALIDATED',
 }
 
 export class InvalidCredentialsException extends DomainException {
@@ -53,6 +57,27 @@ export class AccountNotVerifiedException extends DomainException {
       { key: AuthErrorMessages.AccountNotVerified },
       HttpStatus.FORBIDDEN,
       AuthErrorCodes.AccountNotVerified,
+    );
+  }
+}
+
+export class RefreshTokenExpiredException extends DomainException {
+  constructor() {
+    super(
+      { key: AuthErrorMessages.RefreshTokenExpired },
+      HttpStatus.UNAUTHORIZED,
+      AuthErrorCodes.RefreshTokenExpired,
+    );
+  }
+}
+
+/** Thrown when a refresh token is otherwise valid but predates the user's forceLogoutAfter timestamp. */
+export class SessionInvalidatedException extends DomainException {
+  constructor() {
+    super(
+      { key: AuthErrorMessages.SessionInvalidated },
+      HttpStatus.UNAUTHORIZED,
+      AuthErrorCodes.SessionInvalidated,
     );
   }
 }

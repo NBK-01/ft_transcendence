@@ -3,12 +3,11 @@ import { BaseEntity } from '../../common/entities/base.entity';
 
 /**
  * The source template defines JWT_REFRESH_TOKEN_EXPIRES_IN but never
- * actually implements refresh tokens — login() just signs a single
- * short-lived access token with no way to renew it. This entity + the
- * refresh/rotate flow in auth.service.ts closes that gap.
- *
- * Stores a hash of the token, never the raw value — same reasoning as
- * password storage, so a DB leak doesn't hand out usable sessions.
+ * actually implements refresh tokens. This entity + RefreshTokenService
+ * closes that gap, modeled on eterna-api's design rather than inventing one:
+ * one row per session, rotated in place (not replaced), identified by a
+ * signed JWT's `jti` claim rather than looked up by hash alone — see
+ * RefreshTokenService for why that matters.
  */
 @Entity('refresh_token')
 export class RefreshToken extends BaseEntity {
@@ -16,12 +15,15 @@ export class RefreshToken extends BaseEntity {
   @Column({ name: 'user_id', type: 'uuid' })
   userId!: string;
 
-  @Column({ name: 'token_hash', unique: true })
+  @Column({ name: 'token_hash', type: 'varchar', length: 64, unique: true })
   tokenHash!: string;
+
+  @Column({ name: 'device_info', type: 'varchar', nullable: true })
+  deviceInfo?: string | null;
+
+  @Column({ name: 'ip_address', type: 'varchar', length: 45, nullable: true })
+  ipAddress?: string | null;
 
   @Column({ name: 'expires_at', type: 'timestamptz' })
   expiresAt!: Date;
-
-  @Column({ name: 'revoked_at', type: 'timestamptz', nullable: true })
-  revokedAt!: Date | null;
 }

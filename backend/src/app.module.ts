@@ -17,11 +17,16 @@ import { CommunicationModule } from './communication/communication.module';
 import { UsersModule } from './users/users.module';
 import { OtpModule } from './otp/otp.module';
 import { AuthModule } from './auth/auth.module';
+import { InternalUsersModule } from './internal-users/internal-users.module';
+import { StaffAuthModule } from './staff-auth/staff-auth.module';
+import { AccessControlModule } from './access-control/access-control.module';
+import { OrganizationsModule } from './organizations/organizations.module';
 
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { RequestLoggerMiddleware } from './common/middlewares/request-logger.middleware';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { AccessControlGuard } from './access-control/guards/access-control.guard';
 
 @Module({
   imports: [
@@ -50,17 +55,23 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     UsersModule,
     OtpModule,
     AuthModule,
+    InternalUsersModule,
+    StaffAuthModule,
+    AccessControlModule,
+    OrganizationsModule,
     // Domain modules land here as they're built:
-    // AccessControlModule (RBAC), OrganizationsModule, ShipmentsModule,
-    // NotificationsModule, QueuesModule, FileStorageModule
+    // ShipmentsModule, NotificationsModule, QueuesModule, FileStorageModule
   ],
   providers: [
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
     // Global, secure-by-default — every route requires a valid JWT unless
-    // explicitly marked @Public(). AccessControlGuard (RBAC) joins this list
-    // once the Role/Permission module exists.
+    // explicitly marked @Public(). AccessControlGuard runs next, same request
+    // (AuthContextService is already populated by then) — fails open unless
+    // a route carries an access-control decorator (@RequireStaff() minimum
+    // for any staff-only route — see common/decorators/access-control.decorator.ts).
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: AccessControlGuard },
   ],
 })
 export class AppModule implements NestModule {

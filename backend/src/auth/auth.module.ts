@@ -11,6 +11,7 @@ import { RefreshToken } from './entities/refresh-token.entity';
 import { jwtConfig } from '../config/jwt.config';
 import { UsersModule } from '../users/users.module';
 import { OtpModule } from '../otp/otp.module';
+import { InternalUsersModule } from '../internal-users/internal-users.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { OtpModule } from '../otp/otp.module';
     }),
     UsersModule,
     OtpModule,
+    InternalUsersModule, // JwtStrategy resolves staff tokens via InternalUsersService
   ],
   controllers: [AuthController],
   providers: [
