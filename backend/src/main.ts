@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { setupSwagger } from './config/swagger.config';
@@ -24,6 +24,16 @@ async function bootstrap() {
       transform: true,
       transformOptions: { enableImplicitConversion: true },
       stopAtFirstError: false,
+      // Preserve the raw ValidationError[] (with per-constraint detail) instead of
+      // flattening to a string[] — GlobalExceptionFilter translates each constraint
+      // individually (errors.VALIDATION_MINLENGTH, etc.) instead of surfacing
+      // class-validator's untranslated English default messages.
+      exceptionFactory: (errors) =>
+        new BadRequestException({
+          statusCode: 400,
+          message: errors,
+          error: 'Bad Request',
+        }),
     }),
   );
 

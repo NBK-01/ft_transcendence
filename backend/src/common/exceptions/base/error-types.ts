@@ -10,6 +10,8 @@ import { HttpException, HttpStatus } from '@nestjs/common';
  *   4000-4999  Organizations
  *   5000-5999  Validation (generic, cross-domain)
  *   6000-6999  Third-party / webhooks
+ *   7000-7999  Access Control (RBAC)
+ *   8000-8999  Internal Users / Staff Auth
  */
 
 export interface ErrorMessageData {

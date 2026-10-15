@@ -5,11 +5,14 @@ import { UsersService } from '../users/users.service';
 import { OtpService } from '../otp/otp.service';
 import { OtpPurpose } from '../otp/entities/otp-log.entity';
 import { PasswordResetService } from './services/password-reset.service';
-import { RefreshTokenService } from './services/refresh-token.service';
+import {
+  RefreshTokenService,
+  TokenMetadata,
+  TokenPair,
+} from './services/refresh-token.service';
 import { CommunicationService } from '../communication/communication.service';
 import { EmailTemplates } from '../common/templates/email-templates';
 import { AuthContextService } from '../common/context';
-import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
@@ -25,6 +28,7 @@ import {
   InvalidCredentialsException,
   InvalidResetTokenException,
   AccountNotVerifiedException,
+  InvalidRefreshTokenException,
 } from './exceptions/auth-exceptions';
 
 const OTP_PREFIX = 'auth';
@@ -91,7 +95,7 @@ export class AuthService {
     };
   }
 
-  async verifyOtp(dto: VerifyOtpDto) {
+  async verifyOtp(dto: VerifyOtpDto, metadata?: TokenMetadata) {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) {
       throw new UserNotFoundException(dto.email);
@@ -105,16 +109,24 @@ export class AuthService {
     }
 
     await this.usersService.verifyUser(user.id);
+    user.isVerified = true;
 
-    return this.issueTokens(user.id, user.email, {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      isVerified: true,
-    });
+    const tokens = await this.refreshTokenService.generateTokenPair(
+      user,
+      metadata,
+    );
+    return {
+      ...tokens,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        isVerified: true,
+      },
+    };
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, metadata?: TokenMetadata) {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) {
       throw new InvalidCredentialsException();
@@ -132,26 +144,59 @@ export class AuthService {
       throw new AccountNotVerifiedException();
     }
 
-    return this.issueTokens(user.id, user.email, {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-    });
+    const tokens = await this.refreshTokenService.generateTokenPair(
+      user,
+      metadata,
+    );
+    return {
+      ...tokens,
+      user: { id: user.id, email: user.email, name: user.name },
+    };
   }
 
-  async refresh(refreshToken: string) {
-    const { userId, newToken } =
-      await this.refreshTokenService.rotate(refreshToken);
+  /** Decodes (unverified) just to find which user to load — validateRefreshToken() does the real signature/hash verification below. */
+  async refresh(
+    rawToken: string,
+    metadata?: TokenMetadata,
+  ): Promise<TokenPair> {
+    const userId = this.peekSubjectUnverified(rawToken);
     const user = await this.usersService.findById(userId);
     if (!user) {
-      throw new UserNotFoundException(userId);
+      throw new InvalidRefreshTokenException();
     }
 
-    const payload: JwtPayload = { sub: user.id, email: user.email };
-    return {
-      accessToken: this.jwtService.sign(payload),
-      refreshToken: newToken,
-    };
+    const tokenRecord = await this.refreshTokenService.validateRefreshToken(
+      rawToken,
+      user,
+    );
+    return this.refreshTokenService.rotateRefreshToken(
+      tokenRecord,
+      user,
+      metadata,
+    );
+  }
+
+  /** Logout — invalidate just this session. Fails open on a malformed/already-invalid token: logging out never needs to error. */
+  async logout(rawToken: string): Promise<{ message: string }> {
+    try {
+      const userId = this.peekSubjectUnverified(rawToken);
+      const user = await this.usersService.findById(userId);
+      if (user) {
+        const tokenRecord = await this.refreshTokenService.validateRefreshToken(
+          rawToken,
+          user,
+        );
+        await this.refreshTokenService.deleteToken(tokenRecord.id);
+      }
+    } catch {
+      // already invalid/expired — nothing to do
+    }
+    return { message: 'Logged out' };
+  }
+
+  async logoutAll(userId: string): Promise<{ message: string }> {
+    const count = await this.refreshTokenService.deleteAllUserTokens(userId);
+    return { message: `Logged out of ${count} session(s)` };
   }
 
   async forgotPassword(dto: ForgotPasswordDto) {
@@ -200,7 +245,7 @@ export class AuthService {
     );
     await this.usersService.updatePasswordHash(user.id, hashedPassword);
     await this.passwordResetService.invalidateToken(dto.token);
-    await this.refreshTokenService.revokeAllForUser(user.id); // force re-login everywhere
+    await this.refreshTokenService.deleteAllUserTokens(user.id); // force re-login everywhere
 
     return { message: 'Password reset successfully' };
   }
@@ -227,14 +272,13 @@ export class AuthService {
     return { message: 'Password changed successfully' };
   }
 
-  private async issueTokens(
-    userId: string,
-    email: string,
-    userView: Record<string, unknown>,
-  ) {
-    const payload: JwtPayload = { sub: userId, email };
-    const accessToken = this.jwtService.sign(payload);
-    const refreshToken = await this.refreshTokenService.issue(userId);
-    return { accessToken, refreshToken, user: userView };
+  /** Reads `sub` off the JWT half without checking its signature — never trust this alone, see refresh()/logout(). */
+  private peekSubjectUnverified(rawToken: string): string {
+    const jwtPart = rawToken.split('.').slice(0, 3).join('.');
+    const decoded = this.jwtService.decode(jwtPart) as { sub?: string } | null;
+    if (!decoded?.sub) {
+      throw new InvalidRefreshTokenException();
+    }
+    return decoded.sub;
   }
 }

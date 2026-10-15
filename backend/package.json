@@ -22,7 +22,8 @@
     "migration:create": "f() { npm run typeorm -- migration:create src/migrations/\"$1\"; }; f",
     "migration:run": "npm run typeorm -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
-    "migration:show": "npm run typeorm -- migration:show"
+    "migration:show": "npm run typeorm -- migration:show",
+    "seed:bootstrap": "NODE_OPTIONS=\"--require ts-node/register\" ts-node -r tsconfig-paths/register src/database/seeds/bootstrap-admin.seed.ts"
   },
   "dependencies": {
     "@nestjs-modules/ioredis": "^2.0.2",
