@@ -22,8 +22,8 @@ configureApi({
 
 // Mock backend (dev only). Dynamic import keeps MSW out of production bundles.
 if (import.meta.env.DEV && import.meta.env.VITE_API_MOCKS === "true") {
-  const { startMocks } = await import("@trans/api/mocks");
-  await startMocks(import.meta.env.BASE_URL);
+  const { startClientMocks } = await import("./mocks");
+  await startClientMocks(import.meta.env.BASE_URL);
 }
 
 const root = document.getElementById("root");
