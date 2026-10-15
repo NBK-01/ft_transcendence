@@ -72,6 +72,30 @@ export function DropdownMenuRadioItem({
   );
 }
 
+/** Multi-select item (e.g. table filters). The check box sits at the start, the count at the end. */
+export function DropdownMenuCheckboxItem({
+  className,
+  children,
+  ...props
+}: ComponentProps<typeof MenuPrimitive.CheckboxItem>) {
+  return (
+    <MenuPrimitive.CheckboxItem className={cn(menuItemClasses, "group/check", className)} {...props}>
+      <span
+        aria-hidden="true"
+        className={cn(
+          "grid size-4 shrink-0 place-items-center rounded-sm border border-gray-alpha-600 bg-background-100",
+          "group-data-[state=checked]/check:border-gray-1000 group-data-[state=checked]/check:bg-gray-1000",
+        )}
+      >
+        <MenuPrimitive.ItemIndicator>
+          <Check className="size-3! text-background-100!" strokeWidth={3} />
+        </MenuPrimitive.ItemIndicator>
+      </span>
+      {children}
+    </MenuPrimitive.CheckboxItem>
+  );
+}
+
 export function DropdownMenuLabel({ className, ...props }: ComponentProps<typeof MenuPrimitive.Label>) {
   return <MenuPrimitive.Label className={cn("px-2 pt-2 pb-1 text-label-12 text-gray-900", className)} {...props} />;
 }
