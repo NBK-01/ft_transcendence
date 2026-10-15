@@ -27,7 +27,13 @@ export const shipmentHandlers = [
     const page = Math.max(1, Number(params.get("page")) || 1);
     const limit = Math.min(100, Math.max(1, Number(params.get("limit")) || 20));
 
-    const sorted = [...SHIPMENTS].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    const q = params.get("q")?.trim().toLowerCase() ?? "";
+    const status = params.get("status");
+
+    const sorted = SHIPMENTS.filter(
+      (shipment) =>
+        (!q || shipment.trackingId.toLowerCase().includes(q)) && (!status || shipment.status === status),
+    ).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     const items = sorted.slice((page - 1) * limit, page * limit);
 
     return HttpResponse.json({

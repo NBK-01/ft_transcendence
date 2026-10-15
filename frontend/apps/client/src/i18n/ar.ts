@@ -15,6 +15,13 @@ const ar: ClientResources = {
     errorTitle: "تعذّر تحميل شحناتك",
     errorBody: "تحقّق من اتصالك وحاول مرة أخرى.",
     retry: "إعادة المحاولة",
+    searchLabel: "البحث برقم التتبع",
+    searchPlaceholder: "رقم التتبع، مثل TRK-8F3A21",
+    statusLabel: "التصفية حسب الحالة",
+    allStatuses: "كل الحالات",
+    noMatchTitle: "لا توجد شحنات مطابقة",
+    noMatchBody: "جرّب رقم تتبع أو حالة أخرى.",
+    clearFilters: "مسح عوامل التصفية",
   },
 };
 

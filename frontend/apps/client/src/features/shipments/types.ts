@@ -32,4 +32,7 @@ export type PaginatedEnvelope<T> = {
 export type ShipmentFilters = {
   page?: number;
   limit?: number;
+  /** Tracking ID search (partial, case-insensitive). */
+  q?: string;
+  status?: ShipmentStatus;
 };

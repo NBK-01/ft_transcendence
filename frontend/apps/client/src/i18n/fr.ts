@@ -15,6 +15,13 @@ const fr: ClientResources = {
     errorTitle: "Impossible de charger vos expéditions",
     errorBody: "Vérifiez votre connexion et réessayez.",
     retry: "Réessayer",
+    searchLabel: "Rechercher par numéro de suivi",
+    searchPlaceholder: "N° de suivi, ex. TRK-8F3A21",
+    statusLabel: "Filtrer par statut",
+    allStatuses: "Tous les statuts",
+    noMatchTitle: "Aucune expédition ne correspond",
+    noMatchBody: "Essayez un autre numéro de suivi ou un autre statut.",
+    clearFilters: "Effacer les filtres",
   },
 };
 

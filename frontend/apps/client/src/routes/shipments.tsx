@@ -1,4 +1,4 @@
-import { ArrowRight, Package, TriangleAlert } from "lucide-react";
+import { ArrowRight, Package, SearchX, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { EmptyState } from "@trans/ui/blocks/empty-state";
@@ -10,19 +10,23 @@ import { Skeleton } from "@trans/ui/components/skeleton";
 
 import { useShipments } from "../features/shipments/api";
 import { formatAbsolute, formatRelative } from "../features/shipments/format-time";
+import { ShipmentFilters } from "../features/shipments/shipment-filters";
 import type { Shipment } from "../features/shipments/types";
+import { useShipmentFilters } from "../features/shipments/use-shipment-filters";
 
 /** Row on md+, stacked card on phones. Columns: tracking ID, route, status, last update. */
 const ROW = "grid grid-cols-[1fr_auto] gap-x-4 gap-y-2 px-4 py-3 md:grid-cols-[10rem_1fr_11rem_8rem] md:items-center";
 
 export function ShipmentsPage() {
   const { t } = useTranslation(["common", "app"]);
-  const { data, isPending, isError, refetch, isFetching } = useShipments();
+  const { q, status, isFiltered, clear } = useShipmentFilters();
+  const { data, isPending, isError, refetch, isFetching, isPlaceholderData } = useShipments({ q, status });
 
   return (
     <div className="flex flex-col gap-8">
       <title>{`${t("nav.shipments")} · ${t("brand.name")}`}</title>
       <PageHeader title={t("nav.shipments")} description={t("app:pages.shipments")} />
+      <ShipmentFilters />
 
       {isPending ? (
         <ShipmentListSkeleton />
@@ -37,19 +41,34 @@ export function ShipmentsPage() {
             </Button>
           }
         />
+      ) : data.items.length === 0 && isFiltered ? (
+        <EmptyState
+          icon={SearchX}
+          title={t("app:shipments.noMatchTitle")}
+          description={t("app:shipments.noMatchBody")}
+          action={
+            <Button variant="secondary" onClick={clear}>
+              {t("app:shipments.clearFilters")}
+            </Button>
+          }
+        />
       ) : data.items.length === 0 ? (
         <EmptyState icon={Package} title={t("app:shipments.emptyTitle")} description={t("app:shipments.emptyBody")} />
       ) : (
-        <ShipmentList shipments={data.items} />
+        // Previous results stay visible (dimmed) while the new filter loads.
+        <ShipmentList shipments={data.items} stale={isPlaceholderData} />
       )}
     </div>
   );
 }
 
-function ShipmentList({ shipments }: { shipments: Shipment[] }) {
+function ShipmentList({ shipments, stale }: { shipments: Shipment[]; stale: boolean }) {
   const { t } = useTranslation("app");
   return (
-    <Card className="overflow-hidden">
+    <Card
+      aria-busy={stale}
+      className={`overflow-hidden transition-opacity duration-150 ${stale ? "opacity-60" : ""}`}
+    >
       <div
         aria-hidden="true"
         className={`${ROW} hidden border-b border-gray-alpha-400 bg-background-200 py-2 text-label-12 text-gray-900 md:grid`}

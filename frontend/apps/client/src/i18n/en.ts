@@ -14,6 +14,13 @@ const en = {
     errorTitle: "Couldn't load your shipments",
     errorBody: "Check your connection and try again.",
     retry: "Try again",
+    searchLabel: "Search by tracking ID",
+    searchPlaceholder: "Tracking ID, e.g. TRK-8F3A21",
+    statusLabel: "Filter by status",
+    allStatuses: "All statuses",
+    noMatchTitle: "No shipments match",
+    noMatchBody: "Try another tracking ID or status.",
+    clearFilters: "Clear filters",
   },
 };
 

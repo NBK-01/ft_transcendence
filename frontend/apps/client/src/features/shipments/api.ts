@@ -10,13 +10,16 @@ export const shipmentKeys = {
   list: (filters: ShipmentFilters) => [...shipmentKeys.all, "list", filters] as const,
 };
 
-/** GET /shipments — the caller's shipments, newest update first. */
+/** GET /shipments?q=&status= — the caller's shipments, newest update first. */
 export function useShipments(filters: ShipmentFilters = {}) {
-  const { page = 1, limit = 20 } = filters;
+  const { page = 1, limit = 20, q, status } = filters;
   return useQuery({
-    queryKey: shipmentKeys.list({ page, limit }),
+    queryKey: shipmentKeys.list({ page, limit, q, status }),
     queryFn: async ({ signal }) => {
-      const body = await api.get<PaginatedEnvelope<Shipment>>("/shipments", { query: { page, limit }, signal });
+      const body = await api.get<PaginatedEnvelope<Shipment>>("/shipments", {
+        query: { page, limit, q, status },
+        signal,
+      });
       return { items: body.data, meta: body.meta };
     },
     placeholderData: keepPreviousData,
