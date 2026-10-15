@@ -124,6 +124,18 @@ const fr: CommonResources = {
       "Cette section fait partie de la prochaine étape. La mise en page est prête ; les données arriveront avec l'API.",
     backHome: "Retour à la vue d'ensemble",
   },
+  table: {
+    noResults: "Aucun résultat.",
+    errorTitle: "Impossible de charger cette liste",
+    errorBody: "Vérifiez votre connexion et réessayez.",
+    retry: "Réessayer",
+    loading: "Chargement…",
+    rowsPerPage: "Lignes par page",
+    range: "{{from}}–{{to}} sur {{total}}",
+    page: "Page {{page}} sur {{total}}",
+    previousPage: "Page précédente",
+    nextPage: "Page suivante",
+  },
   notFound: {
     title: "Page introuvable",
     body: "La page que vous cherchez n'existe pas ou a été déplacée.",
