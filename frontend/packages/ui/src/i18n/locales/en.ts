@@ -136,6 +136,12 @@ const en = {
     page: "Page {{page}} of {{total}}",
     previousPage: "Previous page",
     nextPage: "Next page",
+    search: "Search…",
+    clearFilters: "Clear filters",
+    clearSelection: "Clear selection",
+    selected: "{{selected}} of {{total}} selected",
+    selectAll: "Select all rows on this page",
+    selectRow: "Select row",
   },
   notFound: {
     title: "Page not found",

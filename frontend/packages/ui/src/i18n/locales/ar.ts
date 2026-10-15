@@ -133,6 +133,12 @@ const ar: CommonResources = {
     page: "الصفحة {{page}} من {{total}}",
     previousPage: "الصفحة السابقة",
     nextPage: "الصفحة التالية",
+    search: "بحث…",
+    clearFilters: "مسح عوامل التصفية",
+    clearSelection: "إلغاء التحديد",
+    selected: "تم تحديد {{selected}} من {{total}}",
+    selectAll: "تحديد كل الصفوف في هذه الصفحة",
+    selectRow: "تحديد الصف",
   },
   notFound: {
     title: "الصفحة غير موجودة",

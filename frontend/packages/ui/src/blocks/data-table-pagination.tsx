@@ -22,10 +22,15 @@ export function DataTablePagination<TData extends RowData>({
   const total = table.getRowCount();
   const from = total === 0 ? 0 : pageIndex * pageSize + 1;
   const to = Math.min((pageIndex + 1) * pageSize, total);
+  const selected = table.getSelectedRowIds().length;
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-1 text-copy-13 text-gray-900">
-      <p className="tabular-nums">{t("table.range", { from, to, total })}</p>
+      <p className="tabular-nums" aria-live="polite">
+        {selected > 0
+          ? t("table.selected", { selected, total: table.getCoreRowModel().rows.length })
+          : t("table.range", { from, to, total })}
+      </p>
 
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
         <div className="flex items-center gap-2">

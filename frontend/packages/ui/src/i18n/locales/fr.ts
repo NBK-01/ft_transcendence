@@ -135,6 +135,12 @@ const fr: CommonResources = {
     page: "Page {{page}} sur {{total}}",
     previousPage: "Page précédente",
     nextPage: "Page suivante",
+    search: "Rechercher…",
+    clearFilters: "Effacer les filtres",
+    clearSelection: "Effacer la sélection",
+    selected: "{{selected}} sur {{total}} sélectionné(s)",
+    selectAll: "Sélectionner toutes les lignes de la page",
+    selectRow: "Sélectionner la ligne",
   },
   notFound: {
     title: "Page introuvable",

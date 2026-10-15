@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Package, Plus } from "lucide-react";
+import { Package, Plus, Trash2 } from "lucide-react";
 
 import { createDataTableColumnHelper, DataTable } from "@trans/ui/blocks/data-table";
 import { DataTableColumnHeader } from "@trans/ui/blocks/data-table-column-header";
 import { EmptyState } from "@trans/ui/blocks/empty-state";
-import { SHIPMENT_STATUSES, StatusBadge, type ShipmentStatus } from "@trans/ui/blocks/status";
+import { SHIPMENT_STATUSES, StatusBadge, StatusDot, type ShipmentStatus } from "@trans/ui/blocks/status";
 import { Button } from "@trans/ui/components/button";
 
 type Shipment = {
@@ -101,3 +101,49 @@ export const Error: Story = {
 };
 
 export const LargePages: Story = { args: { pageSizeOptions: [20, 50, 100] } };
+
+const STATUS_LABELS: Record<ShipmentStatus, string> = {
+  requested: "Requested",
+  confirmed: "Confirmed",
+  in_transit: "In transit",
+  out_for_delivery: "Out for delivery",
+  delivered: "Delivered",
+  cancelled: "Cancelled",
+};
+
+const statusFilter = {
+  column: "status",
+  title: "Status",
+  options: SHIPMENT_STATUSES.map((status) => ({
+    value: status,
+    label: STATUS_LABELS[status],
+    icon: <StatusDot status={status} />,
+  })),
+};
+
+/** Search by tracking ID and filter by status. Each option shows how many rows it would match. */
+export const Filtered: Story = {
+  args: {
+    search: { column: "trackingId", placeholder: "Search tracking ID…" },
+    filters: [statusFilter],
+  },
+};
+
+/** Checkbox column, Shift+click to select a range, and bulk actions while rows are selected. */
+export const WithSelection: Story = {
+  args: {
+    search: { column: "trackingId", placeholder: "Search tracking ID…" },
+    filters: [statusFilter],
+    enableRowSelection: true,
+    selectionActions: (rows, clearSelection) => (
+      <>
+        <Button variant="tertiary" size="sm" onClick={clearSelection}>
+          Clear selection
+        </Button>
+        <Button variant="error" size="sm" prefix={<Trash2 />} onClick={clearSelection}>
+          Cancel {rows.length}
+        </Button>
+      </>
+    ),
+  },
+};
