@@ -13,6 +13,15 @@ export type Shipment = {
   updatedAt: string;
 };
 
+/** One step in a shipment's history (the Timeline tab). */
+export type ShipmentEvent = {
+  status: ShipmentStatus;
+  /** Where it happened, e.g. "Lyon hub". */
+  location: string;
+  /** ISO 8601 timestamp. */
+  occurredAt: string;
+};
+
 /** Backend pagination meta (backend/src/common/dto/paginated-response.dto.ts). */
 export type PaginationMeta = {
   page: number;

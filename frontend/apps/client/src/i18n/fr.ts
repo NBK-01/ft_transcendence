@@ -30,6 +30,10 @@ const fr: ClientResources = {
     notFoundTitle: "Expédition introuvable",
     notFoundBody: "Aucune expédition avec le numéro de suivi {{id}} sur votre compte.",
     detailErrorTitle: "Impossible de charger cette expédition",
+    tabs: { timeline: "Historique" },
+    timelineLabel: "Historique de l'expédition",
+    timelineEmpty: "Aucune mise à jour pour l'instant",
+    timelineErrorTitle: "Impossible de charger l'historique",
   },
 };
 

@@ -2,7 +2,7 @@ import { http, HttpResponse } from "msw/http";
 
 import type { ApiErrorBody } from "@trans/api";
 
-import type { PaginatedEnvelope, Shipment, SuccessEnvelope } from "./types";
+import type { PaginatedEnvelope, Shipment, ShipmentEvent, SuccessEnvelope } from "./types";
 
 /**
  * Mock GET /api/shipments (VITE_API_MOCKS=true), shaped exactly like the
@@ -22,6 +22,46 @@ const SHIPMENTS: Shipment[] = [
   { trackingId: "TRK-9B0C33", origin: "Paris", destination: "Brussels", status: "delivered", updatedAt: minutesAgo(60 * 24 * 3) },
   { trackingId: "TRK-5E2D18", origin: "Sidon", destination: "Byblos", status: "cancelled", updatedAt: minutesAgo(60 * 24 * 9) },
 ];
+
+/** A believable history for a mock shipment, ending at its current status. Newest first. */
+function eventsFor(shipment: Shipment): ShipmentEvent[] {
+  const { origin, destination } = shipment;
+  const steps: Omit<ShipmentEvent, "occurredAt">[] = [
+    { status: "requested", location: origin },
+    { status: "confirmed", location: `${origin} branch` },
+    { status: "in_transit", location: `${origin} hub` },
+    { status: "in_transit", location: `${destination} hub` },
+    { status: "out_for_delivery", location: destination },
+    { status: "delivered", location: destination },
+  ];
+  const history =
+    shipment.status === "cancelled"
+      ? [...steps.slice(0, 2), { status: "cancelled" as const, location: `${origin} branch` }]
+      : steps.slice(0, steps.findLastIndex((step) => step.status === shipment.status) + 1);
+
+  // Last event at updatedAt, each earlier one 5 hours before the next.
+  const last = new Date(shipment.updatedAt).getTime();
+  return history
+    .map((step, index) => ({
+      ...step,
+      occurredAt: new Date(last - (history.length - 1 - index) * 5 * 60 * 60_000).toISOString(),
+    }))
+    .reverse();
+}
+
+const notFound = () =>
+  HttpResponse.json(
+    {
+      statusCode: 404,
+      messages: ["Shipment not found."],
+      timestamp: new Date().toISOString(),
+      traceId: "mock",
+    } satisfies ApiErrorBody,
+    { status: 404 },
+  );
+
+const findShipment = (trackingId: unknown) =>
+  MOCK_EMPTY ? undefined : SHIPMENTS.find((s) => s.trackingId.toLowerCase() === String(trackingId).toLowerCase());
 
 /** VITE_MOCK_EMPTY=true: pretend the user has no shipments, to preview the empty state. */
 const MOCK_EMPTY = import.meta.env.VITE_MOCK_EMPTY === "true";
@@ -50,19 +90,18 @@ export const shipmentHandlers = [
   }),
 
   http.get("*/api/shipments/:trackingId", ({ params }) => {
-    const trackingId = String(params.trackingId).toLowerCase();
-    const shipment = MOCK_EMPTY ? undefined : SHIPMENTS.find((s) => s.trackingId.toLowerCase() === trackingId);
-    if (!shipment) {
-      return HttpResponse.json(
-        {
-          statusCode: 404,
-          messages: ["Shipment not found."],
-          timestamp: new Date().toISOString(),
-          traceId: "mock",
-        } satisfies ApiErrorBody,
-        { status: 404 },
-      );
-    }
+    const shipment = findShipment(params.trackingId);
+    if (!shipment) return notFound();
     return HttpResponse.json({ success: true, statusCode: 200, data: shipment } satisfies SuccessEnvelope<Shipment>);
+  }),
+
+  http.get("*/api/shipments/:trackingId/events", ({ params }) => {
+    const shipment = findShipment(params.trackingId);
+    if (!shipment) return notFound();
+    return HttpResponse.json({
+      success: true,
+      statusCode: 200,
+      data: eventsFor(shipment),
+    } satisfies SuccessEnvelope<ShipmentEvent[]>);
   }),
 ];

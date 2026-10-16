@@ -30,6 +30,10 @@ const ar: ClientResources = {
     notFoundTitle: "الشحنة غير موجودة",
     notFoundBody: "لا توجد شحنة برقم التتبع {{id}} في حسابك.",
     detailErrorTitle: "تعذّر تحميل هذه الشحنة",
+    tabs: { timeline: "المسار الزمني" },
+    timelineLabel: "سجل الشحنة",
+    timelineEmpty: "لا توجد تحديثات بعد",
+    timelineErrorTitle: "تعذّر تحميل المسار الزمني",
   },
 };
 

@@ -7,9 +7,11 @@ import { EmptyState } from "@trans/ui/blocks/empty-state";
 import { StatusBadge } from "@trans/ui/blocks/status";
 import { Button } from "@trans/ui/components/button";
 import { Skeleton } from "@trans/ui/components/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@trans/ui/components/tabs";
 
 import { useShipment } from "../features/shipments/api";
 import { CopyButton } from "../features/shipments/copy-button";
+import { ShipmentTimeline } from "../features/shipments/shipment-timeline";
 import type { Shipment } from "../features/shipments/types";
 
 /** /app/shipment/:id — `id` is the tracking ID. */
@@ -57,7 +59,17 @@ export function ShipmentDetailPage() {
           }
         />
       ) : (
-        <ShipmentHeader shipment={data} />
+        <>
+          <ShipmentHeader shipment={data} />
+          <Tabs defaultValue="timeline">
+            <TabsList>
+              <TabsTrigger value="timeline">{t("app:shipments.tabs.timeline")}</TabsTrigger>
+            </TabsList>
+            <TabsContent value="timeline">
+              <ShipmentTimeline trackingId={data.trackingId} />
+            </TabsContent>
+          </Tabs>
+        </>
       )}
     </div>
   );

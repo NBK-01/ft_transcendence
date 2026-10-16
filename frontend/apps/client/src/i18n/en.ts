@@ -29,6 +29,10 @@ const en = {
     notFoundTitle: "Shipment not found",
     notFoundBody: "No shipment with tracking ID {{id}} on your account.",
     detailErrorTitle: "Couldn't load this shipment",
+    tabs: { timeline: "Timeline" },
+    timelineLabel: "Shipment history",
+    timelineEmpty: "No updates yet",
+    timelineErrorTitle: "Couldn't load the timeline",
   },
 };
 

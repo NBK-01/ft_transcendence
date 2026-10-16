@@ -2,13 +2,14 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { api } from "@trans/api";
 
-import type { PaginatedEnvelope, Shipment, ShipmentFilters, SuccessEnvelope } from "./types";
+import type { PaginatedEnvelope, Shipment, ShipmentEvent, ShipmentFilters, SuccessEnvelope } from "./types";
 
 /** Query keys for shipments. Client-local until admin needs them too. */
 export const shipmentKeys = {
   all: ["shipments"] as const,
   list: (filters: ShipmentFilters) => [...shipmentKeys.all, "list", filters] as const,
   detail: (trackingId: string) => [...shipmentKeys.all, "detail", trackingId] as const,
+  events: (trackingId: string) => [...shipmentKeys.detail(trackingId), "events"] as const,
 };
 
 /** GET /shipments?q=&status= — the caller's shipments, newest update first. */
@@ -35,6 +36,20 @@ export function useShipment(trackingId: string) {
       const body = await api.get<SuccessEnvelope<Shipment>>(`/shipments/${encodeURIComponent(trackingId)}`, {
         signal,
       });
+      return body.data;
+    },
+  });
+}
+
+/** GET /shipments/:trackingId/events — the shipment's history, newest first. */
+export function useShipmentEvents(trackingId: string) {
+  return useQuery({
+    queryKey: shipmentKeys.events(trackingId),
+    queryFn: async ({ signal }) => {
+      const body = await api.get<SuccessEnvelope<ShipmentEvent[]>>(
+        `/shipments/${encodeURIComponent(trackingId)}/events`,
+        { signal },
+      );
       return body.data;
     },
   });
