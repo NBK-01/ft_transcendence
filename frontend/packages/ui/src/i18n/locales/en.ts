@@ -18,6 +18,10 @@ const en = {
     copy: "Copy",
     copied: "Copied",
   },
+  confirmDelete: {
+    typeToConfirm: "Type <value>{{value}}</value> to confirm",
+    error: "Couldn't delete. Try again.",
+  },
   status: {
     requested: "Requested",
     confirmed: "Confirmed",

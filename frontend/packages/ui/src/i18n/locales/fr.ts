@@ -15,6 +15,10 @@ const fr: CommonResources = {
     copy: "Copier",
     copied: "Copié",
   },
+  confirmDelete: {
+    typeToConfirm: "Saisissez <value>{{value}}</value> pour confirmer",
+    error: "Échec de la suppression. Réessayez.",
+  },
   status: {
     requested: "Demandée",
     confirmed: "Confirmée",
