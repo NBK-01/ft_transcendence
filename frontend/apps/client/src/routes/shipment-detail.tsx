@@ -4,16 +4,17 @@ import { Link, useParams } from "react-router";
 
 import { isApiError } from "@trans/api";
 import { EmptyState } from "@trans/ui/blocks/empty-state";
-import { StatusBadge } from "@trans/ui/blocks/status";
 import { Button } from "@trans/ui/components/button";
 import { Skeleton } from "@trans/ui/components/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@trans/ui/components/tabs";
 
 import { useShipment } from "../features/shipments/api";
 import { CopyButton } from "../features/shipments/copy-button";
+import { OrderStagePanel } from "../features/shipments/order-stage-panel";
 import { ShipmentDetails } from "../features/shipments/shipment-details";
 import { ShipmentFiles } from "../features/shipments/shipment-files";
 import { ShipmentTimeline } from "../features/shipments/shipment-timeline";
+import { ShipmentStateBadge } from "../features/shipments/state-badge";
 import type { Shipment } from "../features/shipments/types";
 
 /** /app/shipment/:id — `id` is the tracking ID. */
@@ -63,6 +64,7 @@ export function ShipmentDetailPage() {
       ) : (
         <>
           <ShipmentHeader shipment={data} />
+          <OrderStagePanel shipment={data} />
           <Tabs defaultValue="timeline">
             <TabsList>
               <TabsTrigger value="timeline">{t("app:shipments.tabs.timeline")}</TabsTrigger>
@@ -97,7 +99,7 @@ function ShipmentHeader({ shipment }: { shipment: Shipment }) {
           <CopyButton value={shipment.trackingId} label={t("shipments.copyTrackingId")} />
         </div>
       </div>
-      <StatusBadge status={shipment.status} size="lg" className="w-fit" />
+      <ShipmentStateBadge status={shipment.status} size="lg" className="w-fit" />
     </header>
   );
 }

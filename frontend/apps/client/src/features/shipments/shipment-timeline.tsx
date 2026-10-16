@@ -2,13 +2,14 @@ import { History, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { EmptyState } from "@trans/ui/blocks/empty-state";
-import { StatusDot } from "@trans/ui/blocks/status";
 import { Button } from "@trans/ui/components/button";
 import { Skeleton } from "@trans/ui/components/skeleton";
 import { cn } from "@trans/ui/lib/utils";
 
 import { useShipmentEvents } from "./api";
 import { formatAbsolute } from "./format-time";
+import { stateLabelKey } from "./stages";
+import { ShipmentStateDot } from "./state-badge";
 
 /** Same frame as the tracking card on the sign-in panel (AuthLayout). */
 const CARD = "w-full max-w-2xl rounded-xl border border-gray-alpha-400 bg-background-100";
@@ -55,7 +56,7 @@ export function ShipmentTimeline({ trackingId }: { trackingId: string }) {
               )}
               <span className="pt-1.5">
                 {latest ? (
-                  <StatusDot status={event.status} />
+                  <ShipmentStateDot status={event.status} />
                 ) : (
                   <span aria-hidden="true" className="block size-2 rounded-full bg-gray-alpha-600" />
                 )}
@@ -63,7 +64,7 @@ export function ShipmentTimeline({ trackingId }: { trackingId: string }) {
               <div className="flex min-w-0 flex-1 items-baseline justify-between gap-3">
                 <div className="flex min-w-0 flex-col">
                   <span className={cn("text-label-14", latest ? "font-medium text-gray-1000" : "text-gray-900")}>
-                    {t(`status.${event.status}`)}
+                    {t(stateLabelKey(event.status))}
                   </span>
                   <span className="truncate text-label-13 text-gray-900">{event.location}</span>
                 </div>

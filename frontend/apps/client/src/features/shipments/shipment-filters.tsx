@@ -2,15 +2,27 @@ import { Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { SHIPMENT_STATUSES, StatusDot, type ShipmentStatus } from "@trans/ui/blocks/status";
+import { SHIPMENT_STATUSES } from "@trans/ui/blocks/status";
 import { Input } from "@trans/ui/components/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@trans/ui/components/select";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@trans/ui/components/select";
 
+import { ORDER_STAGES, stateLabelKey, type ShipmentState } from "./stages";
+import { ShipmentStateDot } from "./state-badge";
 import { useShipmentFilters } from "./use-shipment-filters";
 
 /** Radix Select can't use "" as a value, so "all" stands for "no status filter". */
 const ALL = "all";
 const SEARCH_DELAY_MS = 300;
+/** "requested" is replaced by pending_sourcing in the order flow, so it isn't offered. */
+const TRACKING_STATUSES = SHIPMENT_STATUSES.filter((status) => status !== "requested");
 
 export function ShipmentFilters() {
   const { t } = useTranslation(["common", "app"]);
@@ -53,23 +65,39 @@ export function ShipmentFilters() {
 
       <Select
         value={status ?? ALL}
-        onValueChange={(value) => update({ status: value === ALL ? null : (value as ShipmentStatus) })}
+        onValueChange={(value) => update({ status: value === ALL ? null : (value as ShipmentState) })}
       >
-        <SelectTrigger aria-label={t("app:shipments.statusLabel")} className="sm:w-52">
+        <SelectTrigger aria-label={t("app:shipments.statusLabel")} className="sm:w-64">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={ALL}>{t("app:shipments.allStatuses")}</SelectItem>
-          {SHIPMENT_STATUSES.map((value) => (
-            <SelectItem key={value} value={value}>
-              <span className="flex items-center gap-2">
-                <StatusDot status={value} />
-                {t(`status.${value}`)}
-              </span>
-            </SelectItem>
-          ))}
+          <SelectGroup>
+            <SelectLabel>{t("app:shipments.filterGroups.order")}</SelectLabel>
+            {ORDER_STAGES.map((value) => (
+              <StateOption key={value} value={value} />
+            ))}
+          </SelectGroup>
+          <SelectGroup>
+            <SelectLabel>{t("app:shipments.filterGroups.tracking")}</SelectLabel>
+            {TRACKING_STATUSES.map((value) => (
+              <StateOption key={value} value={value} />
+            ))}
+          </SelectGroup>
         </SelectContent>
       </Select>
     </div>
+  );
+}
+
+function StateOption({ value }: { value: ShipmentState }) {
+  const { t } = useTranslation();
+  return (
+    <SelectItem value={value}>
+      <span className="flex items-center gap-2">
+        <ShipmentStateDot status={value} />
+        {t(stateLabelKey(value))}
+      </span>
+    </SelectItem>
   );
 }

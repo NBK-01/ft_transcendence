@@ -1,10 +1,7 @@
 import { useCallback } from "react";
 import { useSearchParams } from "react-router";
 
-import { SHIPMENT_STATUSES, type ShipmentStatus } from "@trans/ui/blocks/status";
-
-const isStatus = (value: string | null): value is ShipmentStatus =>
-  SHIPMENT_STATUSES.includes(value as ShipmentStatus);
+import { isShipmentState, type ShipmentState } from "./stages";
 
 /**
  * Search + status filter, stored in the URL (?q=…&status=…) so a filtered
@@ -16,10 +13,10 @@ export function useShipmentFilters() {
 
   const q = params.get("q")?.trim() ?? "";
   const rawStatus = params.get("status");
-  const status = isStatus(rawStatus) ? rawStatus : undefined;
+  const status = isShipmentState(rawStatus) ? rawStatus : undefined;
 
   const update = useCallback(
-    (next: { q?: string; status?: ShipmentStatus | null }) => {
+    (next: { q?: string; status?: ShipmentState | null }) => {
       setParams(
         (current) => {
           const updated = new URLSearchParams(current);

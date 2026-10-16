@@ -4,7 +4,6 @@ import { Link } from "react-router";
 
 import { EmptyState } from "@trans/ui/blocks/empty-state";
 import { PageHeader } from "@trans/ui/blocks/page-header";
-import { StatusBadge } from "@trans/ui/blocks/status";
 import { Button } from "@trans/ui/components/button";
 import { Card } from "@trans/ui/components/card";
 import { Skeleton } from "@trans/ui/components/skeleton";
@@ -12,6 +11,7 @@ import { Skeleton } from "@trans/ui/components/skeleton";
 import { useShipments } from "../features/shipments/api";
 import { formatAbsolute, formatRelative } from "../features/shipments/format-time";
 import { ShipmentFilters } from "../features/shipments/shipment-filters";
+import { ShipmentStateBadge } from "../features/shipments/state-badge";
 import type { Shipment } from "../features/shipments/types";
 import { useShipmentFilters } from "../features/shipments/use-shipment-filters";
 
@@ -77,9 +77,11 @@ export function ShipmentsPage() {
 function NewShipmentButton() {
   const { t } = useTranslation("app");
   return (
-    // TODO: link to the create-shipment page once it exists.
-    <Button variant="accent" prefix={<Plus aria-hidden="true" />}>
-      {t("shipments.newShipment")}
+    <Button variant="accent" asChild>
+      <Link to="/app/shipment/new">
+        <Plus aria-hidden="true" />
+        {t("shipments.newShipment")}
+      </Link>
     </Button>
   );
 }
@@ -128,13 +130,19 @@ function ShipmentRow({ shipment }: { shipment: Shipment }) {
 
         <span className="order-last flex min-w-0 items-center gap-2 text-copy-14 md:order-none">
           <span className="sr-only">{t("shipments.columns.route")}: </span>
-          <span className="truncate">{shipment.origin}</span>
-          <ArrowRight aria-hidden="true" className="size-3.5 shrink-0 text-gray-900 rtl:rotate-180" />
-          <span className="truncate">{shipment.destination}</span>
+          {shipment.origin && shipment.destination ? (
+            <>
+              <span className="truncate">{shipment.origin}</span>
+              <ArrowRight aria-hidden="true" className="size-3.5 shrink-0 text-gray-900 rtl:rotate-180" />
+              <span className="truncate">{shipment.destination}</span>
+            </>
+          ) : (
+            <span className="truncate text-gray-900">{t("shipments.routeUnknown")}</span>
+          )}
         </span>
 
         <span className="justify-self-end md:justify-self-start">
-          <StatusBadge status={shipment.status} size="sm" />
+          <ShipmentStateBadge status={shipment.status} size="sm" />
         </span>
 
         <time
