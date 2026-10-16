@@ -140,6 +140,9 @@ const ar: CommonResources = {
     selectAll: "تحديد كل الصفوف في هذه الصفحة",
     selectRow: "تحديد الصف",
   },
+  stat: {
+    vsPrevious: "مقارنة بالفترة السابقة",
+  },
   notFound: {
     title: "الصفحة غير موجودة",
     body: "الصفحة التي تبحث عنها غير موجودة أو تم نقلها.",

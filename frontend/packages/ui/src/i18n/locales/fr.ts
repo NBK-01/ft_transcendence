@@ -142,6 +142,9 @@ const fr: CommonResources = {
     selectAll: "Sélectionner toutes les lignes de la page",
     selectRow: "Sélectionner la ligne",
   },
+  stat: {
+    vsPrevious: "par rapport à la période précédente",
+  },
   notFound: {
     title: "Page introuvable",
     body: "La page que vous cherchez n'existe pas ou a été déplacée.",
