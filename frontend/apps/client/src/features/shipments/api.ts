@@ -2,7 +2,15 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { api } from "@trans/api";
 
-import type { PaginatedEnvelope, Shipment, ShipmentEvent, ShipmentFilters, SuccessEnvelope } from "./types";
+import type {
+  PaginatedEnvelope,
+  Shipment,
+  ShipmentDetail,
+  ShipmentEvent,
+  ShipmentFile,
+  ShipmentFilters,
+  SuccessEnvelope,
+} from "./types";
 
 /** Query keys for shipments. Client-local until admin needs them too. */
 export const shipmentKeys = {
@@ -10,6 +18,7 @@ export const shipmentKeys = {
   list: (filters: ShipmentFilters) => [...shipmentKeys.all, "list", filters] as const,
   detail: (trackingId: string) => [...shipmentKeys.all, "detail", trackingId] as const,
   events: (trackingId: string) => [...shipmentKeys.detail(trackingId), "events"] as const,
+  files: (trackingId: string) => [...shipmentKeys.detail(trackingId), "files"] as const,
 };
 
 /** GET /shipments?q=&status= — the caller's shipments, newest update first. */
@@ -28,12 +37,12 @@ export function useShipments(filters: ShipmentFilters = {}) {
   });
 }
 
-/** GET /shipments/:trackingId — one shipment. A 404 means it doesn't exist (or isn't the caller's). */
+/** GET /shipments/:trackingId — one shipment with its details. A 404 means it doesn't exist (or isn't the caller's). */
 export function useShipment(trackingId: string) {
   return useQuery({
     queryKey: shipmentKeys.detail(trackingId),
     queryFn: async ({ signal }) => {
-      const body = await api.get<SuccessEnvelope<Shipment>>(`/shipments/${encodeURIComponent(trackingId)}`, {
+      const body = await api.get<SuccessEnvelope<ShipmentDetail>>(`/shipments/${encodeURIComponent(trackingId)}`, {
         signal,
       });
       return body.data;
@@ -48,6 +57,20 @@ export function useShipmentEvents(trackingId: string) {
     queryFn: async ({ signal }) => {
       const body = await api.get<SuccessEnvelope<ShipmentEvent[]>>(
         `/shipments/${encodeURIComponent(trackingId)}/events`,
+        { signal },
+      );
+      return body.data;
+    },
+  });
+}
+
+/** GET /shipments/:trackingId/files — photos, proof of delivery and other attachments, newest first. */
+export function useShipmentFiles(trackingId: string) {
+  return useQuery({
+    queryKey: shipmentKeys.files(trackingId),
+    queryFn: async ({ signal }) => {
+      const body = await api.get<SuccessEnvelope<ShipmentFile[]>>(
+        `/shipments/${encodeURIComponent(trackingId)}/files`,
         { signal },
       );
       return body.data;

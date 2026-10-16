@@ -11,6 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@trans/ui/components/t
 
 import { useShipment } from "../features/shipments/api";
 import { CopyButton } from "../features/shipments/copy-button";
+import { ShipmentDetails } from "../features/shipments/shipment-details";
+import { ShipmentFiles } from "../features/shipments/shipment-files";
 import { ShipmentTimeline } from "../features/shipments/shipment-timeline";
 import type { Shipment } from "../features/shipments/types";
 
@@ -64,9 +66,17 @@ export function ShipmentDetailPage() {
           <Tabs defaultValue="timeline">
             <TabsList>
               <TabsTrigger value="timeline">{t("app:shipments.tabs.timeline")}</TabsTrigger>
+              <TabsTrigger value="details">{t("app:shipments.tabs.details")}</TabsTrigger>
+              <TabsTrigger value="files">{t("app:shipments.tabs.files")}</TabsTrigger>
             </TabsList>
             <TabsContent value="timeline">
               <ShipmentTimeline trackingId={data.trackingId} />
+            </TabsContent>
+            <TabsContent value="details">
+              <ShipmentDetails shipment={data} />
+            </TabsContent>
+            <TabsContent value="files">
+              <ShipmentFiles trackingId={data.trackingId} />
             </TabsContent>
           </Tabs>
         </>
