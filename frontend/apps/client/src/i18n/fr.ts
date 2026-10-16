@@ -23,6 +23,13 @@ const fr: ClientResources = {
     noMatchTitle: "Aucune expédition ne correspond",
     noMatchBody: "Essayez un autre numéro de suivi ou un autre statut.",
     clearFilters: "Effacer les filtres",
+    backToList: "Toutes les expéditions",
+    eyebrow: "Expédition",
+    copyTrackingId: "Copier le numéro de suivi",
+    copyFailed: "Copie impossible. Sélectionnez le numéro de suivi et copiez-le manuellement.",
+    notFoundTitle: "Expédition introuvable",
+    notFoundBody: "Aucune expédition avec le numéro de suivi {{id}} sur votre compte.",
+    detailErrorTitle: "Impossible de charger cette expédition",
   },
 };
 

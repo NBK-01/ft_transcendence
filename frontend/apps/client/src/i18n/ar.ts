@@ -23,6 +23,13 @@ const ar: ClientResources = {
     noMatchTitle: "لا توجد شحنات مطابقة",
     noMatchBody: "جرّب رقم تتبع أو حالة أخرى.",
     clearFilters: "مسح عوامل التصفية",
+    backToList: "كل الشحنات",
+    eyebrow: "شحنة",
+    copyTrackingId: "نسخ رقم التتبع",
+    copyFailed: "تعذّر النسخ. حدّد رقم التتبع وانسخه يدويًا.",
+    notFoundTitle: "الشحنة غير موجودة",
+    notFoundBody: "لا توجد شحنة برقم التتبع {{id}} في حسابك.",
+    detailErrorTitle: "تعذّر تحميل هذه الشحنة",
   },
 };
 

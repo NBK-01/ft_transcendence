@@ -1,5 +1,6 @@
 import { ArrowRight, Package, Plus, SearchX, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router";
 
 import { EmptyState } from "@trans/ui/blocks/empty-state";
 import { PageHeader } from "@trans/ui/blocks/page-header";
@@ -21,11 +22,17 @@ export function ShipmentsPage() {
   const { t } = useTranslation(["common", "app"]);
   const { q, status, isFiltered, clear } = useShipmentFilters();
   const { data, isPending, isError, refetch, isFetching, isPlaceholderData } = useShipments({ q, status });
+  // The empty state has its own big New shipment button; don't show two.
+  const isEmpty = !isPending && !isError && data.items.length === 0 && !isFiltered;
 
   return (
     <div className="flex flex-col gap-8">
       <title>{`${t("nav.shipments")} · ${t("brand.name")}`}</title>
-      <PageHeader title={t("nav.shipments")} description={t("app:pages.shipments")} />
+      <PageHeader
+        title={t("nav.shipments")}
+        description={t("app:pages.shipments")}
+        actions={isEmpty ? undefined : <NewShipmentButton />}
+      />
       <ShipmentFilters />
 
       {isPending ? (
@@ -57,18 +64,23 @@ export function ShipmentsPage() {
           icon={Package}
           title={t("app:shipments.emptyTitle")}
           description={t("app:shipments.emptyBody")}
-          action={
-            // TODO: link to the create-shipment page once it exists.
-            <Button variant="accent" prefix={<Plus aria-hidden="true" />}>
-              {t("app:shipments.newShipment")}
-            </Button>
-          }
+          action={<NewShipmentButton />}
         />
       ) : (
         // Previous results stay visible (dimmed) while the new filter loads.
         <ShipmentList shipments={data.items} stale={isPlaceholderData} />
       )}
     </div>
+  );
+}
+
+function NewShipmentButton() {
+  const { t } = useTranslation("app");
+  return (
+    // TODO: link to the create-shipment page once it exists.
+    <Button variant="accent" prefix={<Plus aria-hidden="true" />}>
+      {t("shipments.newShipment")}
+    </Button>
   );
 }
 
@@ -107,27 +119,32 @@ function ShipmentList({ shipments, stale }: { shipments: Shipment[]; stale: bool
 function ShipmentRow({ shipment }: { shipment: Shipment }) {
   const { t, i18n } = useTranslation("app");
   return (
-    <li className={ROW}>
-      <span className="text-label-mono-14 text-gray-1000">{shipment.trackingId}</span>
-
-      <span className="order-last flex min-w-0 items-center gap-2 text-copy-14 md:order-none">
-        <span className="sr-only">{t("shipments.columns.route")}: </span>
-        <span className="truncate">{shipment.origin}</span>
-        <ArrowRight aria-hidden="true" className="size-3.5 shrink-0 text-gray-900 rtl:rotate-180" />
-        <span className="truncate">{shipment.destination}</span>
-      </span>
-
-      <span className="justify-self-end md:justify-self-start">
-        <StatusBadge status={shipment.status} size="sm" />
-      </span>
-
-      <time
-        dateTime={shipment.updatedAt}
-        title={formatAbsolute(shipment.updatedAt, i18n.language)}
-        className="order-last text-end text-copy-13 text-gray-900 md:order-none"
+    <li>
+      <Link
+        to={`/app/shipment/${encodeURIComponent(shipment.trackingId)}`}
+        className={`${ROW} focus-ring transition-colors hover:bg-gray-alpha-100`}
       >
-        {formatRelative(shipment.updatedAt, i18n.language)}
-      </time>
+        <span className="text-label-mono-14 text-gray-1000">{shipment.trackingId}</span>
+
+        <span className="order-last flex min-w-0 items-center gap-2 text-copy-14 md:order-none">
+          <span className="sr-only">{t("shipments.columns.route")}: </span>
+          <span className="truncate">{shipment.origin}</span>
+          <ArrowRight aria-hidden="true" className="size-3.5 shrink-0 text-gray-900 rtl:rotate-180" />
+          <span className="truncate">{shipment.destination}</span>
+        </span>
+
+        <span className="justify-self-end md:justify-self-start">
+          <StatusBadge status={shipment.status} size="sm" />
+        </span>
+
+        <time
+          dateTime={shipment.updatedAt}
+          title={formatAbsolute(shipment.updatedAt, i18n.language)}
+          className="order-last text-end text-copy-13 text-gray-900 md:order-none"
+        >
+          {formatRelative(shipment.updatedAt, i18n.language)}
+        </time>
+      </Link>
     </li>
   );
 }

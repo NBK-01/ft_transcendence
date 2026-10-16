@@ -1,6 +1,8 @@
 import { http, HttpResponse } from "msw/http";
 
-import type { PaginatedEnvelope, Shipment } from "./types";
+import type { ApiErrorBody } from "@trans/api";
+
+import type { PaginatedEnvelope, Shipment, SuccessEnvelope } from "./types";
 
 /**
  * Mock GET /api/shipments (VITE_API_MOCKS=true), shaped exactly like the
@@ -45,5 +47,22 @@ export const shipmentHandlers = [
       data: items,
       meta: { page, limit, totalItems: sorted.length, totalPages: Math.max(1, Math.ceil(sorted.length / limit)) },
     } satisfies PaginatedEnvelope<Shipment>);
+  }),
+
+  http.get("*/api/shipments/:trackingId", ({ params }) => {
+    const trackingId = String(params.trackingId).toLowerCase();
+    const shipment = MOCK_EMPTY ? undefined : SHIPMENTS.find((s) => s.trackingId.toLowerCase() === trackingId);
+    if (!shipment) {
+      return HttpResponse.json(
+        {
+          statusCode: 404,
+          messages: ["Shipment not found."],
+          timestamp: new Date().toISOString(),
+          traceId: "mock",
+        } satisfies ApiErrorBody,
+        { status: 404 },
+      );
+    }
+    return HttpResponse.json({ success: true, statusCode: 200, data: shipment } satisfies SuccessEnvelope<Shipment>);
   }),
 ];

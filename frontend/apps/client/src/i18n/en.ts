@@ -22,6 +22,13 @@ const en = {
     noMatchTitle: "No shipments match",
     noMatchBody: "Try another tracking ID or status.",
     clearFilters: "Clear filters",
+    backToList: "All shipments",
+    eyebrow: "Shipment",
+    copyTrackingId: "Copy tracking ID",
+    copyFailed: "Couldn't copy. Select the tracking ID and copy it manually.",
+    notFoundTitle: "Shipment not found",
+    notFoundBody: "No shipment with tracking ID {{id}} on your account.",
+    detailErrorTitle: "Couldn't load this shipment",
   },
 };
 

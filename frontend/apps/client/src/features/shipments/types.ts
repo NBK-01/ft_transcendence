@@ -21,6 +21,13 @@ export type PaginationMeta = {
   totalPages: number;
 };
 
+/** What ResponseInterceptor sends for a single resource. */
+export type SuccessEnvelope<T> = {
+  success: true;
+  statusCode: number;
+  data: T;
+};
+
 /** What ResponseInterceptor sends for a paginated list endpoint. */
 export type PaginatedEnvelope<T> = {
   success: true;
