@@ -17,4 +17,16 @@ export const keys = {
     all: ["users"] as const,
     list: () => [...keys.users.all, "list"] as const,
   },
+  internalUsers: {
+    all: ["internal-users"] as const,
+    list: () => [...keys.internalUsers.all, "list"] as const,
+    detail: (id: string) => [...keys.internalUsers.all, "detail", id] as const,
+  },
+  roles: {
+    all: ["roles"] as const,
+  },
+  organizations: {
+    all: ["organizations"] as const,
+    list: () => [...keys.organizations.all, "list"] as const,
+  },
 };
