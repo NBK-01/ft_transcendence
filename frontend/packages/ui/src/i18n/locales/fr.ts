@@ -14,6 +14,7 @@ const fr: CommonResources = {
     save: "Enregistrer",
     copy: "Copier",
     copied: "Copié",
+    copyFailed: "Copie impossible. Sélectionnez le texte et copiez-le manuellement.",
   },
   confirmDelete: {
     typeToConfirm: "Saisissez <value>{{value}}</value> pour confirmer",
@@ -26,6 +27,13 @@ const fr: CommonResources = {
     out_for_delivery: "En cours de livraison",
     delivered: "Livrée",
     cancelled: "Annulée",
+    pending_sourcing: "Recherche fournisseur",
+    pending_client_decision: "En attente de décision",
+    pending_payment: "Paiement en attente",
+    pending_payment_confirmation: "Paiement en vérification",
+  },
+  timeline: {
+    label: "Historique de l'expédition",
   },
   nav: {
     main: "Navigation principale",
