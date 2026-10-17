@@ -56,3 +56,21 @@ export function useUpdateInternalUser() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.internalUsers.all }),
   });
 }
+
+/**
+ * Deactivate or reactivate one or more accounts (PATCH isActive). There's no bulk
+ * endpoint, so it's one request per user; the result says how many failed.
+ */
+export function useSetStaffActive() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ids, isActive }: { ids: string[]; isActive: boolean }) => {
+      const results = await Promise.allSettled(
+        ids.map((id) => api.patch<InternalUser>(`/internal-users/${encodeURIComponent(id)}`, { isActive })),
+      );
+      const failed = results.filter((result) => result.status === "rejected").length;
+      return { updated: ids.length - failed, failed };
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: keys.internalUsers.all }),
+  });
+}

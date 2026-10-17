@@ -1,8 +1,9 @@
-import { MoreHorizontal, Pencil, Plus, Users as UsersIcon } from "lucide-react";
+import { MoreHorizontal, Pencil, Plus, UserCheck, UserX, Users as UsersIcon } from "lucide-react";
 import { useCallback, useMemo, useRef, useState, type FocusEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { InternalUser, Organization } from "@trans/api";
+import { ConfirmDelete } from "@trans/ui/blocks/confirm-delete";
 import { createDataTableColumnHelper, DataTable } from "@trans/ui/blocks/data-table";
 import { DataTableColumnHeader } from "@trans/ui/blocks/data-table-column-header";
 import { EmptyState } from "@trans/ui/blocks/empty-state";
@@ -14,10 +15,12 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@trans/ui/components/dropdown-menu";
+import { toast } from "@trans/ui/components/toaster";
 
-import { useInternalUsers, useOrganizations, useRoles } from "../features/users/api";
+import { useInternalUsers, useOrganizations, useRoles, useSetStaffActive } from "../features/users/api";
 import { UserFormDialog } from "../features/users/user-form-dialog";
 
 const NO_ROLE = "none";
@@ -45,6 +48,31 @@ export function UsersPage() {
   const rememberFocus = useCallback((event: FocusEvent<HTMLElement>) => {
     returnFocusRef.current = event.currentTarget;
   }, []);
+
+  // mutateAsync is stable, so it can sit in the columns' dependencies.
+  const { mutateAsync: setStaffActive } = useSetStaffActive();
+  const [deactivateOpen, setDeactivateOpen] = useState(false);
+  const [deactivating, setDeactivating] = useState<InternalUser | null>(null);
+  const askDeactivate = useCallback((user: InternalUser) => {
+    setDeactivating(user);
+    setDeactivateOpen(true);
+  }, []);
+
+  /** Throws when the request fails, so ConfirmDelete keeps the dialog open with its error. */
+  const deactivate = async (user: InternalUser) => {
+    const { failed } = await setStaffActive({ ids: [user.id], isActive: false });
+    if (failed) throw new Error("deactivate failed");
+    toast.success(t("app:users.deactivated", { name: user.name }));
+  };
+
+  const reactivate = useCallback(
+    async (user: InternalUser) => {
+      const { failed } = await setStaffActive({ ids: [user.id], isActive: true });
+      if (failed) toast.error(t("app:users.statusError"));
+      else toast.success(t("app:users.reactivated", { name: user.name }));
+    },
+    [setStaffActive, t],
+  );
 
   const branchName = useMemo(() => {
     const names = new Map((organizations.data ?? []).map((org: Organization) => [org.id, org.name]));
@@ -125,6 +153,18 @@ export function UsersPage() {
                 <Pencil aria-hidden="true" />
                 {t("app:users.edit")}
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {row.original.isActive ? (
+                <DropdownMenuItem variant="destructive" onSelect={() => askDeactivate(row.original)}>
+                  <UserX aria-hidden="true" />
+                  {t("app:users.deactivate")}
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onSelect={() => void reactivate(row.original)}>
+                  <UserCheck aria-hidden="true" />
+                  {t("app:users.reactivate")}
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         ),
@@ -132,7 +172,7 @@ export function UsersPage() {
         meta: { align: "end", className: "w-12" },
       }),
     ]);
-  }, [t, i18n.language, branchName, roleLabel, openDialog, rememberFocus]);
+  }, [t, i18n.language, branchName, roleLabel, openDialog, rememberFocus, askDeactivate, reactivate]);
 
   const filters = useMemo(
     () => [
@@ -192,6 +232,10 @@ export function UsersPage() {
           <EmptyState icon={UsersIcon} title={t("app:users.emptyTitle")} description={t("app:users.emptyBody")} />
         }
         pageSizeOptions={[20, 50, 100]}
+        enableRowSelection
+        selectionActions={(selected, clearSelection) => (
+          <BulkStatusActions users={selected} onDone={clearSelection} />
+        )}
       />
       <UserFormDialog
         open={dialogOpen}
@@ -199,6 +243,60 @@ export function UsersPage() {
         user={editing}
         returnFocusTo={returnFocusRef}
       />
+      <ConfirmDelete
+        open={deactivateOpen}
+        onOpenChange={setDeactivateOpen}
+        title={t("app:users.deactivateTitle", { name: deactivating?.name ?? "" })}
+        description={t("app:users.deactivateBody")}
+        actionLabel={t("app:users.deactivate")}
+        errorText={t("app:users.statusError")}
+        onConfirm={() => (deactivating ? deactivate(deactivating) : undefined)}
+        returnFocusTo={returnFocusRef}
+      />
     </div>
+  );
+}
+
+/** Toolbar actions while rows are selected. Each button only counts the rows it would change. */
+function BulkStatusActions({ users, onDone }: { users: InternalUser[]; onDone: () => void }) {
+  const { t } = useTranslation("app");
+  const { mutateAsync: setStaffActive, isPending } = useSetStaffActive();
+  const active = users.filter((user) => user.isActive);
+  const inactive = users.filter((user) => !user.isActive);
+
+  const run = async (targets: InternalUser[], isActive: boolean) => {
+    const { updated, failed } = await setStaffActive({ ids: targets.map((user) => user.id), isActive });
+    if (failed) toast.error(t("users.bulkFailed", { count: failed }));
+    else toast.success(t("users.bulkUpdated", { count: updated }));
+    onDone();
+  };
+
+  return (
+    <>
+      {inactive.length > 0 && (
+        <Button
+          variant="secondary"
+          size="sm"
+          prefix={<UserCheck />}
+          loading={isPending}
+          onClick={() => void run(inactive, true)}
+        >
+          {t("users.bulkReactivate", { count: inactive.length })}
+        </Button>
+      )}
+      {active.length > 0 && (
+        <ConfirmDelete
+          trigger={
+            <Button variant="error" size="sm" prefix={<UserX />} disabled={isPending}>
+              {t("users.bulkDeactivate", { count: active.length })}
+            </Button>
+          }
+          title={t("users.bulkDeactivateTitle")}
+          description={t("users.bulkDeactivateBody", { count: active.length })}
+          actionLabel={t("users.deactivate")}
+          onConfirm={() => run(active, false)}
+        />
+      )}
+    </>
   );
 }
