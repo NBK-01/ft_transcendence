@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 import { api, configureApi } from "./client";
 import { ApiError } from "./errors";
-import { handlers } from "./mocks/handlers";
+import { handlers, ok, paginated } from "./mocks/handlers";
 import { tokens } from "./session";
 import type { User } from "./types";
 
@@ -108,6 +108,43 @@ describe("api client", () => {
     server.use(http.get("*/api/down", () => HttpResponse.error()));
 
     await expect(api.get("/down", { auth: false })).rejects.toMatchObject({ kind: "network", status: 0 });
+  });
+
+  it("unwraps the backend's success envelope", async () => {
+    server.use(http.get("*/api/thing", () => ok({ id: "t1", name: "Thing" })));
+
+    await expect(api.get("/thing", { auth: false })).resolves.toEqual({ id: "t1", name: "Thing" });
+  });
+
+  it("unwraps POST responses with their real status code", async () => {
+    server.use(http.post("*/api/things", () => ok({ id: "t2" }, 201)));
+
+    await expect(api.post("/things", { name: "New" }, { auth: false })).resolves.toEqual({ id: "t2" });
+  });
+
+  it("passes non-enveloped bodies through unchanged", async () => {
+    server.use(http.get("*/api/plain", () => HttpResponse.json({ success: false, data: 1 })));
+
+    await expect(api.get("/plain", { auth: false })).resolves.toEqual({ success: false, data: 1 });
+  });
+
+  it("getPage returns the items and pagination meta", async () => {
+    const all = Array.from({ length: 45 }, (_, index) => ({ id: index + 1 }));
+    server.use(http.get("*/api/list", () => paginated(all, 3, 20)));
+
+    const page = await api.getPage<{ id: number }>("/list", { auth: false });
+
+    expect(page.items.map((item) => item.id)).toEqual([41, 42, 43, 44, 45]);
+    expect(page.meta).toEqual({ page: 3, limit: 20, totalItems: 45, totalPages: 3 });
+  });
+
+  it("getPage treats an unpaginated list as a single page", async () => {
+    server.use(http.get("*/api/all", () => ok([{ id: 1 }, { id: 2 }])));
+
+    const page = await api.getPage<{ id: number }>("/all", { auth: false });
+
+    expect(page.items).toHaveLength(2);
+    expect(page.meta).toEqual({ page: 1, limit: 2, totalItems: 2, totalPages: 1 });
   });
 
   it("drops empty query params", async () => {
