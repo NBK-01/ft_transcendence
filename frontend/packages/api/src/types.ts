@@ -76,6 +76,23 @@ export type InternalUser = {
   updatedAt: string;
 };
 
+/** POST /internal-users body (backend CreateInternalUserDto). */
+export type CreateInternalUserInput = {
+  email: string;
+  password: string;
+  name: string;
+  roleName: string;
+  organizationId?: string;
+};
+
+/** PATCH /internal-users/:id body (backend UpdateInternalUserDto). Email and password can't change here. */
+export type UpdateInternalUserInput = Partial<{
+  name: string;
+  roleName: string;
+  organizationId: string | null;
+  isActive: boolean;
+}>;
+
 /** GET /access-control/roles */
 export type Role = {
   id: string;
