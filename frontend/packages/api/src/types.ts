@@ -4,6 +4,31 @@
  * switch to generated types (openapi-typescript) and delete these.
  */
 
+/** Sent by paginated list endpoints (backend PaginatedResponseDto). */
+export type PaginationMeta = {
+  page: number;
+  limit: number;
+  totalItems: number;
+  totalPages: number;
+};
+
+/**
+ * Every 2xx response from the backend's ResponseInterceptor. The client
+ * unwraps it, so callers only see `data` (or `{ items, meta }` via api.getPage).
+ */
+export type SuccessEnvelope<T> = {
+  success: true;
+  statusCode: number;
+  data: T;
+  meta?: PaginationMeta;
+};
+
+/** What api.getPage returns for a paginated list. */
+export type Page<T> = {
+  items: T[];
+  meta: PaginationMeta;
+};
+
 /** Every non-2xx response from the backend's GlobalExceptionFilter. */
 export type ApiErrorBody = {
   statusCode: number;
