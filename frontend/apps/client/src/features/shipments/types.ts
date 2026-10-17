@@ -1,4 +1,4 @@
-import type { ShipmentState } from "./stages";
+import type { ShipmentState } from "@trans/ui/blocks/shipment-state";
 
 /**
  * A shipment as the client list shows it. Hand-written until the backend's
@@ -105,29 +105,6 @@ export type PaymentInput = {
     expMonth: number;
     expYear: number;
   };
-};
-
-/** Backend pagination meta (backend/src/common/dto/paginated-response.dto.ts). */
-export type PaginationMeta = {
-  page: number;
-  limit: number;
-  totalItems: number;
-  totalPages: number;
-};
-
-/** What ResponseInterceptor sends for a single resource. */
-export type SuccessEnvelope<T> = {
-  success: true;
-  statusCode: number;
-  data: T;
-};
-
-/** What ResponseInterceptor sends for a paginated list endpoint. */
-export type PaginatedEnvelope<T> = {
-  success: true;
-  statusCode: number;
-  data: T[];
-  meta: PaginationMeta;
 };
 
 export type ShipmentFilters = {

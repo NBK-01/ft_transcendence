@@ -14,6 +14,7 @@ const ar: CommonResources = {
     save: "حفظ التغييرات",
     copy: "نسخ",
     copied: "تم النسخ",
+    copyFailed: "تعذّر النسخ. حدّد النص وانسخه يدويًا.",
   },
   confirmDelete: {
     typeToConfirm: "اكتب <value>{{value}}</value> للتأكيد",
@@ -26,6 +27,13 @@ const ar: CommonResources = {
     out_for_delivery: "خرجت للتوصيل",
     delivered: "تم التسليم",
     cancelled: "ملغاة",
+    pending_sourcing: "البحث عن مورّد",
+    pending_client_decision: "بانتظار القرار",
+    pending_payment: "بانتظار الدفع",
+    pending_payment_confirmation: "تأكيد الدفع",
+  },
+  timeline: {
+    label: "سجل الشحنة",
   },
   nav: {
     main: "التنقل الرئيسي",

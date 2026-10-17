@@ -17,6 +17,7 @@ const en = {
     save: "Save changes",
     copy: "Copy",
     copied: "Copied",
+    copyFailed: "Couldn't copy. Select the text and copy it manually.",
   },
   confirmDelete: {
     typeToConfirm: "Type <value>{{value}}</value> to confirm",
@@ -29,6 +30,13 @@ const en = {
     out_for_delivery: "Out for delivery",
     delivered: "Delivered",
     cancelled: "Cancelled",
+    pending_sourcing: "Pending sourcing",
+    pending_client_decision: "Awaiting decision",
+    pending_payment: "Pending payment",
+    pending_payment_confirmation: "Confirming payment",
+  },
+  timeline: {
+    label: "Shipment history",
   },
   nav: {
     main: "Main navigation",

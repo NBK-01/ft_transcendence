@@ -1,17 +1,19 @@
 import { ArrowRight, Package, Plus, SearchX, TriangleAlert } from "lucide-react";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 
 import { EmptyState } from "@trans/ui/blocks/empty-state";
 import { PageHeader } from "@trans/ui/blocks/page-header";
+import { ShipmentStateBadge } from "@trans/ui/blocks/shipment-state";
 import { Button } from "@trans/ui/components/button";
 import { Card } from "@trans/ui/components/card";
 import { Skeleton } from "@trans/ui/components/skeleton";
 
 import { useShipments } from "../features/shipments/api";
 import { formatAbsolute, formatRelative } from "../features/shipments/format-time";
+import { ListPagination } from "../features/shipments/list-pagination";
 import { ShipmentFilters } from "../features/shipments/shipment-filters";
-import { ShipmentStateBadge } from "../features/shipments/state-badge";
 import type { Shipment } from "../features/shipments/types";
 import { useShipmentFilters } from "../features/shipments/use-shipment-filters";
 
@@ -20,10 +22,24 @@ const ROW = "grid grid-cols-[1fr_auto] gap-x-4 gap-y-2 px-4 py-3 md:grid-cols-[1
 
 export function ShipmentsPage() {
   const { t } = useTranslation(["common", "app"]);
-  const { q, status, isFiltered, clear } = useShipmentFilters();
-  const { data, isPending, isError, refetch, isFetching, isPlaceholderData } = useShipments({ q, status });
+  const { q, status, page, isFiltered, clear, setPage } = useShipmentFilters();
+  const { data, isPending, isError, refetch, isFetching, isPlaceholderData } = useShipments({ q, status, page });
+
+  // ?page=9 when there are only 2 pages (old link, shipments removed): go to the last real page.
+  // `replace` so Back doesn't return to the broken page. Until then, show the skeleton, not "no shipments".
+  const lastPage = data?.meta.totalPages ?? 1;
+  const outOfRange = !isPlaceholderData && data !== undefined && data.meta.totalItems > 0 && page > lastPage;
+  useEffect(() => {
+    if (outOfRange) setPage(lastPage, { replace: true });
+  }, [outOfRange, lastPage, setPage]);
+
+  const goToPage = (next: number) => {
+    setPage(next);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   // The empty state has its own big New shipment button; don't show two.
-  const isEmpty = !isPending && !isError && data.items.length === 0 && !isFiltered;
+  const isEmpty = !isPending && !isError && !outOfRange && data.items.length === 0 && !isFiltered;
 
   return (
     <div className="flex flex-col gap-8">
@@ -35,7 +51,7 @@ export function ShipmentsPage() {
       />
       <ShipmentFilters />
 
-      {isPending ? (
+      {isPending || outOfRange ? (
         <ShipmentListSkeleton />
       ) : isError ? (
         <EmptyState
@@ -67,8 +83,11 @@ export function ShipmentsPage() {
           action={<NewShipmentButton />}
         />
       ) : (
-        // Previous results stay visible (dimmed) while the new filter loads.
-        <ShipmentList shipments={data.items} stale={isPlaceholderData} />
+        // Previous results stay visible (dimmed) while the new filter or page loads.
+        <div className="flex flex-col gap-4">
+          <ShipmentList shipments={data.items} stale={isPlaceholderData} />
+          <ListPagination meta={data.meta} onPageChange={goToPage} />
+        </div>
       )}
     </div>
   );

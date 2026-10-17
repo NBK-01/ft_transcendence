@@ -2,6 +2,7 @@ import { Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { ORDER_STAGES, ShipmentStateDot, type ShipmentState } from "@trans/ui/blocks/shipment-state";
 import { SHIPMENT_STATUSES } from "@trans/ui/blocks/status";
 import { Input } from "@trans/ui/components/input";
 import {
@@ -14,8 +15,6 @@ import {
   SelectValue,
 } from "@trans/ui/components/select";
 
-import { ORDER_STAGES, stateLabelKey, type ShipmentState } from "./stages";
-import { ShipmentStateDot } from "./state-badge";
 import { useShipmentFilters } from "./use-shipment-filters";
 
 /** Radix Select can't use "" as a value, so "all" stands for "no status filter". */
@@ -91,12 +90,12 @@ export function ShipmentFilters() {
 }
 
 function StateOption({ value }: { value: ShipmentState }) {
-  const { t } = useTranslation();
+  const { t } = useTranslation("common");
   return (
     <SelectItem value={value}>
       <span className="flex items-center gap-2">
         <ShipmentStateDot status={value} />
-        {t(stateLabelKey(value))}
+        {t(`status.${value}`)}
       </span>
     </SelectItem>
   );

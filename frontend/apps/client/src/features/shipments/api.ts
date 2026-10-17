@@ -1,18 +1,11 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@trans/api";
+import { WAITING_ON_ADMIN } from "@trans/ui/blocks/shipment-state";
 
-import { WAITING_ON_ADMIN } from "./stages";
-import type {
-  PaginatedEnvelope,
-  PaymentInput,
-  Shipment,
-  ShipmentDetail,
-  ShipmentEvent,
-  ShipmentFile,
-  ShipmentFilters,
-  SuccessEnvelope,
-} from "./types";
+import type { PaymentInput, Shipment, ShipmentDetail, ShipmentEvent, ShipmentFile, ShipmentFilters } from "./types";
+
+const shipmentPath = (trackingId: string, suffix = "") => `/shipments/${encodeURIComponent(trackingId)}${suffix}`;
 
 /** Query keys for shipments. Client-local until admin needs them too. */
 export const shipmentKeys = {
@@ -23,18 +16,17 @@ export const shipmentKeys = {
   files: (trackingId: string) => [...shipmentKeys.detail(trackingId), "files"] as const,
 };
 
-/** GET /shipments?q=&status= — the caller's shipments, newest update first. */
+/**
+ * The shared `api` client unwraps the backend's { success, statusCode, data } envelope:
+ * `api.get` / `api.post` return `data`, and `api.getPage` returns `{ items, meta }`.
+ */
+
+/** GET /shipments?q=&status=&page= — the caller's shipments, newest update first. */
 export function useShipments(filters: ShipmentFilters = {}) {
   const { page = 1, limit = 20, q, status } = filters;
   return useQuery({
     queryKey: shipmentKeys.list({ page, limit, q, status }),
-    queryFn: async ({ signal }) => {
-      const body = await api.get<PaginatedEnvelope<Shipment>>("/shipments", {
-        query: { page, limit, q, status },
-        signal,
-      });
-      return { items: body.data, meta: body.meta };
-    },
+    queryFn: ({ signal }) => api.getPage<Shipment>("/shipments", { query: { page, limit, q, status }, signal }),
     placeholderData: keepPreviousData,
   });
 }
@@ -49,12 +41,7 @@ const ADMIN_POLL_MS = 10_000;
 export function useShipment(trackingId: string) {
   return useQuery({
     queryKey: shipmentKeys.detail(trackingId),
-    queryFn: async ({ signal }) => {
-      const body = await api.get<SuccessEnvelope<ShipmentDetail>>(`/shipments/${encodeURIComponent(trackingId)}`, {
-        signal,
-      });
-      return body.data;
-    },
+    queryFn: ({ signal }) => api.get<ShipmentDetail>(shipmentPath(trackingId), { signal }),
     refetchInterval: (query) =>
       query.state.data && WAITING_ON_ADMIN.has(query.state.data.status) ? ADMIN_POLL_MS : false,
   });
@@ -64,13 +51,7 @@ export function useShipment(trackingId: string) {
 export function useShipmentEvents(trackingId: string) {
   return useQuery({
     queryKey: shipmentKeys.events(trackingId),
-    queryFn: async ({ signal }) => {
-      const body = await api.get<SuccessEnvelope<ShipmentEvent[]>>(
-        `/shipments/${encodeURIComponent(trackingId)}/events`,
-        { signal },
-      );
-      return body.data;
-    },
+    queryFn: ({ signal }) => api.get<ShipmentEvent[]>(shipmentPath(trackingId, "/events"), { signal }),
   });
 }
 
@@ -78,17 +59,9 @@ export function useShipmentEvents(trackingId: string) {
 export function useShipmentFiles(trackingId: string) {
   return useQuery({
     queryKey: shipmentKeys.files(trackingId),
-    queryFn: async ({ signal }) => {
-      const body = await api.get<SuccessEnvelope<ShipmentFile[]>>(
-        `/shipments/${encodeURIComponent(trackingId)}/files`,
-        { signal },
-      );
-      return body.data;
-    },
+    queryFn: ({ signal }) => api.get<ShipmentFile[]>(shipmentPath(trackingId, "/files"), { signal }),
   });
 }
-
-const shipmentPath = (trackingId: string, suffix = "") => `/shipments/${encodeURIComponent(trackingId)}${suffix}`;
 
 /** After any change: the list, this shipment, its timeline and files are all stale. */
 function useInvalidateShipments() {
@@ -100,12 +73,11 @@ function useInvalidateShipments() {
 export function useCreateShipment() {
   const invalidate = useInvalidateShipments();
   return useMutation({
-    mutationFn: async (input: { productUrl: string } | { images: File[] }) => {
+    mutationFn: (input: { productUrl: string } | { images: File[] }) => {
       const form = new FormData();
       if ("productUrl" in input) form.set("productUrl", input.productUrl);
       else for (const image of input.images) form.append("images", image);
-      const body = await api.post<SuccessEnvelope<ShipmentDetail>>("/shipments", form);
-      return body.data;
+      return api.post<ShipmentDetail>("/shipments", form);
     },
     onSuccess: invalidate,
   });
@@ -115,7 +87,7 @@ export function useCreateShipment() {
 export function useAcceptOffer(trackingId: string) {
   const invalidate = useInvalidateShipments();
   return useMutation({
-    mutationFn: () => api.post<SuccessEnvelope<ShipmentDetail>>(shipmentPath(trackingId, "/offer/accept")),
+    mutationFn: () => api.post<ShipmentDetail>(shipmentPath(trackingId, "/offer/accept")),
     onSuccess: invalidate,
   });
 }
@@ -124,7 +96,7 @@ export function useAcceptOffer(trackingId: string) {
 export function useRejectOffer(trackingId: string) {
   const invalidate = useInvalidateShipments();
   return useMutation({
-    mutationFn: () => api.post<SuccessEnvelope<ShipmentDetail>>(shipmentPath(trackingId, "/offer/reject")),
+    mutationFn: () => api.post<ShipmentDetail>(shipmentPath(trackingId, "/offer/reject")),
     onSuccess: invalidate,
   });
 }
@@ -134,7 +106,7 @@ export function useSubmitPayment(trackingId: string) {
   const invalidate = useInvalidateShipments();
   return useMutation({
     mutationFn: (input: PaymentInput) =>
-      api.post<SuccessEnvelope<ShipmentDetail>>(shipmentPath(trackingId, "/payment"), input),
+      api.post<ShipmentDetail>(shipmentPath(trackingId, "/payment"), input),
     onSuccess: invalidate,
   });
 }

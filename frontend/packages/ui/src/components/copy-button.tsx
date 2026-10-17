@@ -8,9 +8,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@trans/ui/components/to
 
 const RESET_MS = 2000;
 
-/** Icon button that copies `value`; shows a check for 2 s, or a toast if the browser refuses. */
-export function CopyButton({ value, label }: { value: string; label?: string }) {
-  const { t } = useTranslation(["common", "app"]);
+/**
+ * Icon button that copies `value` to the clipboard. Shows a check for 2 s;
+ * if the browser refuses (permissions, insecure context), a toast says so.
+ * `label` names what is copied, e.g. "Copy tracking ID" (default: "Copy").
+ */
+export function CopyButton({ value, label, className }: { value: string; label?: string; className?: string }) {
+  const { t } = useTranslation("common");
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -24,7 +28,7 @@ export function CopyButton({ value, label }: { value: string; label?: string }) 
       await navigator.clipboard.writeText(value);
       setCopied(true);
     } catch {
-      toast.error(t("app:shipments.copyFailed"));
+      toast.error(t("actions.copyFailed"));
     }
   };
 
@@ -33,7 +37,14 @@ export function CopyButton({ value, label }: { value: string; label?: string }) 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button variant="tertiary" size="sm" shape="square" onClick={() => void copy()} aria-label={text}>
+        <Button
+          variant="tertiary"
+          size="sm"
+          shape="square"
+          onClick={() => void copy()}
+          aria-label={text}
+          className={className}
+        >
           {copied ? <Check aria-hidden="true" className="text-green-700" /> : <Copy aria-hidden="true" />}
         </Button>
       </TooltipTrigger>

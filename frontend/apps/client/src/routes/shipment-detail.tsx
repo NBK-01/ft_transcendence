@@ -4,17 +4,17 @@ import { Link, useParams } from "react-router";
 
 import { isApiError } from "@trans/api";
 import { EmptyState } from "@trans/ui/blocks/empty-state";
+import { ShipmentStateBadge } from "@trans/ui/blocks/shipment-state";
 import { Button } from "@trans/ui/components/button";
+import { CopyButton } from "@trans/ui/components/copy-button";
 import { Skeleton } from "@trans/ui/components/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@trans/ui/components/tabs";
 
 import { useShipment } from "../features/shipments/api";
-import { CopyButton } from "../features/shipments/copy-button";
 import { OrderStagePanel } from "../features/shipments/order-stage-panel";
 import { ShipmentDetails } from "../features/shipments/shipment-details";
 import { ShipmentFiles } from "../features/shipments/shipment-files";
 import { ShipmentTimeline } from "../features/shipments/shipment-timeline";
-import { ShipmentStateBadge } from "../features/shipments/state-badge";
 import type { Shipment } from "../features/shipments/types";
 
 /** /app/shipment/:id — `id` is the tracking ID. */

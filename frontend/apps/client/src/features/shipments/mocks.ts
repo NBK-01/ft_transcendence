@@ -1,19 +1,17 @@
-import { http, HttpResponse } from "msw/http";
+import { http } from "msw/http";
 
-import type { ApiErrorBody } from "@trans/api";
+import { error, ok, paginated } from "@trans/api/mocks";
+import { isShipmentState, type ShipmentState } from "@trans/ui/blocks/shipment-state";
 
-import { isShipmentState, type ShipmentState } from "./stages";
 import type {
   Address,
   ImageRef,
   Money,
-  PaginatedEnvelope,
   PaymentInput,
   Shipment,
   ShipmentDetail,
   ShipmentEvent,
   ShipmentFile,
-  SuccessEnvelope,
   SupplierOffer,
 } from "./types";
 
@@ -112,6 +110,15 @@ const ORDER_STEPS = (supplier: string): [ShipmentState, string][] => [
 /* ---------------------------------------------------------------------------
  * Seed data: four orders (one per stage) and five live shipments
  * ------------------------------------------------------------------------ */
+
+const PAST_ROUTES: [string, string, string, string][] = [
+  ["Istanbul", "TR", "Paris", "FR"], ["Milan", "IT", "Lyon", "FR"], ["Shenzhen", "CN", "Beirut", "LB"],
+  ["Casablanca", "MA", "Marseille", "FR"], ["Tunis", "TN", "Paris", "FR"], ["Madrid", "ES", "Brussels", "BE"],
+  ["Lisbon", "PT", "Paris", "FR"], ["Athens", "GR", "Beirut", "LB"], ["Cairo", "EG", "Beirut", "LB"],
+  ["Dubai", "AE", "Paris", "FR"], ["Berlin", "DE", "Lyon", "FR"], ["Vienna", "AT", "Brussels", "BE"],
+  ["Rome", "IT", "Marseille", "FR"], ["Amman", "JO", "Beirut", "LB"], ["Rabat", "MA", "Paris", "FR"],
+  ["Porto", "PT", "Lyon", "FR"], ["Seville", "ES", "Paris", "FR"], ["Izmir", "TR", "Beirut", "LB"],
+];
 
 const emptyLive = { sender: null, recipient: null, weightKg: null, declaredValue: null } as const;
 
@@ -248,6 +255,15 @@ function seed(): MockShipment[] {
       address(CLIENT, "Old Souk 4", "Byblos", "1401", "LB"),
       3.3, { amount: 50, currency: "USD" }, 3,
     ),
+    // Older delivered orders, so the list has more than one page (20 per page) to try pagination on.
+    ...PAST_ROUTES.map(([from, fromCountry, to, toCountry], index) =>
+      live(
+        `TRK-${(0x5a1000 + index * 4099).toString(16).toUpperCase()}`, "delivered", hoursAgo(24 * (14 + index * 3)),
+        address(`${from} Trading`, "1 Market Street", from, "00000", fromCountry),
+        address(CLIENT, "18 Rue Oberkampf", to, "75011", toCountry),
+        1 + (index % 4), { amount: 20 + index * 5, currency: "EUR" }, 1 + (index % 3),
+      ),
+    ),
   ];
 }
 
@@ -287,11 +303,8 @@ function catchUp(shipment: MockShipment) {
  * HTTP
  * ------------------------------------------------------------------------ */
 
-const fail = (statusCode: number, message: string) =>
-  HttpResponse.json(
-    { statusCode, messages: [message], timestamp: now(), traceId: "mock" } satisfies ApiErrorBody,
-    { status: statusCode },
-  );
+/** Shared helpers from @trans/api/mocks envelope everything exactly like the real backend. */
+const fail = (statusCode: number, message: string) => error(statusCode, [message]);
 
 const notFound = () => fail(404, "Shipment not found.");
 
@@ -311,10 +324,7 @@ const toDetail = (s: MockShipment): ShipmentDetail => ({
   declaredValue: s.declaredValue,
 });
 
-const detail = (shipment: MockShipment, statusCode = 200) =>
-  HttpResponse.json({ success: true, statusCode, data: toDetail(shipment) } satisfies SuccessEnvelope<ShipmentDetail>, {
-    status: statusCode,
-  });
+const detail = (shipment: MockShipment, statusCode = 200) => ok<ShipmentDetail>(toDetail(shipment), statusCode);
 
 function findShipment(trackingId: unknown) {
   const shipment = store.find((s) => s.trackingId.toLowerCase() === String(trackingId).toLowerCase());
@@ -379,16 +389,10 @@ export const shipmentHandlers = [
     const sorted = store
       .filter((s) => (!q || s.trackingId.toLowerCase().includes(q)) && (!status || s.status === status))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-    const items: Shipment[] = sorted
-      .slice((page - 1) * limit, page * limit)
-      .map(({ trackingId, origin, destination, status, updatedAt }) => ({ trackingId, origin, destination, status, updatedAt }));
-
-    return HttpResponse.json({
-      success: true,
-      statusCode: 200,
-      data: items,
-      meta: { page, limit, totalItems: sorted.length, totalPages: Math.max(1, Math.ceil(sorted.length / limit)) },
-    } satisfies PaginatedEnvelope<Shipment>);
+    const rows = sorted.map(
+      ({ trackingId, origin, destination, status, updatedAt }): Shipment => ({ trackingId, origin, destination, status, updatedAt }),
+    );
+    return paginated(rows, page, limit);
   }),
 
   http.post("*/api/shipments", async ({ request }) => {
@@ -474,12 +478,12 @@ export const shipmentHandlers = [
   http.get("*/api/shipments/:trackingId/events", ({ params }) => {
     const shipment = findShipment(params.trackingId);
     if (!shipment) return notFound();
-    return HttpResponse.json({ success: true, statusCode: 200, data: shipment.events } satisfies SuccessEnvelope<ShipmentEvent[]>);
+    return ok<ShipmentEvent[]>(shipment.events);
   }),
 
   http.get("*/api/shipments/:trackingId/files", ({ params }) => {
     const shipment = findShipment(params.trackingId);
     if (!shipment) return notFound();
-    return HttpResponse.json({ success: true, statusCode: 200, data: filesFor(shipment) } satisfies SuccessEnvelope<ShipmentFile[]>);
+    return ok<ShipmentFile[]>(filesFor(shipment));
   }),
 ];
