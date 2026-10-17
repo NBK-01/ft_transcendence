@@ -60,3 +60,55 @@ export type AuthResponse = TokenPair & { user: User };
 
 /** Returned by endpoints that only confirm an action. */
 export type MessageResponse = { message: string };
+
+/** A staff account (backend InternalUserDto). GET /internal-users is admin-only. */
+export type InternalUser = {
+  id: string;
+  email: string;
+  name: string;
+  /** Deactivated accounts can't sign in; there is no hard delete. */
+  isActive: boolean;
+  /** "admin" | "dispatcher" | "driver" | "support", or null if unassigned. */
+  roleName: string | null;
+  /** The branch (organization) the account belongs to, if any. */
+  organizationId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** POST /internal-users body (backend CreateInternalUserDto). */
+export type CreateInternalUserInput = {
+  email: string;
+  password: string;
+  name: string;
+  roleName: string;
+  organizationId?: string;
+};
+
+/** PATCH /internal-users/:id body (backend UpdateInternalUserDto). Email and password can't change here. */
+export type UpdateInternalUserInput = Partial<{
+  name: string;
+  roleName: string;
+  organizationId: string | null;
+  isActive: boolean;
+}>;
+
+/** GET /access-control/roles */
+export type Role = {
+  id: string;
+  name: string;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** A branch (backend OrganizationDto). GET /organizations */
+export type Organization = {
+  id: string;
+  name: string;
+  description: string | null;
+  contactEmail: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};

@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode, type RefObject } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
 import {
@@ -26,8 +26,15 @@ export type ConfirmDeleteProps = {
   confirmText?: string;
   /** Defaults to "Delete". */
   actionLabel?: ReactNode;
+  /** Shown when `onConfirm` fails. Defaults to "Couldn't delete. Try again." */
+  errorText?: string;
   /** May return a promise: the dialog waits, closes on success, and stays open with an error on failure. */
   onConfirm: () => void | Promise<unknown>;
+  /**
+   * Element to focus when the dialog closes. Needed when it opens from a menu
+   * item, which no longer exists by then; with `trigger`, focus returns by itself.
+   */
+  returnFocusTo?: RefObject<HTMLElement | null>;
 };
 
 /** Destructive confirmation on top of AlertDialog, optionally with type-to-confirm. */
@@ -39,7 +46,9 @@ export function ConfirmDelete({
   description,
   confirmText,
   actionLabel,
+  errorText,
   onConfirm,
+  returnFocusTo,
 }: ConfirmDeleteProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -56,6 +65,11 @@ export function ConfirmDelete({
       <AlertDialogContent
         // With type-to-confirm, start in the input instead of on Cancel.
         onOpenAutoFocus={confirmText !== undefined ? (event) => event.preventDefault() : undefined}
+        onCloseAutoFocus={(event) => {
+          if (!returnFocusTo?.current) return;
+          event.preventDefault();
+          returnFocusTo.current.focus();
+        }}
       >
         {/* Mounted only while open, so the typed text and error reset on every open. */}
         <ConfirmDeleteForm
@@ -63,6 +77,7 @@ export function ConfirmDelete({
           description={description}
           confirmText={confirmText}
           actionLabel={actionLabel}
+          errorText={errorText}
           pending={pending}
           onSubmit={async () => {
             setPending(true);
@@ -87,9 +102,10 @@ function ConfirmDeleteForm({
   description,
   confirmText,
   actionLabel,
+  errorText,
   pending,
   onSubmit,
-}: Pick<ConfirmDeleteProps, "title" | "description" | "confirmText" | "actionLabel"> & {
+}: Pick<ConfirmDeleteProps, "title" | "description" | "confirmText" | "actionLabel" | "errorText"> & {
   pending: boolean;
   onSubmit: () => Promise<boolean>;
 }) {
@@ -139,7 +155,7 @@ function ConfirmDeleteForm({
               />
             </Field>
           )}
-          {failed && <FieldError message="confirmDelete.error" />}
+          {failed && <FieldError message={errorText ?? "confirmDelete.error"} />}
         </div>
       )}
 
