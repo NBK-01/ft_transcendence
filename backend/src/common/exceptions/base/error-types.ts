@@ -12,6 +12,7 @@ import { HttpException, HttpStatus } from '@nestjs/common';
  *   6000-6999  Third-party / webhooks
  *   7000-7999  Access Control (RBAC)
  *   8000-8999  Internal Users / Staff Auth
+ *   9000-9999  File Storage
  */
 
 export interface ErrorMessageData {

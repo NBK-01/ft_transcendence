@@ -24,6 +24,13 @@ export class UserDto {
   })
   isVerified!: boolean;
 
+  @ApiProperty({
+    description: 'Avatar URL, if one has been uploaded',
+    nullable: true,
+    required: false,
+  })
+  avatarUrl?: string | null;
+
   @ApiProperty({ description: 'Account creation timestamp', type: Date })
   createdAt!: Date;
 

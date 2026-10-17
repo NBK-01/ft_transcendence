@@ -46,5 +46,12 @@
   "ROLE_NOT_FOUND": "Role {id} not found",
   "PERMISSION_NOT_FOUND": "Permission {id} not found",
   "ORGANIZATION_NOT_FOUND": "Organization {id} not found",
-  "ORGANIZATION_ALREADY_EXISTS": "An organization named {name} already exists"
+  "ORGANIZATION_ALREADY_EXISTS": "An organization named {name} already exists",
+  "OAUTH_ACCOUNT_CONFLICT": "An account with email {email} already exists. Please use your original sign-in method",
+  "WRONG_AUTH_PROVIDER": "This account uses {provider} sign-in. Please use that to log in",
+  "OAUTH_CODE_INVALID": "Invalid or expired authorization code",
+  "GOOGLE_EMAIL_NOT_VERIFIED": "Your Google account's email address is not verified",
+  "INVALID_FILE_TYPE": "File type not allowed. Accepted types: {allowed}",
+  "FILE_TOO_LARGE": "File exceeds the maximum size of {maxSizeMb}MB",
+  "FILE_UPLOAD_FAILED": "File upload failed. Please try again"
 }

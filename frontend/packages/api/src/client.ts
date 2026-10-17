@@ -1,6 +1,6 @@
 import { ApiError } from "./errors";
 import { tokens } from "./session";
-import type { ApiErrorBody, TokenPair } from "./types";
+import type { ApiErrorBody, Page, SuccessEnvelope, TokenPair } from "./types";
 
 type ApiConfig = {
   /** Prefix for every path. "/api" in dev (Vite proxy) and prod (nginx). */
@@ -54,6 +54,28 @@ function isRawBody(body: unknown): body is BodyInit {
   );
 }
 
+function isEnvelope(body: unknown): body is SuccessEnvelope<unknown> {
+  return typeof body === "object" && body !== null && (body as { success?: unknown }).success === true && "data" in body;
+}
+
+/**
+ * The backend wraps every success as { success, statusCode, data, meta? }.
+ * Callers get `data`. A body that isn't an envelope passes through unchanged.
+ */
+function unwrap<T>(body: unknown): T {
+  return (isEnvelope(body) ? body.data : body) as T;
+}
+
+/** `{ items, meta }` from a paginated envelope. Without `meta` (an unpaginated list), the whole list is one page. */
+function toPage<T>(body: unknown): Page<T> {
+  const items = (isEnvelope(body) ? body.data : body) as T[];
+  const meta = isEnvelope(body) ? body.meta : undefined;
+  return {
+    items,
+    meta: meta ?? { page: 1, limit: items.length, totalItems: items.length, totalPages: 1 },
+  };
+}
+
 async function parseError(response: Response): Promise<ApiError> {
   let body: Partial<ApiErrorBody> | undefined;
   try {
@@ -81,7 +103,7 @@ function refreshSession(): Promise<boolean> {
         body: JSON.stringify({ refreshToken }),
       });
       if (!response.ok) return false;
-      tokens.set((await response.json()) as TokenPair);
+      tokens.set(unwrap<TokenPair>(await response.json()));
       return true;
     } catch {
       return false;
@@ -100,7 +122,8 @@ function expireSession() {
 /* ---------------------------------------------------------------------------
  * Request
  * ------------------------------------------------------------------------ */
-async function request<T>(method: string, path: string, options: RequestOptions = {}, isRetry = false): Promise<T> {
+/** Sends the request and returns the parsed body as-is (still enveloped). */
+async function send(method: string, path: string, options: RequestOptions = {}, isRetry = false): Promise<unknown> {
   const { query, body, signal, auth = true } = options;
 
   // After a reload the access token is gone but the refresh token isn't:
@@ -133,16 +156,20 @@ async function request<T>(method: string, path: string, options: RequestOptions 
 
   if (response.status === 401 && auth) {
     if (!isRetry && (await refreshSession())) {
-      return request<T>(method, path, options, true);
+      return send(method, path, options, true);
     }
     expireSession();
   }
 
   if (!response.ok) throw await parseError(response);
-  if (response.status === 204) return undefined as T;
+  if (response.status === 204) return undefined;
 
   const text = await response.text();
-  return (text ? JSON.parse(text) : undefined) as T;
+  return text ? (JSON.parse(text) as unknown) : undefined;
+}
+
+async function request<T>(method: string, path: string, options?: RequestOptions): Promise<T> {
+  return unwrap<T>(await send(method, path, options));
 }
 
 /* ---------------------------------------------------------------------------
@@ -194,7 +221,7 @@ async function upload<T>(path: string, form: FormData, options: UploadOptions = 
     expireSession();
   }
   if (status < 200 || status >= 300) throw new ApiError("http", status, data as Partial<ApiErrorBody>);
-  return data as T;
+  return unwrap<T>(data);
 }
 
 /* ---------------------------------------------------------------------------
@@ -202,6 +229,9 @@ async function upload<T>(path: string, form: FormData, options: UploadOptions = 
  * ------------------------------------------------------------------------ */
 export const api = {
   get: <T>(path: string, options?: Omit<RequestOptions, "body">) => request<T>("GET", path, options),
+  /** For list endpoints: `{ items, meta }` with page, limit, totalItems and totalPages. */
+  getPage: async <T>(path: string, options?: Omit<RequestOptions, "body">) =>
+    toPage<T>(await send("GET", path, options)),
   post: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, "body">) =>
     request<T>("POST", path, { ...options, body }),
   put: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, "body">) =>

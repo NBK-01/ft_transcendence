@@ -1,6 +1,6 @@
 import { http, HttpResponse } from "msw/http";
 
-import type { ApiErrorBody, AuthResponse, TokenPair, User } from "../types";
+import type { ApiErrorBody, AuthResponse, PaginationMeta, SuccessEnvelope, TokenPair, User } from "../types";
 
 /**
  * Mock backend for development (VITE_API_MOCKS=true).
@@ -26,7 +26,28 @@ const issueTokens = (): TokenPair => {
   return { accessToken: `mock-access-${counter}`, refreshToken: `mock-refresh-${counter}` };
 };
 
-const error = (statusCode: number, messages: string[], errorCode?: number) =>
+/** A success response, enveloped like the backend's ResponseInterceptor. */
+export const ok = <T>(data: T, statusCode = 200) =>
+  HttpResponse.json({ success: true, statusCode, data } satisfies SuccessEnvelope<T>, { status: statusCode });
+
+/** One page of a list, enveloped with `meta` like the backend's PaginatedResponseDto. */
+export const paginated = <T>(all: T[], page = 1, limit = 20) => {
+  const meta: PaginationMeta = {
+    page,
+    limit,
+    totalItems: all.length,
+    totalPages: Math.max(1, Math.ceil(all.length / limit)),
+  };
+  return HttpResponse.json({
+    success: true,
+    statusCode: 200,
+    data: all.slice((page - 1) * limit, page * limit),
+    meta,
+  } satisfies SuccessEnvelope<T[]>);
+};
+
+/** An error response, shaped like the backend's GlobalExceptionFilter (never enveloped). */
+export const error = (statusCode: number, messages: string[], errorCode?: number) =>
   HttpResponse.json(
     {
       statusCode,
@@ -46,7 +67,7 @@ export const handlers = [
     const body = (await request.json()) as { email?: string; password?: string };
     if (!body.email || !body.password) return error(400, ["email must be an email"]);
     if (body.password === "wrong") return error(401, ["Invalid email or password."], 2002);
-    return HttpResponse.json({ ...issueTokens(), user: { ...MOCK_USER, email: body.email } } satisfies AuthResponse);
+    return ok<AuthResponse>({ ...issueTokens(), user: { ...MOCK_USER, email: body.email } });
   }),
 
   http.post("*/api/auth/refresh", async ({ request }) => {
@@ -54,11 +75,11 @@ export const handlers = [
     if (!body.refreshToken?.startsWith("mock-refresh-")) {
       return error(401, ["Invalid or expired refresh token."], 2003);
     }
-    return HttpResponse.json(issueTokens() satisfies TokenPair);
+    return ok<TokenPair>(issueTokens());
   }),
 
   http.get("*/api/auth/me", ({ request }) => {
     if (!isAuthorized(request)) return error(401, ["Unauthorized"]);
-    return HttpResponse.json(MOCK_USER satisfies User);
+    return ok<User>(MOCK_USER);
   }),
 ];

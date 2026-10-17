@@ -18,6 +18,10 @@ const en = {
     copy: "Copy",
     copied: "Copied",
   },
+  confirmDelete: {
+    typeToConfirm: "Type <value>{{value}}</value> to confirm",
+    error: "Couldn't delete. Try again.",
+  },
   status: {
     requested: "Requested",
     confirmed: "Confirmed",
@@ -124,6 +128,27 @@ const en = {
     comingSoonTitle: "Nothing here yet",
     comingSoonBody: "This section is part of the next milestone. The layout is ready; data arrives once the API is wired.",
     backHome: "Back to overview",
+  },
+  table: {
+    noResults: "No results.",
+    errorTitle: "Couldn't load this list",
+    errorBody: "Check your connection and try again.",
+    retry: "Try again",
+    loading: "Loading…",
+    rowsPerPage: "Rows per page",
+    range: "{{from}}–{{to}} of {{total}}",
+    page: "Page {{page}} of {{total}}",
+    previousPage: "Previous page",
+    nextPage: "Next page",
+    search: "Search…",
+    clearFilters: "Clear filters",
+    clearSelection: "Clear selection",
+    selected: "{{selected}} of {{total}} selected",
+    selectAll: "Select all rows on this page",
+    selectRow: "Select row",
+  },
+  stat: {
+    vsPrevious: "vs previous period",
   },
   notFound: {
     title: "Page not found",

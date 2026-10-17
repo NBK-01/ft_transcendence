@@ -15,6 +15,10 @@ const ar: CommonResources = {
     copy: "نسخ",
     copied: "تم النسخ",
   },
+  confirmDelete: {
+    typeToConfirm: "اكتب <value>{{value}}</value> للتأكيد",
+    error: "تعذّر الحذف. حاول مرة أخرى.",
+  },
   status: {
     requested: "مطلوبة",
     confirmed: "مؤكدة",
@@ -121,6 +125,27 @@ const ar: CommonResources = {
     comingSoonTitle: "لا شيء هنا بعد",
     comingSoonBody: "هذا القسم جزء من المرحلة القادمة. التصميم جاهز، وستظهر البيانات عند ربط الواجهة البرمجية.",
     backHome: "العودة إلى النظرة العامة",
+  },
+  table: {
+    noResults: "لا توجد نتائج.",
+    errorTitle: "تعذّر تحميل هذه القائمة",
+    errorBody: "تحقق من اتصالك وحاول مرة أخرى.",
+    retry: "حاول مرة أخرى",
+    loading: "جارٍ التحميل…",
+    rowsPerPage: "عدد الصفوف في الصفحة",
+    range: "{{from}}–{{to}} من {{total}}",
+    page: "الصفحة {{page}} من {{total}}",
+    previousPage: "الصفحة السابقة",
+    nextPage: "الصفحة التالية",
+    search: "بحث…",
+    clearFilters: "مسح عوامل التصفية",
+    clearSelection: "إلغاء التحديد",
+    selected: "تم تحديد {{selected}} من {{total}}",
+    selectAll: "تحديد كل الصفوف في هذه الصفحة",
+    selectRow: "تحديد الصف",
+  },
+  stat: {
+    vsPrevious: "مقارنة بالفترة السابقة",
   },
   notFound: {
     title: "الصفحة غير موجودة",
