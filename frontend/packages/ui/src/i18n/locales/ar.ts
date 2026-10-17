@@ -15,6 +15,10 @@ const ar: CommonResources = {
     copy: "نسخ",
     copied: "تم النسخ",
   },
+  confirmDelete: {
+    typeToConfirm: "اكتب <value>{{value}}</value> للتأكيد",
+    error: "تعذّر الحذف. حاول مرة أخرى.",
+  },
   status: {
     requested: "مطلوبة",
     confirmed: "مؤكدة",
