@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
+import { AuthProvider } from '../users/user.entity';
 import { OtpService } from '../otp/otp.service';
 import { OtpPurpose } from '../otp/entities/otp-log.entity';
 import { PasswordResetService } from './services/password-reset.service';
@@ -10,6 +11,11 @@ import {
   TokenMetadata,
   TokenPair,
 } from './services/refresh-token.service';
+import {
+  AuthProviderUserService,
+  OAuthProfile,
+} from './services/auth-provider-user.service';
+import { OAuthCodeService } from './services/oauth-code.service';
 import { CommunicationService } from '../communication/communication.service';
 import { EmailTemplates } from '../common/templates/email-templates';
 import { AuthContextService } from '../common/context';
@@ -29,13 +35,16 @@ import {
   InvalidResetTokenException,
   AccountNotVerifiedException,
   InvalidRefreshTokenException,
+  OAuthAccountConflictException,
+  OAuthCodeInvalidException,
+  WrongAuthProviderException,
 } from './exceptions/auth-exceptions';
 
 const OTP_PREFIX = 'auth';
 
 @Injectable()
 export class AuthService {
-  // This orchestrates auth end to end (register/login/OTP/refresh/password-reset) and
+  // This orchestrates auth end to end (register/login/OTP/refresh/password-reset/OAuth) and
   // genuinely needs each of these collaborators — splitting it up would just move the
   // coupling, not remove it.
   // eslint-disable-next-line max-params
@@ -45,6 +54,8 @@ export class AuthService {
     private readonly otpService: OtpService,
     private readonly passwordResetService: PasswordResetService,
     private readonly refreshTokenService: RefreshTokenService,
+    private readonly authProviderUserService: AuthProviderUserService,
+    private readonly oauthCodeService: OAuthCodeService,
     private readonly communicationService: CommunicationService,
     private readonly configService: ConfigService,
     private readonly authContext: AuthContextService,
@@ -130,6 +141,9 @@ export class AuthService {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) {
       throw new InvalidCredentialsException();
+    }
+    if (!user.password) {
+      throw new WrongAuthProviderException(user.authProvider);
     }
 
     const isPasswordValid = await this.usersService.comparePassword(
@@ -239,6 +253,9 @@ export class AuthService {
     if (!user) {
       throw new UserNotFoundException(email);
     }
+    if (user.authProvider !== AuthProvider.EMAIL) {
+      throw new WrongAuthProviderException(user.authProvider);
+    }
 
     const hashedPassword = await this.usersService.hashPassword(
       dto.newPassword,
@@ -256,6 +273,9 @@ export class AuthService {
     if (!user) {
       throw new UserNotFoundException(contextUser.id);
     }
+    if (!user.password) {
+      throw new WrongAuthProviderException(user.authProvider);
+    }
 
     const isCurrentValid = await this.usersService.comparePassword(
       dto.currentPassword,
@@ -270,6 +290,70 @@ export class AuthService {
     );
     await this.usersService.updatePasswordHash(user.id, hashedPassword);
     return { message: 'Password changed successfully' };
+  }
+
+  /**
+   * Finds-or-creates the user for a verified Google profile, then returns a
+   * short-lived one-time code (not tokens) — see exchangeOAuthCode. Called
+   * from the /auth/google/callback route after GoogleAuthGuard runs.
+   */
+  async handleGoogleCallback(profile: OAuthProfile): Promise<string> {
+    const user = await this.findOrCreateOAuthUser(profile);
+    return this.oauthCodeService.generateCode(user.id);
+  }
+
+  async exchangeOAuthCode(code: string, metadata?: TokenMetadata) {
+    const userId = await this.oauthCodeService.consumeCode(code);
+    if (!userId) {
+      throw new OAuthCodeInvalidException();
+    }
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new UserNotFoundException(userId);
+    }
+
+    const tokens = await this.refreshTokenService.generateTokenPair(
+      user,
+      metadata,
+    );
+    return {
+      ...tokens,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        isVerified: user.isVerified,
+      },
+    };
+  }
+
+  private async findOrCreateOAuthUser(profile: OAuthProfile) {
+    const link = await this.authProviderUserService.findByProvider(
+      AuthProvider.GOOGLE,
+      profile.providerId,
+    );
+    if (link) {
+      await this.authProviderUserService.updateProfile(link.id, profile);
+      const user = await this.usersService.findById(link.userId);
+      if (!user) {
+        throw new UserNotFoundException(link.userId);
+      }
+      return user;
+    }
+
+    const existing = await this.usersService.findByEmail(profile.email);
+    if (existing) {
+      // Hard block, no silent auto-linking — the person must use their original sign-in method.
+      throw new OAuthAccountConflictException(profile.email);
+    }
+
+    const user = await this.usersService.createOAuthUser(profile);
+    await this.authProviderUserService.create(
+      user.id,
+      AuthProvider.GOOGLE,
+      profile,
+    );
+    return user;
   }
 
   /** Reads `sub` off the JWT half without checking its signature — never trust this alone, see refresh()/logout(). */
