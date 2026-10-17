@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from './user.entity';
+import { AuthProvider, User } from './user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UserDto } from './dto/user.dto';
 import { UserFactory } from './factories/user.factory';
 import { CryptoService } from '../common/services/crypto.service';
+import { FileStorageService } from '../file-storage/file-storage.service';
 import { UserNotFoundException } from './exceptions';
 
 @Injectable()
@@ -13,6 +14,7 @@ export class UsersService {
   constructor(
     @InjectRepository(User) private readonly userRepository: Repository<User>,
     private readonly cryptoService: CryptoService,
+    private readonly fileStorageService: FileStorageService,
   ) {}
 
   async create(dto: CreateUserDto): Promise<User> {
@@ -20,6 +22,18 @@ export class UsersService {
     const user = this.userRepository.create({
       ...dto,
       password: hashedPassword,
+    });
+    return this.userRepository.save(user);
+  }
+
+  /** Google's email is pre-verified — skip the OTP flow, no password to set. */
+  async createOAuthUser(data: { email: string; name: string }): Promise<User> {
+    const user = this.userRepository.create({
+      email: data.email,
+      name: data.name,
+      password: null,
+      isVerified: true,
+      authProvider: AuthProvider.GOOGLE,
     });
     return this.userRepository.save(user);
   }
@@ -35,7 +49,14 @@ export class UsersService {
   }
 
   async findAll(): Promise<UserDto[]> {
-    return UserFactory.toDtoArray(await this.userRepository.find());
+    const users = await this.userRepository.find();
+    const entries = await Promise.all(
+      users.map(async (user) => ({
+        user,
+        avatarUrl: await this.resolveAvatarUrl(user.avatarKey),
+      })),
+    );
+    return UserFactory.toDtoArray(entries);
   }
 
   async getProfile(userId: string): Promise<UserDto> {
@@ -43,11 +64,35 @@ export class UsersService {
     if (!user) {
       throw new UserNotFoundException(userId);
     }
-    return UserFactory.toDto(user);
+    const avatarUrl = await this.resolveAvatarUrl(user.avatarKey);
+    return UserFactory.toDto(user, avatarUrl);
+  }
+
+  private async resolveAvatarUrl(
+    avatarKey: string | null | undefined,
+  ): Promise<string | null> {
+    if (!avatarKey) {
+      return null;
+    }
+    return this.fileStorageService.getAvatarUrl(avatarKey);
   }
 
   async verifyUser(userId: string): Promise<void> {
     await this.userRepository.update(userId, { isVerified: true });
+  }
+
+  /** Returns the previous avatarKey (if any) so the caller can delete the now-orphaned storage object. */
+  async updateAvatar(
+    userId: string,
+    avatar: { key: string },
+  ): Promise<{ previousKey: string | null }> {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new UserNotFoundException(userId);
+    }
+    const previousKey = user.avatarKey ?? null;
+    await this.userRepository.update(userId, { avatarKey: avatar.key });
+    return { previousKey };
   }
 
   async updatePasswordHash(

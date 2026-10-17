@@ -5,9 +5,13 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { GoogleStrategy } from './strategies/google.strategy';
 import { PasswordResetService } from './services/password-reset.service';
 import { RefreshTokenService } from './services/refresh-token.service';
+import { AuthProviderUserService } from './services/auth-provider-user.service';
+import { OAuthCodeService } from './services/oauth-code.service';
 import { RefreshToken } from './entities/refresh-token.entity';
+import { AuthProviderUser } from './entities/auth-provider-user.entity';
 import { jwtConfig } from '../config/jwt.config';
 import { UsersModule } from '../users/users.module';
 import { OtpModule } from '../otp/otp.module';
@@ -15,7 +19,7 @@ import { InternalUsersModule } from '../internal-users/internal-users.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([RefreshToken]),
+    TypeOrmModule.forFeature([RefreshToken, AuthProviderUser]),
     PassportModule,
     JwtModule.register({
       secret: jwtConfig().secret,
@@ -29,8 +33,11 @@ import { InternalUsersModule } from '../internal-users/internal-users.module';
   providers: [
     AuthService,
     JwtStrategy,
+    GoogleStrategy,
     PasswordResetService,
     RefreshTokenService,
+    AuthProviderUserService,
+    OAuthCodeService,
   ],
   exports: [AuthService],
 })

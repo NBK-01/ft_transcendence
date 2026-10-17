@@ -1,5 +1,14 @@
-import { Controller, Post, Body, Get, Req } from '@nestjs/common';
-import { Request } from 'express';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Request, Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -8,6 +17,7 @@ import {
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { TokenMetadata } from './services/refresh-token.service';
+import { OAuthProfile } from './services/auth-provider-user.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
@@ -16,7 +26,9 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { OAuthExchangeDto } from './dto/oauth-exchange.dto';
 import { Public } from '../common/decorators/public.decorator';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { AuthContextService } from '../common/context';
 import { UsersService } from '../users/users.service';
 
@@ -27,6 +39,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly authContext: AuthContextService,
     private readonly usersService: UsersService,
+    private readonly configService: ConfigService,
   ) {}
 
   @Public()
@@ -65,6 +78,52 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   async login(@Body() dto: LoginDto, @Req() req: Request) {
     return this.authService.login(dto, this.metadataFrom(req));
+  }
+
+  @Public()
+  @UseGuards(GoogleAuthGuard)
+  @Get('google')
+  @ApiOperation({ summary: 'Redirect to Google for OAuth login' })
+  googleLogin(): void {
+    // GoogleAuthGuard itself performs the redirect — nothing to do here.
+  }
+
+  @Public()
+  @UseGuards(GoogleAuthGuard)
+  @Get('google/callback')
+  @ApiOperation({
+    summary: 'Google OAuth callback — redirects with a one-time code',
+  })
+  async googleCallback(
+    @Req() req: Request,
+    @Res() res: Response,
+  ): Promise<void> {
+    const frontendUrl = this.configService.get<string>(
+      'FRONTEND_URL',
+      'http://localhost:5173',
+    );
+    try {
+      const profile = req.user as OAuthProfile;
+      const code = await this.authService.handleGoogleCallback(profile);
+      res.redirect(`${frontendUrl}/auth/oauth-callback?code=${code}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'oauth_failed';
+      res.redirect(
+        `${frontendUrl}/auth/oauth-callback?error=${encodeURIComponent(message)}`,
+      );
+    }
+  }
+
+  @Public()
+  @Post('oauth/exchange')
+  @ApiOperation({
+    summary:
+      'Exchange a one-time OAuth code for an access + refresh token pair',
+  })
+  @ApiResponse({ status: 200, description: 'Login successful' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired code' })
+  async exchangeOAuthCode(@Body() dto: OAuthExchangeDto, @Req() req: Request) {
+    return this.authService.exchangeOAuthCode(dto.code, this.metadataFrom(req));
   }
 
   @Public()

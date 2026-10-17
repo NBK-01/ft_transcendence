@@ -10,6 +10,10 @@ export enum AuthErrorCodes {
   AccountNotVerified = 2005,
   RefreshTokenExpired = 2006,
   SessionInvalidated = 2007,
+  OAuthAccountConflict = 2008,
+  WrongAuthProvider = 2009,
+  OAuthCodeInvalid = 2010,
+  GoogleEmailNotVerified = 2011,
 }
 
 export enum AuthErrorMessages {
@@ -19,6 +23,10 @@ export enum AuthErrorMessages {
   AccountNotVerified = 'errors.ACCOUNT_NOT_VERIFIED',
   RefreshTokenExpired = 'errors.REFRESH_TOKEN_EXPIRED',
   SessionInvalidated = 'errors.SESSION_INVALIDATED',
+  OAuthAccountConflict = 'errors.OAUTH_ACCOUNT_CONFLICT',
+  WrongAuthProvider = 'errors.WRONG_AUTH_PROVIDER',
+  OAuthCodeInvalid = 'errors.OAUTH_CODE_INVALID',
+  GoogleEmailNotVerified = 'errors.GOOGLE_EMAIL_NOT_VERIFIED',
 }
 
 export class InvalidCredentialsException extends DomainException {
@@ -78,6 +86,49 @@ export class SessionInvalidatedException extends DomainException {
       { key: AuthErrorMessages.SessionInvalidated },
       HttpStatus.UNAUTHORIZED,
       AuthErrorCodes.SessionInvalidated,
+    );
+  }
+}
+
+/** A password-based account already exists with this email — no silent auto-linking to an OAuth login. */
+export class OAuthAccountConflictException extends DomainException {
+  constructor(email: string) {
+    super(
+      { key: AuthErrorMessages.OAuthAccountConflict, params: { email } },
+      HttpStatus.CONFLICT,
+      AuthErrorCodes.OAuthAccountConflict,
+    );
+  }
+}
+
+/** Thrown on password login/change against an account whose authProvider isn't EMAIL. */
+export class WrongAuthProviderException extends DomainException {
+  constructor(provider: string) {
+    super(
+      { key: AuthErrorMessages.WrongAuthProvider, params: { provider } },
+      HttpStatus.UNAUTHORIZED,
+      AuthErrorCodes.WrongAuthProvider,
+    );
+  }
+}
+
+/** The OAuth exchange code is missing, expired, or already consumed. */
+export class OAuthCodeInvalidException extends DomainException {
+  constructor() {
+    super(
+      { key: AuthErrorMessages.OAuthCodeInvalid },
+      HttpStatus.UNAUTHORIZED,
+      AuthErrorCodes.OAuthCodeInvalid,
+    );
+  }
+}
+
+export class GoogleEmailNotVerifiedException extends DomainException {
+  constructor() {
+    super(
+      { key: AuthErrorMessages.GoogleEmailNotVerified },
+      HttpStatus.UNAUTHORIZED,
+      AuthErrorCodes.GoogleEmailNotVerified,
     );
   }
 }
