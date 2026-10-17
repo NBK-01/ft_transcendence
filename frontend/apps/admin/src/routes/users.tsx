@@ -1,5 +1,5 @@
-import { Users as UsersIcon } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import { MoreHorizontal, Pencil, Plus, Users as UsersIcon } from "lucide-react";
+import { useCallback, useMemo, useRef, useState, type FocusEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { InternalUser, Organization } from "@trans/api";
@@ -9,8 +9,16 @@ import { EmptyState } from "@trans/ui/blocks/empty-state";
 import { PageHeader } from "@trans/ui/blocks/page-header";
 import { Avatar } from "@trans/ui/components/avatar";
 import { Badge } from "@trans/ui/components/badge";
+import { Button } from "@trans/ui/components/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@trans/ui/components/dropdown-menu";
 
 import { useInternalUsers, useOrganizations, useRoles } from "../features/users/api";
+import { UserFormDialog } from "../features/users/user-form-dialog";
 
 const NO_ROLE = "none";
 const NO_BRANCH = "";
@@ -23,6 +31,20 @@ export function UsersPage() {
   const users = useInternalUsers();
   const roles = useRoles();
   const organizations = useOrganizations();
+
+  // `user` outlives `open`, so the dialog keeps its title while it fades out.
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<InternalUser | null>(null);
+  const openDialog = useCallback((user: InternalUser | null) => {
+    setEditing(user);
+    setDialogOpen(true);
+  }, []);
+  // The dialog opens from a menu item that's gone by the time it closes, so
+  // remember the button that started it and send focus back there.
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const rememberFocus = useCallback((event: FocusEvent<HTMLElement>) => {
+    returnFocusRef.current = event.currentTarget;
+  }, []);
 
   const branchName = useMemo(() => {
     const names = new Map((organizations.data ?? []).map((org: Organization) => [org.id, org.name]));
@@ -83,8 +105,34 @@ export function UsersPage() {
         sortDescFirst: true,
         meta: { align: "end" },
       }),
+      column.display({
+        id: "actions",
+        cell: ({ row }) => (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="tertiary"
+                size="sm"
+                shape="square"
+                aria-label={t("app:users.rowActions", { name: row.original.name })}
+                onFocus={rememberFocus}
+              >
+                <MoreHorizontal />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => openDialog(row.original)}>
+                <Pencil aria-hidden="true" />
+                {t("app:users.edit")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ),
+        enableSorting: false,
+        meta: { align: "end", className: "w-12" },
+      }),
     ]);
-  }, [t, i18n.language, branchName, roleLabel]);
+  }, [t, i18n.language, branchName, roleLabel, openDialog, rememberFocus]);
 
   const filters = useMemo(
     () => [
@@ -119,7 +167,15 @@ export function UsersPage() {
   return (
     <div className="flex flex-col gap-8">
       <title>{`${t("nav.users")} · ${t("brand.name")}`}</title>
-      <PageHeader title={t("nav.users")} description={t("app:pages.users")} />
+      <PageHeader
+        title={t("nav.users")}
+        description={t("app:pages.users")}
+        actions={
+          <Button prefix={<Plus />} onFocus={rememberFocus} onClick={() => openDialog(null)}>
+            {t("app:users.newAccount")}
+          </Button>
+        }
+      />
       <DataTable
         columns={columns}
         data={users.data}
@@ -136,6 +192,12 @@ export function UsersPage() {
           <EmptyState icon={UsersIcon} title={t("app:users.emptyTitle")} description={t("app:users.emptyBody")} />
         }
         pageSizeOptions={[20, 50, 100]}
+      />
+      <UserFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        user={editing}
+        returnFocusTo={returnFocusRef}
       />
     </div>
   );
