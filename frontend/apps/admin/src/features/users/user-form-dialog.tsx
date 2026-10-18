@@ -230,11 +230,14 @@ function BranchField<T extends FieldValues>({ control, name }: { control: Contro
           </Field>
           <SelectContent>
             <SelectItem value={NO_BRANCH}>{t("users.noBranch")}</SelectItem>
-            {(organizations.data ?? []).map((org) => (
-              <SelectItem key={org.id} value={org.id}>
-                {org.name}
-              </SelectItem>
-            ))}
+            {/* Inactive branches only show when they're the current value, so editing doesn't drop it. */}
+            {(organizations.data ?? [])
+              .filter((org) => org.isActive || org.id === field.value)
+              .map((org) => (
+                <SelectItem key={org.id} value={org.id}>
+                  {org.name}
+                </SelectItem>
+              ))}
           </SelectContent>
         </Select>
       )}
