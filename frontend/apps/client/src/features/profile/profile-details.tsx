@@ -10,7 +10,7 @@ export function ProfileDetails({ profile }: { profile: Profile }) {
   const { t, i18n } = useTranslation("app");
   const { firstName, lastName } = namesOf(profile);
   const birthDate = profile.dateOfBirth
-    ? new Intl.DateTimeFormat(i18n.language, { dateStyle: "long" }).format(parseDateOnly(profile.dateOfBirth))
+    ? new Intl.DateTimeFormat(`${i18n.language}-u-nu-latn`, { dateStyle: "long" }).format(parseDateOnly(profile.dateOfBirth))
     : null;
 
   return (
@@ -23,7 +23,7 @@ export function ProfileDetails({ profile }: { profile: Profile }) {
           <span className="inline-flex items-center gap-1.5" dir="ltr">
             {profile.email}
             {profile.isVerified && (
-              <BadgeCheck aria-label={t("profile.verified")} className="size-4 shrink-0 text-blue-700" />
+              <BadgeCheck role="img" aria-label={t("profile.verified")} className="size-4 shrink-0 text-blue-700" />
             )}
           </span>
         }

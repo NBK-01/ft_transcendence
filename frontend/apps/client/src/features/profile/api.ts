@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api } from "@trans/api";
+import { api, keys } from "@trans/api";
 
 import type { AvatarUploadResult, Profile, ProfileUpdate } from "./types";
 
@@ -23,8 +23,12 @@ export function useUpdateProfile() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: ProfileUpdate) => api.patch<Profile>("/users/profile", input),
-    // The response is the updated profile: put it straight in the cache, no refetch needed.
-    onSuccess: (profile) => queryClient.setQueryData(profileKeys.me, profile),
+    // The response is the updated profile: put it straight in the cache. The
+    // session user (name in the header) comes from /auth/me, so that refetches.
+    onSuccess: (profile) => {
+      queryClient.setQueryData(profileKeys.me, profile);
+      return queryClient.invalidateQueries({ queryKey: keys.auth.me });
+    },
   });
 }
 
@@ -40,7 +44,9 @@ export function useUploadAvatar() {
       form.set("file", file);
       return api.upload<AvatarUploadResult>("/users/profile/avatar", form, { onProgress });
     },
-    onSuccess: ({ avatarUrl }) =>
-      queryClient.setQueryData<Profile>(profileKeys.me, (profile) => (profile ? { ...profile, avatarUrl } : profile)),
+    onSuccess: ({ avatarUrl }) => {
+      queryClient.setQueryData<Profile>(profileKeys.me, (profile) => (profile ? { ...profile, avatarUrl } : profile));
+      return queryClient.invalidateQueries({ queryKey: keys.auth.me });
+    },
   });
 }

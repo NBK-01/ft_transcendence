@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
 import { isApiError } from "@trans/api";
@@ -6,14 +7,11 @@ import { Button } from "@trans/ui/components/button";
 import { Field, FieldError } from "@trans/ui/components/field";
 import { Input } from "@trans/ui/components/input";
 import { toast } from "@trans/ui/components/toaster";
+import { profileSchema, type ProfileValues } from "@trans/ui/schemas/profile";
 
 import { useUpdateProfile } from "./api";
 import { namesOf } from "./names";
 import type { Profile } from "./types";
-import { dateOfBirthError, nameError, phoneError } from "./validation";
-
-type Values = { firstName: string; lastName: string; dateOfBirth: string; phoneNumber: string };
-type Errors = Partial<Record<keyof Values | "form", string>>;
 
 /** Today as "YYYY-MM-DD" in local time, for the date input's `max`. */
 const todayIso = () => {
@@ -25,82 +23,63 @@ const todayIso = () => {
 export function ProfileForm({ profile, onDone }: { profile: Profile; onDone: () => void }) {
   const { t } = useTranslation(["common", "app"]);
   const save = useUpdateProfile();
+  const form = useForm<ProfileValues>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: {
+      ...namesOf(profile),
+      dateOfBirth: profile.dateOfBirth ?? "",
+      phoneNumber: profile.phoneNumber ?? "",
+    },
+  });
+  const { errors } = form.formState;
 
-  const [values, setValues] = useState<Values>(() => ({
-    ...namesOf(profile),
-    dateOfBirth: profile.dateOfBirth ?? "",
-    phoneNumber: profile.phoneNumber ?? "",
-  }));
-  const [errors, setErrors] = useState<Errors>({});
-
-  const set = (field: keyof Values) => (event: { target: { value: string } }) =>
-    setValues((current) => ({ ...current, [field]: event.target.value }));
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    const next: Errors = {
-      firstName: nameError(values.firstName),
-      lastName: nameError(values.lastName),
-      dateOfBirth: dateOfBirthError(values.dateOfBirth),
-      phoneNumber: phoneError(values.phoneNumber),
-    };
-    setErrors(next);
-    if (Object.values(next).some(Boolean)) return;
-
-    save.mutate(
-      {
-        firstName: values.firstName.trim(),
-        lastName: values.lastName.trim(),
-        dateOfBirth: values.dateOfBirth || null,
-        phoneNumber: values.phoneNumber.trim() || null,
-      },
-      {
-        onSuccess: () => {
-          toast.success(t("app:profile.saved"));
-          onDone();
-        },
-        onError: (err) =>
-          setErrors({ form: isApiError(err) && err.messages[0] ? err.messages[0] : "app:profile.errors.save" }),
-      },
-    );
-  };
+  const submit = form.handleSubmit(async ({ firstName, lastName, dateOfBirth, phoneNumber }) => {
+    try {
+      // null clears an optional field.
+      await save.mutateAsync({ firstName, lastName, dateOfBirth: dateOfBirth || null, phoneNumber: phoneNumber || null });
+      toast.success(t("app:profile.saved"));
+      onDone();
+    } catch (error) {
+      form.setError("root", {
+        message: isApiError(error) && error.messages[0] ? error.messages[0] : "app:profile.errors.save",
+      });
+    }
+  });
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-5">
       <div className="grid gap-5 sm:grid-cols-2">
-        <Field label={t("app:profile.fields.firstName")} error={errors.firstName}>
-          <Input autoComplete="given-name" value={values.firstName} onChange={set("firstName")} />
+        <Field label={t("app:profile.fields.firstName")} error={errors.firstName?.message}>
+          <Input autoComplete="given-name" {...form.register("firstName")} />
         </Field>
-        <Field label={t("app:profile.fields.lastName")} error={errors.lastName}>
-          <Input autoComplete="family-name" value={values.lastName} onChange={set("lastName")} />
+        <Field label={t("app:profile.fields.lastName")} error={errors.lastName?.message}>
+          <Input autoComplete="family-name" {...form.register("lastName")} />
         </Field>
         <Field label={t("app:profile.fields.email")} hint={t("app:profile.emailHint")}>
           <Input type="email" value={profile.email} disabled dir="ltr" />
         </Field>
-        <Field label={t("app:profile.fields.dateOfBirth")} error={errors.dateOfBirth}>
+        <Field label={t("app:profile.fields.dateOfBirth")} error={errors.dateOfBirth?.message}>
           <Input
             type="date"
             autoComplete="bday"
             min="1900-01-01"
             max={todayIso()}
-            value={values.dateOfBirth}
-            onChange={set("dateOfBirth")}
+            {...form.register("dateOfBirth")}
           />
         </Field>
-        <Field label={t("app:profile.fields.phoneNumber")} hint={t("app:profile.phoneHint")} error={errors.phoneNumber}>
+        <Field label={t("app:profile.fields.phoneNumber")} hint={t("app:profile.phoneHint")} error={errors.phoneNumber?.message}>
           <Input
             type="tel"
             inputMode="tel"
             autoComplete="tel"
             placeholder="+961 70 123 456"
             dir="ltr"
-            value={values.phoneNumber}
-            onChange={set("phoneNumber")}
+            {...form.register("phoneNumber")}
           />
         </Field>
       </div>
 
-      {errors.form && <FieldError message={errors.form} />}
+      {errors.root?.message && <FieldError message={errors.root.message} />}
 
       <div className="flex gap-2">
         <Button type="submit" loading={save.isPending}>

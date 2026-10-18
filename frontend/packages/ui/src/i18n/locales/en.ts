@@ -129,6 +129,8 @@ const en = {
     passwordStrength: "Include at least one letter and one number.",
     passwordMatch: "Passwords don't match.",
     nameMax: "Keep it under 50 characters.",
+    dateOfBirth: "Enter a real date in the past.",
+    phone: "Enter a number with its country code, e.g. +961 70 123 456.",
     otp: "Enter all 6 digits.",
     terms: "You need to accept the terms to continue.",
   },

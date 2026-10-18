@@ -28,8 +28,6 @@ const ar: ClientResources = {
       avatarType: "اختر صورة بصيغة JPG أو PNG أو WebP.",
       avatarSize: "يجب ألا يتجاوز حجم الصورة 2 ميغابايت.",
       avatarUpload: "تعذّر رفع الصورة. حاول مرة أخرى.",
-      dateOfBirth: "أدخل تاريخًا حقيقيًا في الماضي.",
-      phone: "أدخل رقمًا مع رمز الدولة، مثل +961 70 123 456.",
     },
   },
   pages: {

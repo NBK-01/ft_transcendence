@@ -28,8 +28,6 @@ const fr: ClientResources = {
       avatarType: "Choisissez une image JPG, PNG ou WebP.",
       avatarSize: "La photo doit faire 2 Mo maximum.",
       avatarUpload: "Impossible d'envoyer la photo. Réessayez.",
-      dateOfBirth: "Saisissez une date réelle dans le passé.",
-      phone: "Saisissez un numéro avec l'indicatif du pays, ex. +33 6 12 34 56 78.",
     },
   },
   pages: {

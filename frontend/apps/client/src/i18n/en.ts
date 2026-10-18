@@ -27,8 +27,6 @@ const en = {
       avatarType: "Choose a JPG, PNG or WebP image.",
       avatarSize: "The photo must be 2 MB or less.",
       avatarUpload: "Couldn't upload the photo. Try again.",
-      dateOfBirth: "Enter a real date in the past.",
-      phone: "Enter a number with its country code, e.g. +961 70 123 456.",
     },
   },
   pages: {
