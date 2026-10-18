@@ -22,6 +22,7 @@ import { toast } from "@trans/ui/components/toaster";
 
 import { useOrganizations, useSetOrganizationActive } from "../features/branches/api";
 import { BranchFormDialog } from "../features/branches/branch-form-dialog";
+import { useBranchFilter } from "../features/branches/use-branch-filter";
 import { useInternalUsers } from "../features/users/api";
 
 const column = createDataTableColumnHelper<Organization>();
@@ -30,6 +31,7 @@ const column = createDataTableColumnHelper<Organization>();
 export function BranchesPage() {
   const { t, i18n } = useTranslation(["common", "app"]);
   const organizations = useOrganizations();
+  const { withBranch } = useBranchFilter();
   // The API has no member count, so it's counted from the staff list.
   const staff = useInternalUsers();
 
@@ -93,7 +95,7 @@ export function BranchesPage() {
         cell: ({ row }) => (
           <div className="flex min-w-0 flex-col">
             <Link
-              to={`/branches/${row.original.id}`}
+              to={withBranch(`/branches/${row.original.id}`)}
               className="focus-ring w-fit max-w-full truncate rounded-sm text-label-14 text-gray-1000 hover:underline"
             >
               {row.original.name}
@@ -178,7 +180,7 @@ export function BranchesPage() {
         meta: { align: "end", className: "w-12" },
       }),
     ]);
-  }, [t, i18n.language, memberCount, openDialog, rememberFocus, askDeactivate, reactivate]);
+  }, [t, i18n.language, memberCount, withBranch, openDialog, rememberFocus, askDeactivate, reactivate]);
 
   const filters = useMemo(
     () => [

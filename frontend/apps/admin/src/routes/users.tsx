@@ -21,6 +21,7 @@ import {
 import { toast } from "@trans/ui/components/toaster";
 
 import { useOrganizations } from "../features/branches/api";
+import { useBranchFilter } from "../features/branches/use-branch-filter";
 import { useInternalUsers, useRoles, useSetStaffActive } from "../features/users/api";
 import { UserFormDialog } from "../features/users/user-form-dialog";
 
@@ -35,6 +36,12 @@ export function UsersPage() {
   const users = useInternalUsers();
   const roles = useRoles();
   const organizations = useOrganizations();
+  // The topbar branch filter narrows the list before the table's own filters.
+  const { branchId } = useBranchFilter();
+  const rows = useMemo(
+    () => (branchId ? users.data?.filter((user) => user.organizationId === branchId) : users.data),
+    [users.data, branchId],
+  );
 
   // `user` outlives `open`, so the dialog keeps its title while it fades out.
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -185,14 +192,19 @@ export function UsersPage() {
           label: roleLabel(name),
         })),
       },
-      {
-        column: "branch",
-        title: t("app:users.columns.branch"),
-        options: [
-          ...(organizations.data ?? []).map((org) => ({ value: org.name, label: org.name })),
-          { value: NO_BRANCH, label: t("app:users.noBranch") },
-        ],
-      },
+      // Not needed while the topbar already picks one branch.
+      ...(branchId
+        ? []
+        : [
+            {
+              column: "branch",
+              title: t("app:users.columns.branch"),
+              options: [
+                ...(organizations.data ?? []).map((org) => ({ value: org.name, label: org.name })),
+                { value: NO_BRANCH, label: t("app:users.noBranch") },
+              ],
+            },
+          ]),
       {
         column: "status",
         title: t("app:users.columns.status"),
@@ -202,7 +214,7 @@ export function UsersPage() {
         })),
       },
     ],
-    [t, roleLabel, roles.data, organizations.data],
+    [t, roleLabel, roles.data, organizations.data, branchId],
   );
 
   return (
@@ -218,8 +230,10 @@ export function UsersPage() {
         }
       />
       <DataTable
+        // A new topbar branch starts the table fresh, so a hidden branch filter can't linger.
+        key={branchId ?? "all"}
         columns={columns}
-        data={users.data}
+        data={rows}
         getRowId={(user) => user.id}
         isLoading={users.isPending || organizations.isPending}
         error={users.error ?? organizations.error}

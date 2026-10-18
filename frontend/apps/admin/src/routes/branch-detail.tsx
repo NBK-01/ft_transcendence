@@ -18,6 +18,7 @@ import { toast } from "@trans/ui/components/toaster";
 import { AddMemberDialog } from "../features/branches/add-member-dialog";
 import { useBranchStaff, useOrganization, useRemoveStaff } from "../features/branches/api";
 import { BranchFormDialog } from "../features/branches/branch-form-dialog";
+import { useBranchFilter } from "../features/branches/use-branch-filter";
 
 const column = createDataTableColumnHelper<InternalUser>();
 
@@ -219,9 +220,10 @@ function BranchDetail({ branch }: { branch: Organization }) {
 
 function BackLink() {
   const { t } = useTranslation("common");
+  const { withBranch } = useBranchFilter();
   return (
     <Link
-      to="/branches"
+      to={withBranch("/branches")}
       className="focus-ring flex w-fit items-center gap-1.5 rounded-md text-label-14 text-gray-900 hover:text-gray-1000"
     >
       <ArrowLeft className="size-4 rtl:-scale-x-100" aria-hidden="true" />
