@@ -5,6 +5,7 @@ import { LegalPage } from "@trans/ui/blocks/legal-layout";
 import { NotFoundPage } from "@trans/ui/blocks/not-found-page";
 
 import { AdminLayout } from "./layouts/admin-layout";
+import { BranchDetailPage } from "./routes/branch-detail";
 import { BranchesPage } from "./routes/branches";
 import { Stub } from "./routes/stub";
 import { UsersPage } from "./routes/users";
@@ -23,6 +24,7 @@ export const router = createBrowserRouter(
         { path: "messages", element: <Stub page="messages" icon={MessageSquare} /> },
         { path: "users", element: <UsersPage /> },
         { path: "branches", element: <BranchesPage /> },
+        { path: "branches/:id", element: <BranchDetailPage /> },
         { path: "api-keys", element: <Stub page="apiKeys" icon={KeyRound} /> },
         { path: "profile", element: <Stub page="profile" icon={UserRound} /> },
       ],

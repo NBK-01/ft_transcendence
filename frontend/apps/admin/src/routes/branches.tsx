@@ -1,6 +1,7 @@
 import { Ban, Building2, MoreHorizontal, Pencil, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useMemo, useRef, useState, type FocusEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router";
 
 import type { Organization } from "@trans/api";
 import { ConfirmDelete } from "@trans/ui/blocks/confirm-delete";
@@ -91,7 +92,12 @@ export function BranchesPage() {
         header: ({ column }) => <DataTableColumnHeader column={column} title={t("app:branches.columns.name")} />,
         cell: ({ row }) => (
           <div className="flex min-w-0 flex-col">
-            <span className="truncate text-label-14 text-gray-1000">{row.original.name}</span>
+            <Link
+              to={`/branches/${row.original.id}`}
+              className="focus-ring w-fit max-w-full truncate rounded-sm text-label-14 text-gray-1000 hover:underline"
+            >
+              {row.original.name}
+            </Link>
             {row.original.description && (
               <span className="max-w-md truncate text-copy-13 text-gray-900">{row.original.description}</span>
             )}

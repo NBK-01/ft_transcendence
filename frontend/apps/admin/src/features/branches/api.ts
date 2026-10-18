@@ -1,9 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import {
   api,
   keys,
   type CreateOrganizationInput,
+  type InternalUser,
   type Organization,
   type UpdateOrganizationInput,
 } from "@trans/api";
@@ -17,6 +18,51 @@ export function useOrganizations() {
     queryKey: keys.organizations.list(),
     queryFn: ({ signal }) => api.get<Organization[]>("/organizations", { signal }),
   });
+}
+
+/** GET /organizations/:id. A 404 (code 4001) isn't retried, so a bad link fails fast. */
+export function useOrganization(id: string) {
+  return useQuery({
+    queryKey: keys.organizations.detail(id),
+    queryFn: ({ signal }) => api.get<Organization>(`/organizations/${encodeURIComponent(id)}`, { signal }),
+  });
+}
+
+/** GET /organizations/:id/staff: the branch's members. */
+export function useBranchStaff(id: string) {
+  return useQuery({
+    queryKey: keys.organizations.staff(id),
+    queryFn: ({ signal }) =>
+      api.get<InternalUser[]>(`/organizations/${encodeURIComponent(id)}/staff`, { signal }),
+  });
+}
+
+/** POST /organizations/:id/staff/:userId. Moves them: they leave the branch they were in. */
+export function useAssignStaff() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ branchId, userId }: { branchId: string; userId: string }) =>
+      api.post(`/organizations/${encodeURIComponent(branchId)}/staff/${encodeURIComponent(userId)}`),
+    onSettled: () => invalidateMembership(queryClient),
+  });
+}
+
+/** DELETE /organizations/:id/staff/:userId. They keep their account, with no branch. */
+export function useRemoveStaff() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ branchId, userId }: { branchId: string; userId: string }) =>
+      api.delete(`/organizations/${encodeURIComponent(branchId)}/staff/${encodeURIComponent(userId)}`),
+    onSettled: () => invalidateMembership(queryClient),
+  });
+}
+
+/** Membership shows on the branch pages (members, counts) and the Users page (branch column). */
+function invalidateMembership(queryClient: QueryClient) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: keys.organizations.all }),
+    queryClient.invalidateQueries({ queryKey: keys.internalUsers.all }),
+  ]);
 }
 
 /** POST /organizations. The list refreshes on success. */
