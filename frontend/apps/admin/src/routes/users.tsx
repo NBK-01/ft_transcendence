@@ -20,7 +20,8 @@ import {
 } from "@trans/ui/components/dropdown-menu";
 import { toast } from "@trans/ui/components/toaster";
 
-import { useInternalUsers, useOrganizations, useRoles, useSetStaffActive } from "../features/users/api";
+import { useOrganizations } from "../features/branches/api";
+import { useInternalUsers, useRoles, useSetStaffActive } from "../features/users/api";
 import { UserFormDialog } from "../features/users/user-form-dialog";
 
 const NO_ROLE = "none";

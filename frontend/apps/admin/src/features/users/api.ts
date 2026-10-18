@@ -5,7 +5,6 @@ import {
   keys,
   type CreateInternalUserInput,
   type InternalUser,
-  type Organization,
   type Role,
   type UpdateInternalUserInput,
 } from "@trans/api";
@@ -27,14 +26,6 @@ export function useRoles() {
     queryKey: keys.roles.all,
     queryFn: ({ signal }) => api.get<Role[]>("/access-control/roles", { signal }),
     staleTime: Infinity,
-  });
-}
-
-/** GET /organizations: the branches, for names and the branch filter. */
-export function useOrganizations() {
-  return useQuery({
-    queryKey: keys.organizations.list(),
-    queryFn: ({ signal }) => api.get<Organization[]>("/organizations", { signal }),
   });
 }
 

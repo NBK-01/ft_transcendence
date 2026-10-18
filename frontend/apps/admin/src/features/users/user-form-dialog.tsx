@@ -27,7 +27,8 @@ import {
   type EditStaffValues,
 } from "@trans/ui/schemas/staff";
 
-import { EMAIL_TAKEN, useCreateInternalUser, useOrganizations, useRoles, useUpdateInternalUser } from "./api";
+import { useOrganizations } from "../branches/api";
+import { EMAIL_TAKEN, useCreateInternalUser, useRoles, useUpdateInternalUser } from "./api";
 
 /** Radix Select can't use "" as an item value, so this stands for "no branch". */
 const NO_BRANCH = "none";
