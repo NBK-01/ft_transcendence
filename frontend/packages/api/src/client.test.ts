@@ -5,9 +5,9 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { api, configureApi } from "./client";
 import { ApiError } from "./errors";
 import { handlers, ok, paginated } from "./mocks/handlers";
-import { internalUsers } from "./mocks/data";
+import { internalUsers, MOCK_STAFF_PASSWORD } from "./mocks/data";
 import { tokens } from "./session";
-import type { AuthResponse, InternalUser, User } from "./types";
+import type { AuthResponse, InternalUser, StaffAuthResponse, User } from "./types";
 
 // Same handlers the dev app uses — tests and mocks can't drift apart.
 const server = setupServer(...handlers);
@@ -163,9 +163,19 @@ describe("api client", () => {
   });
 });
 
+/** Signs in as a mock staff account (an admin by default) and starts the session. */
+async function signInAsStaff(email = internalUsers[0]!.email) {
+  const { user, ...pair } = await staffLogin(email);
+  tokens.set(pair, user);
+  return { user, ...pair };
+}
+const staffLogin = (email: string, password = MOCK_STAFF_PASSWORD) =>
+  api.post<StaffAuthResponse>("/staff-auth/login", { email, password }, { auth: false });
+
 // The mocks stand in for the backend, so they must answer like it does.
 describe("mocks match the backend", () => {
-  const staff = (body: object) => api.post<InternalUser>("/internal-users", body, { auth: false });
+  beforeEach(() => signInAsStaff());
+  const staff = (body: object) => api.post<InternalUser>("/internal-users", body);
   const valid = { email: "new.dispatcher@example.com", password: "password1", name: "New Dispatcher", roleName: "dispatcher" };
 
   it("login returns only id, email and name; /auth/me has the full user", async () => {
@@ -182,7 +192,7 @@ describe("mocks match the backend", () => {
 
     const existing = internalUsers[0]!;
     await expect(
-      api.patch(`/internal-users/${existing.id}`, { roleName: "pilot" }, { auth: false }),
+      api.patch(`/internal-users/${existing.id}`, { roleName: "pilot" }),
     ).rejects.toMatchObject({ status: 404, errorCode: 7004 });
   });
 
@@ -194,5 +204,76 @@ describe("mocks match the backend", () => {
   it("doesn't check that the branch exists", async () => {
     const user = await staff({ ...valid, organizationId: "00000000-0000-4000-8000-0000000000ff" });
     expect(user.organizationId).toBe("00000000-0000-4000-8000-0000000000ff");
+  });
+});
+
+describe("staff sign-in", () => {
+  afterEach(() => configureApi({ refreshPath: "/auth/refresh", storageKey: "trans-refresh-token" }));
+
+  it("staff endpoints answer 401 without a staff token", async () => {
+    for (const path of ["/internal-users", "/organizations", "/access-control/roles"]) {
+      await expect(api.get(path, { auth: false })).rejects.toMatchObject({ status: 401, errorCode: undefined });
+    }
+    await signInAsStaff();
+    await expect(api.get("/internal-users")).resolves.toBeInstanceOf(Array);
+  });
+
+  it("login returns the staff member with their role; the email is matched case-insensitively", async () => {
+    const admin = internalUsers[0]!;
+    const { user } = await staffLogin(`  ${admin.email.toUpperCase()} `);
+    expect(user).toEqual({ id: admin.id, email: admin.email, name: admin.name, roleName: admin.roleName });
+  });
+
+  it("a wrong password or unknown email is 8003, a deactivated account 7003", async () => {
+    await expect(staffLogin(internalUsers[0]!.email, "wrong")).rejects.toMatchObject({ status: 401, errorCode: 8003 });
+    await expect(staffLogin("nobody@shiptrack.example")).rejects.toMatchObject({ status: 401, errorCode: 8003 });
+    const inactive = internalUsers.find((user) => !user.isActive)!;
+    await expect(staffLogin(inactive.email)).rejects.toMatchObject({ status: 401, errorCode: 7003 });
+  });
+
+  it("refreshes through the configured path, and the old refresh token stops working", async () => {
+    configureApi({ refreshPath: "/staff-auth/refresh" });
+    const { refreshToken } = await signInAsStaff();
+    tokens.set({ accessToken: "expired", refreshToken });
+    const paths: string[] = [];
+    server.events.on("request:start", ({ request }) => void paths.push(new URL(request.url).pathname));
+
+    await api.get("/internal-users");
+
+    expect(paths).toContain("/api/staff-auth/refresh");
+    expect(paths).not.toContain("/api/auth/refresh");
+    await expect(
+      api.post("/staff-auth/refresh", { refreshToken }, { auth: false }),
+    ).rejects.toMatchObject({ status: 401, errorCode: 8004 });
+  });
+
+  it("logout revokes that refresh token; logout-all revokes every session", async () => {
+    const first = await staffLogin(internalUsers[0]!.email);
+    await api.post("/staff-auth/logout", { refreshToken: first.refreshToken }, { auth: false });
+    await expect(
+      api.post("/staff-auth/refresh", { refreshToken: first.refreshToken }, { auth: false }),
+    ).rejects.toMatchObject({ errorCode: 8004 });
+
+    const other = await staffLogin(internalUsers[0]!.email);
+    await signInAsStaff();
+    await api.post("/staff-auth/logout-all");
+    await expect(
+      api.post("/staff-auth/refresh", { refreshToken: other.refreshToken }, { auth: false }),
+    ).rejects.toMatchObject({ errorCode: 8004 });
+  });
+
+  it("each storage key holds its own session, with the user next to it", async () => {
+    configureApi({ storageKey: "trans-staff-refresh-token" });
+    const { user, refreshToken } = await signInAsStaff();
+
+    expect(localStorage.getItem("trans-staff-refresh-token")).toBe(refreshToken);
+    expect(localStorage.getItem("trans-refresh-token")).toBeNull();
+    expect(tokens.getUser()).toEqual(user);
+    // Same object until it changes, as useSyncExternalStore needs.
+    expect(tokens.getUser()).toBe(tokens.getUser());
+
+    tokens.clear();
+    expect(localStorage.getItem("trans-staff-refresh-token")).toBeNull();
+    expect(tokens.getUser()).toBeNull();
   });
 });

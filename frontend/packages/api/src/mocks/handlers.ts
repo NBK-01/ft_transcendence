@@ -4,6 +4,7 @@ import type { AuthResponse, TokenPair, User } from "../types";
 import { organizationHandlers } from "./organizations";
 import { error, ok } from "./respond";
 import { staffHandlers } from "./staff";
+import { requireStaffToken, staffAuthHandlers } from "./staff-auth";
 
 export { error, ok, paginated } from "./respond";
 
@@ -58,6 +59,9 @@ export const handlers = [
     return ok<User>(MOCK_USER);
   }),
 
+  ...staffAuthHandlers,
+  // Before the staff-only handlers, so they answer 401 without a staff token.
+  requireStaffToken,
   ...staffHandlers,
   ...organizationHandlers,
 ];

@@ -89,5 +89,9 @@ export const internalUsers: InternalUser[] = STAFF.map(([name, roleName, branch,
   updatedAt: day(created),
 }));
 
+/** Every mock staff account signs in with this; accounts created on the Users page use the password they were given. */
+export const MOCK_STAFF_PASSWORD = "password123";
+export const staffPasswords = new Map(internalUsers.map((user) => [user.id, MOCK_STAFF_PASSWORD]));
+
 export const isUuid = (value: unknown) => typeof value === "string" && /^[0-9a-f-]{36}$/i.test(value);
 export const roleExists = (name: unknown) => ROLES.some((role) => role.name === name);
