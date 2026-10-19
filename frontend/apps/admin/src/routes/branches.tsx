@@ -1,5 +1,5 @@
 import { Ban, Building2, MoreHorizontal, Pencil, Plus, RotateCcw } from "lucide-react";
-import { useCallback, useMemo, useRef, useState, type FocusEvent } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 
@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@trans/ui/components/dropdown-menu";
 import { toast } from "@trans/ui/components/toaster";
+import { useReturnFocus } from "@trans/ui/hooks/use-return-focus";
 
 import { useOrganizations, useSetOrganizationActive } from "../features/branches/api";
 import { BranchFormDialog } from "../features/branches/branch-form-dialog";
@@ -42,12 +43,8 @@ export function BranchesPage() {
     setEditing(branch);
     setDialogOpen(true);
   }, []);
-  // The dialog opens from a menu item that's gone by the time it closes, so
-  // remember the button that started it and send focus back there.
-  const returnFocusRef = useRef<HTMLElement | null>(null);
-  const rememberFocus = useCallback((event: FocusEvent<HTMLElement>) => {
-    returnFocusRef.current = event.currentTarget;
-  }, []);
+  // The dialogs open from a menu item that's gone by the time they close.
+  const { ref: returnFocusRef, remember: rememberFocus } = useReturnFocus();
 
   // mutateAsync is stable, so it can sit in the columns' dependencies.
   const { mutateAsync: setActive } = useSetOrganizationActive();

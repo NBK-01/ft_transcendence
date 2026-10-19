@@ -1,6 +1,6 @@
 import type { Column, ReactTable, RowData } from "@tanstack/react-table";
 import { ListFilter, Search, X } from "lucide-react";
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { DataTableFeatures } from "@trans/ui/blocks/data-table";
@@ -29,6 +29,10 @@ export type DataTableFilter = {
   options: { value: string; label: string; icon?: ReactNode }[];
 };
 
+/**
+ * `clearSelection` also moves focus to the search box: the actions disappear
+ * with the selection, so focus would otherwise drop to <body>.
+ */
 export type DataTableSelectionActions<TData> = (rows: TData[], clearSelection: () => void) => ReactNode;
 
 /** Search box, filter menus and, while rows are selected, the page's bulk actions. */
@@ -44,6 +48,13 @@ export function DataTableToolbar<TData extends RowData>({
   selectionActions?: DataTableSelectionActions<TData>;
 }) {
   const { t } = useTranslation("common");
+  const searchId = useId();
+
+  const clearSelection = () => {
+    table.resetRowSelection();
+    // After the commit and any closing dialog's own focus handling, which would undo an earlier call.
+    setTimeout(() => document.getElementById(searchId)?.focus());
+  };
 
   const searchColumn = search ? table.getColumn(search.column) : undefined;
   const isFiltered = table.state.columnFilters.length > 0;
@@ -59,6 +70,7 @@ export function DataTableToolbar<TData extends RowData>({
             aria-hidden="true"
           />
           <Input
+            id={searchId}
             type="search"
             value={(searchColumn.getFilterValue() as string | undefined) ?? ""}
             onChange={(event) => searchColumn.setFilterValue(event.target.value)}
@@ -84,7 +96,7 @@ export function DataTableToolbar<TData extends RowData>({
         <div className="ms-auto flex items-center gap-2">
           {selectionActions(
             selectedRows.map((row) => row.original),
-            () => table.resetRowSelection(),
+            clearSelection,
           )}
         </div>
       )}

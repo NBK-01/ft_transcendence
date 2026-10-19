@@ -19,6 +19,7 @@ import { Field, FieldError } from "@trans/ui/components/field";
 import { Input } from "@trans/ui/components/input";
 import { Textarea } from "@trans/ui/components/textarea";
 import { toast } from "@trans/ui/components/toaster";
+import { focusOnClose } from "@trans/ui/hooks/use-return-focus";
 import { branchSchema, type BranchValues } from "@trans/ui/schemas/branch";
 
 import { NAME_TAKEN, useCreateOrganization, useUpdateOrganization } from "./api";
@@ -45,11 +46,7 @@ export function BranchFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="max-w-lg"
-        onCloseAutoFocus={(event) => {
-          if (!returnFocusTo?.current) return;
-          event.preventDefault();
-          returnFocusTo.current.focus();
-        }}
+        onCloseAutoFocus={focusOnClose(returnFocusTo)}
       >
         <DialogHeader>
           <DialogTitle>
@@ -104,8 +101,9 @@ function BranchForm({ branch, onDone }: { branch: Organization | null; onDone: (
       if (isApiError(error) && error.errorCode === NAME_TAKEN) {
         form.setError("name", { message: "app:branches.form.nameTaken" }, { shouldFocus: true });
       } else {
+        // Already translated: the backend's message (Accept-Language) or ours. Rendered as text.
         form.setError("root", {
-          message: isApiError(error) && error.messages[0] ? error.messages[0] : "app:branches.form.error",
+          message: isApiError(error) && error.messages[0] ? error.messages[0] : t("app:branches.form.error"),
         });
       }
     }
@@ -131,7 +129,7 @@ function BranchForm({ branch, onDone }: { branch: Organization | null; onDone: (
         >
           <Input type="email" autoComplete="off" dir="ltr" {...form.register("contactEmail")} />
         </Field>
-        {errors.root?.message && <FieldError message={errors.root.message} />}
+        {errors.root?.message && <FieldError>{errors.root.message}</FieldError>}
       </DialogBody>
       <DialogFooter>
         <DialogClose asChild>

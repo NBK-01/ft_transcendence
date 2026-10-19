@@ -21,6 +21,7 @@ const MOCK_USER: User = {
   email: "amina@example.com",
   name: "Amina El Idrissi",
   isVerified: true,
+  avatarUrl: null,
   createdAt: "2026-09-01T09:00:00.000Z",
   updatedAt: "2026-10-01T09:00:00.000Z",
 };
@@ -39,7 +40,9 @@ export const handlers = [
     const body = (await request.json()) as { email?: string; password?: string };
     if (!body.email || !body.password) return error(400, ["email must be an email"]);
     if (body.password === "wrong") return error(401, ["Invalid email or password."], 2002);
-    return ok<AuthResponse>({ ...issueTokens(), user: { ...MOCK_USER, email: body.email } });
+    // Like the real AuthService.login: only id, email and name.
+    const { id, name } = MOCK_USER;
+    return ok<AuthResponse>({ ...issueTokens(), user: { id, email: body.email, name } });
   }),
 
   http.post("*/api/auth/refresh", async ({ request }) => {

@@ -5,9 +5,7 @@ import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, NavLink } from "react-router";
 
-import { LanguageSwitcher } from "@trans/ui/blocks/language-switcher";
 import { SiteFooter } from "@trans/ui/blocks/site-footer";
-import { ThemeSwitcher } from "@trans/ui/blocks/theme-switcher";
 import { Avatar } from "@trans/ui/components/avatar";
 import { Button } from "@trans/ui/components/button";
 import {
@@ -260,15 +258,6 @@ function AccountMenu({
             <DropdownMenuSeparator />
           </>
         )}
-        <div className="flex items-center justify-between gap-2 px-2 py-1.5">
-          <span className="text-label-14 text-gray-900">{t("theme.label")}</span>
-          <ThemeSwitcher />
-        </div>
-        <div className="flex items-center justify-between gap-2 px-2 py-1.5">
-          <span className="text-label-14 text-gray-900">{t("language.label")}</span>
-          <LanguageSwitcher />
-        </div>
-        <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={onSignOut}>
           <LogOut className="rtl:-scale-x-100" aria-hidden="true" />
           {t("nav.signOut")}
@@ -302,11 +291,17 @@ function MobileNavBar({ items }: { items: NavItem[] }) {
         className="grid rounded-2xl border border-gray-alpha-400 bg-background-100 p-1 shadow-lg"
         style={{ gridTemplateColumns: `repeat(${primary.length + (overflow ? 1 : 0)}, minmax(0, 1fr))` }}
       >
-        {primary.map(({ to, label, icon: Icon, end }) => (
+        {primary.map(({ to, label, icon: Icon, end, badge }) => (
           <NavLink key={to} to={to} end={end} className={({ isActive }) => mobileItemClasses(isActive)}>
             {({ isActive }) => (
               <>
-                <Icon className="size-5" aria-hidden="true" />
+                <span className="relative">
+                  <Icon className="size-5" aria-hidden="true" />
+                  {/* Opaque backing, so a translucent badge doesn't let the icon show through. */}
+                  {badge != null && (
+                    <span className="absolute -top-2 start-3 rounded-full bg-background-100">{badge}</span>
+                  )}
+                </span>
                 <span className="max-w-full truncate px-1">{label}</span>
                 {isActive && (
                   <span aria-hidden="true" className="absolute top-1 size-1 rounded-full bg-orange-700" />
@@ -318,7 +313,13 @@ function MobileNavBar({ items }: { items: NavItem[] }) {
         {overflow && (
           <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
             <SheetTrigger className={mobileItemClasses(false)}>
-              <Ellipsis className="size-5" aria-hidden="true" />
+              <span className="relative">
+                <Ellipsis className="size-5" aria-hidden="true" />
+                {/* A badge hidden in the sheet still shows that something's waiting. */}
+                {rest.some((item) => item.badge != null) && (
+                  <span aria-hidden="true" className="absolute -top-0.5 -end-1 size-2 rounded-full bg-orange-700" />
+                )}
+              </span>
               <span>{t("nav.more")}</span>
             </SheetTrigger>
             <SheetContent side="bottom">
@@ -327,7 +328,7 @@ function MobileNavBar({ items }: { items: NavItem[] }) {
                 <SheetDescription className="sr-only">{t("nav.main")}</SheetDescription>
               </SheetHeader>
               <div className="flex flex-col gap-0.5 px-2 pb-4">
-                {rest.map(({ to, label, icon: Icon, end }) => (
+                {rest.map(({ to, label, icon: Icon, end, badge }) => (
                   <NavLink
                     key={to}
                     to={to}
@@ -342,6 +343,7 @@ function MobileNavBar({ items }: { items: NavItem[] }) {
                   >
                     <Icon className="size-5" aria-hidden="true" />
                     {label}
+                    {badge != null && <span className="ms-auto">{badge}</span>}
                   </NavLink>
                 ))}
               </div>

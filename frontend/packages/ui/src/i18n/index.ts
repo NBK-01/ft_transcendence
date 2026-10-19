@@ -17,14 +17,20 @@ export function isLanguage(value: string | undefined): value is Language {
   return LANGUAGES.includes(value as Language);
 }
 
+/** "ar-SA" → "ar". The browser can report a region even though only base languages are loaded. */
+function baseLanguage(language: string) {
+  return language.split("-")[0] ?? language;
+}
+
 export function directionOf(language: string): "ltr" | "rtl" {
-  return isLanguage(language) && RTL_LANGUAGES.has(language) ? "rtl" : "ltr";
+  const base = baseLanguage(language);
+  return isLanguage(base) && RTL_LANGUAGES.has(base) ? "rtl" : "ltr";
 }
 
 /** Keep <html lang> and <html dir> in sync so the whole layout mirrors. */
 function syncDocument(language: string) {
   const root = document.documentElement;
-  root.lang = language;
+  root.lang = baseLanguage(language);
   root.dir = directionOf(language);
 }
 

@@ -56,13 +56,26 @@ export function Field({
   );
 }
 
-/** Inline error next to the field (never only in a toast). */
-export function FieldError({ id, message, className }: { id?: string; message: string; className?: string }) {
+/**
+ * Inline error next to the field (never only in a toast).
+ * `message` is an i18n key; pass already-translated text as `children` instead.
+ */
+export function FieldError({
+  id,
+  message,
+  className,
+  children,
+}: {
+  id?: string;
+  message?: string;
+  className?: string;
+  children?: ReactNode;
+}) {
   const { t } = useTranslation("common");
   return (
     <p id={id} role="alert" className={cn("flex items-start gap-1.5 text-label-13 text-red-900", className)}>
       <CircleAlert className="mt-px size-3.5 shrink-0" aria-hidden="true" />
-      {t(message)}
+      {children ?? (message && t(message))}
     </p>
   );
 }
