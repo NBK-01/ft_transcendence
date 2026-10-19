@@ -376,7 +376,7 @@ const isHttpUrl = (value: string) => {
   }
 };
 
-export const shipmentHandlers = [
+export const handlers = [
   http.get("*/api/shipments", ({ request }) => {
     const params = new URL(request.url).searchParams;
     const page = Math.max(1, Number(params.get("page")) || 1);

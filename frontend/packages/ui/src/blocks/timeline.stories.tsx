@@ -67,6 +67,18 @@ export const AwaitingDecision: Story = {
   parameters: { docs: { description: { story: "A rejected offer sends the order back to sourcing; both rounds stay in the history." } } },
 };
 
+export const TimeOnly: Story = {
+  args: { format: { hour: "2-digit", minute: "2-digit", hourCycle: "h23" } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "`format` takes Intl.DateTimeFormat options. Digits are always Western, Arabic included. AuthLayout's preview uses this with `TimelineList`, the same list without its card.",
+      },
+    },
+  },
+};
+
 export const Loading: Story = {
   render: () => <TimelineSkeleton />,
 };

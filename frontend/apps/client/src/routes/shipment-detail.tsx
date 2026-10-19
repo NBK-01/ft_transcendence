@@ -17,7 +17,7 @@ import { ShipmentFiles } from "../features/shipments/shipment-files";
 import { ShipmentTimeline } from "../features/shipments/shipment-timeline";
 import type { Shipment } from "../features/shipments/types";
 
-/** /app/shipment/:id — `id` is the tracking ID. */
+/** /app/shipments/:id — `id` is the tracking ID. */
 export function ShipmentDetailPage() {
   const { t } = useTranslation(["common", "app"]);
   const { id = "" } = useParams();

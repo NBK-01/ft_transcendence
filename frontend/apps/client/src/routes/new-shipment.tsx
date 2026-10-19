@@ -25,7 +25,7 @@ const isHttpUrl = (value: string) => {
   }
 };
 
-/** /app/shipment/new — ask for a product by link or by photos. Becomes a pending_sourcing order. */
+/** /app/shipments/new — ask for a product by link or by photos. Becomes a pending_sourcing order. */
 export function NewShipmentPage() {
   const { t } = useTranslation(["common", "app"]);
   const navigate = useNavigate();
@@ -51,7 +51,7 @@ export function NewShipmentPage() {
     create.mutate(mode === "link" ? { productUrl: productUrl.trim() } : { images: photos }, {
       onSuccess: (shipment) => {
         toast.success(t("app:shipments.newForm.sent", { id: shipment.trackingId }));
-        void navigate(`/app/shipment/${encodeURIComponent(shipment.trackingId)}`);
+        void navigate(`/app/shipments/${encodeURIComponent(shipment.trackingId)}`);
       },
       onError: (err) =>
         // The backend's messages are already translated (Accept-Language).
