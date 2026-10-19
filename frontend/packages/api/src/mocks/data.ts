@@ -91,4 +91,3 @@ export const internalUsers: InternalUser[] = STAFF.map(([name, roleName, branch,
 
 export const isUuid = (value: unknown) => typeof value === "string" && /^[0-9a-f-]{36}$/i.test(value);
 export const roleExists = (name: unknown) => ROLES.some((role) => role.name === name);
-export const orgExists = (id: unknown) => ORGANIZATIONS.some((org) => org.id === id);

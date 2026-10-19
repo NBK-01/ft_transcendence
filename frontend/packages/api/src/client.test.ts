@@ -5,8 +5,9 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { api, configureApi } from "./client";
 import { ApiError } from "./errors";
 import { handlers, ok, paginated } from "./mocks/handlers";
+import { internalUsers } from "./mocks/data";
 import { tokens } from "./session";
-import type { User } from "./types";
+import type { AuthResponse, InternalUser, User } from "./types";
 
 // Same handlers the dev app uses — tests and mocks can't drift apart.
 const server = setupServer(...handlers);
@@ -159,5 +160,39 @@ describe("api client", () => {
     await api.get("/shipments", { auth: false, query: { status: "in_transit", q: "", page: 2, branch: undefined } });
 
     expect(new URL(url).search).toBe("?status=in_transit&page=2");
+  });
+});
+
+// The mocks stand in for the backend, so they must answer like it does.
+describe("mocks match the backend", () => {
+  const staff = (body: object) => api.post<InternalUser>("/internal-users", body, { auth: false });
+  const valid = { email: "new.dispatcher@example.com", password: "password1", name: "New Dispatcher", roleName: "dispatcher" };
+
+  it("login returns only id, email and name; /auth/me has the full user", async () => {
+    const session = await api.post<AuthResponse>("/auth/login", { email: "a@example.com", password: "secret" }, { auth: false });
+    expect(Object.keys(session.user).sort()).toEqual(["email", "id", "name"]);
+
+    tokens.set(session);
+    const me = await api.get<User>("/auth/me");
+    expect(me).toHaveProperty("isVerified");
+  });
+
+  it("an unknown role is 404 with code 7004, on create and update", async () => {
+    await expect(staff({ ...valid, roleName: "pilot" })).rejects.toMatchObject({ status: 404, errorCode: 7004 });
+
+    const existing = internalUsers[0]!;
+    await expect(
+      api.patch(`/internal-users/${existing.id}`, { roleName: "pilot" }, { auth: false }),
+    ).rejects.toMatchObject({ status: 404, errorCode: 7004 });
+  });
+
+  it("a taken email wins over an unknown role (409 first, like the service)", async () => {
+    const taken = internalUsers[0]!.email;
+    await expect(staff({ ...valid, email: taken, roleName: "pilot" })).rejects.toMatchObject({ status: 409, errorCode: 8002 });
+  });
+
+  it("doesn't check that the branch exists", async () => {
+    const user = await staff({ ...valid, organizationId: "00000000-0000-4000-8000-0000000000ff" });
+    expect(user.organizationId).toBe("00000000-0000-4000-8000-0000000000ff");
   });
 });

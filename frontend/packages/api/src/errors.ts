@@ -3,7 +3,7 @@ import type { ApiErrorBody } from "./types";
 /**
  * Thrown by every API call that doesn't succeed.
  *  - kind "http": the server answered with an error (`messages` are translated server-side).
- *  - kind "network": no answer (offline, server down, CORS). Show `t("errors.network")`.
+ *  - kind "network": no answer (offline, server down, CORS). Show a generic "try again" message.
  */
 export class ApiError extends Error {
   readonly kind: "http" | "network";

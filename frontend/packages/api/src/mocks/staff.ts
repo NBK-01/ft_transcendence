@@ -1,7 +1,7 @@
 import { http } from "msw/http";
 
 import type { InternalUser } from "../types";
-import { internalUsers, isUuid, orgExists, ROLES, roleExists } from "./data";
+import { internalUsers, isUuid, ROLES, roleExists } from "./data";
 import { error, ok } from "./respond";
 
 /**
@@ -14,6 +14,10 @@ import { error, ok } from "./respond";
 /** Backend InternalUserErrorCodes. */
 const USER_NOT_FOUND = 8001;
 const USER_ALREADY_EXISTS = 8002;
+/** Backend AccessControlErrorCodes.RoleNotFound. */
+const ROLE_NOT_FOUND = 7004;
+
+const roleNotFound = (name: string) => error(404, [`Role ${name} not found`], ROLE_NOT_FOUND);
 
 type CreateBody = Partial<{ email: string; password: string; name: string; roleName: string; organizationId: string }>;
 type UpdateBody = Partial<{ name: string; roleName: string; organizationId: string | null; isActive: boolean }>;
@@ -29,14 +33,15 @@ export const staffHandlers = [
       !/^\S+@\S+\.\S+$/.test(email) && "email must be an email",
       (body.password?.length ?? 0) < 8 && "password must be longer than or equal to 8 characters",
       !body.name?.trim() && "name should not be empty",
-      !roleExists(body.roleName) && "roleName must be an existing role",
+      !body.roleName?.trim() && "roleName should not be empty",
       body.organizationId !== undefined && !isUuid(body.organizationId) && "organizationId must be a UUID",
     ].filter((message): message is string => Boolean(message));
     if (messages.length > 0) return error(400, messages);
-    if (body.organizationId && !orgExists(body.organizationId)) return error(404, ["Organization not found"]);
+    // Same order as InternalUsersService.create. The backend doesn't check that the branch exists.
     if (internalUsers.some((user) => user.email === email)) {
       return error(409, [`A staff account with email ${email} already exists`], USER_ALREADY_EXISTS);
     }
+    if (!roleExists(body.roleName)) return roleNotFound(body.roleName!);
 
     const now = new Date().toISOString();
     const user: InternalUser = {
@@ -59,8 +64,7 @@ export const staffHandlers = [
 
     const body = (await request.json()) as UpdateBody;
     if (body.name !== undefined && !body.name.trim()) return error(400, ["name should not be empty"]);
-    if (body.roleName !== undefined && !roleExists(body.roleName)) return error(400, ["roleName must be an existing role"]);
-    if (body.organizationId && !orgExists(body.organizationId)) return error(404, ["Organization not found"]);
+    if (body.roleName !== undefined && !roleExists(body.roleName)) return roleNotFound(body.roleName);
 
     Object.assign(user, {
       ...(body.name !== undefined && { name: body.name.trim() }),
