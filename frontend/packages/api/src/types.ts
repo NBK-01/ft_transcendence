@@ -46,6 +46,7 @@ export type User = {
   email: string;
   name: string;
   isVerified: boolean;
+  avatarUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -55,8 +56,11 @@ export type TokenPair = {
   refreshToken: string;
 };
 
-/** Returned by POST /auth/login and POST /auth/verify-otp. */
-export type AuthResponse = TokenPair & { user: User };
+/**
+ * Returned by POST /auth/login and POST /auth/verify-otp. `user` is a short
+ * summary, not the full `User`: read that from GET /auth/me.
+ */
+export type AuthResponse = TokenPair & { user: Pick<User, "id" | "email" | "name"> };
 
 /** Returned by endpoints that only confirm an action. */
 export type MessageResponse = { message: string };

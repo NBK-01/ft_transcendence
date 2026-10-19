@@ -39,13 +39,14 @@ export function useSessionActions() {
   const startSession = useCallback(
     (response: AuthResponse) => {
       tokens.set(response);
-      queryClient.setQueryData(keys.auth.me, response.user);
+      // The login response only has id, email and name, so load the full user from /auth/me.
+      void queryClient.invalidateQueries({ queryKey: keys.auth.me });
     },
     [queryClient],
   );
 
   const endSession = useCallback(() => {
-    // The backend has no logout/revoke endpoint yet; the refresh token simply expires.
+    // Local only. Revoking the refresh token (POST /auth/logout) is the caller's job, before this.
     tokens.clear();
     queryClient.clear();
   }, [queryClient]);
