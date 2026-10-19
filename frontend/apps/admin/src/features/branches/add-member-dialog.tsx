@@ -1,5 +1,5 @@
 import { Search } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { InternalUser, Organization } from "@trans/api";
@@ -16,6 +16,7 @@ import {
 } from "@trans/ui/components/dialog";
 import { Input } from "@trans/ui/components/input";
 import { toast } from "@trans/ui/components/toaster";
+import { focusOnClose } from "@trans/ui/hooks/use-return-focus";
 
 import { useInternalUsers } from "../users/api";
 import { useAssignStaff, useOrganizations } from "./api";
@@ -29,16 +30,19 @@ export function AddMemberDialog({
   open,
   onOpenChange,
   branch,
+  returnFocusTo,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   branch: Organization;
+  /** Element to focus when the dialog closes, if the one that opened it may be gone. */
+  returnFocusTo?: RefObject<HTMLElement | null>;
 }) {
   const { t } = useTranslation("app");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg" onCloseAutoFocus={focusOnClose(returnFocusTo)}>
         <DialogHeader>
           <DialogTitle>{t("branches.members.addTitle", { name: branch.name })}</DialogTitle>
           <DialogDescription>{t("branches.members.addDescription")}</DialogDescription>
@@ -51,7 +55,7 @@ export function AddMemberDialog({
 }
 
 function MemberPicker({ branch }: { branch: Organization }) {
-  const { t } = useTranslation(["common", "app"]);
+  const { t, i18n } = useTranslation(["common", "app"]);
   const staff = useInternalUsers();
   const organizations = useOrganizations();
   const assign = useAssignStaff();
@@ -68,8 +72,8 @@ function MemberPicker({ branch }: { branch: Organization }) {
     return (staff.data ?? [])
       .filter((user) => user.isActive && user.organizationId !== branch.id)
       .filter((user) => !needle || `${user.name} ${user.email}`.toLowerCase().includes(needle))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [staff.data, query, branch.id]);
+      .sort((a, b) => a.name.localeCompare(b.name, i18n.language));
+  }, [staff.data, query, branch.id, i18n.language]);
 
   const add = async (user: InternalUser) => {
     try {

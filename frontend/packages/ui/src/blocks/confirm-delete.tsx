@@ -14,6 +14,7 @@ import {
 import { Button } from "@trans/ui/components/button";
 import { Field, FieldError } from "@trans/ui/components/field";
 import { Input } from "@trans/ui/components/input";
+import { focusOnClose } from "@trans/ui/hooks/use-return-focus";
 
 export type ConfirmDeleteProps = {
   /** Element that opens the dialog. Leave it out and use `open`/`onOpenChange` (e.g. from a table row action). */
@@ -65,11 +66,7 @@ export function ConfirmDelete({
       <AlertDialogContent
         // With type-to-confirm, start in the input instead of on Cancel.
         onOpenAutoFocus={confirmText !== undefined ? (event) => event.preventDefault() : undefined}
-        onCloseAutoFocus={(event) => {
-          if (!returnFocusTo?.current) return;
-          event.preventDefault();
-          returnFocusTo.current.focus();
-        }}
+        onCloseAutoFocus={focusOnClose(returnFocusTo)}
       >
         {/* Mounted only while open, so the typed text and error reset on every open. */}
         <ConfirmDeleteForm

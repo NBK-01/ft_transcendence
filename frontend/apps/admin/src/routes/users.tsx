@@ -1,15 +1,13 @@
 import { MoreHorizontal, Pencil, Plus, UserCheck, UserX, Users as UsersIcon } from "lucide-react";
-import { useCallback, useMemo, useRef, useState, type FocusEvent } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { InternalUser, Organization } from "@trans/api";
 import { ConfirmDelete } from "@trans/ui/blocks/confirm-delete";
-import { createDataTableColumnHelper, DataTable } from "@trans/ui/blocks/data-table";
+import { DataTable } from "@trans/ui/blocks/data-table";
 import { DataTableColumnHeader } from "@trans/ui/blocks/data-table-column-header";
 import { EmptyState } from "@trans/ui/blocks/empty-state";
 import { PageHeader } from "@trans/ui/blocks/page-header";
-import { Avatar } from "@trans/ui/components/avatar";
-import { Badge } from "@trans/ui/components/badge";
 import { Button } from "@trans/ui/components/button";
 import {
   DropdownMenu,
@@ -19,16 +17,16 @@ import {
   DropdownMenuTrigger,
 } from "@trans/ui/components/dropdown-menu";
 import { toast } from "@trans/ui/components/toaster";
+import { useReturnFocus } from "@trans/ui/hooks/use-return-focus";
 
 import { useOrganizations } from "../features/branches/api";
 import { useBranchFilter } from "../features/branches/use-branch-filter";
 import { useInternalUsers, useRoles, useSetStaffActive } from "../features/users/api";
+import { NO_ROLE, staffColumn, staffColumns } from "../features/users/columns";
 import { UserFormDialog } from "../features/users/user-form-dialog";
 
-const NO_ROLE = "none";
 const NO_BRANCH = "";
-
-const column = createDataTableColumnHelper<InternalUser>();
+const column = staffColumn;
 
 /** /users: every staff account, sorted and filtered in the browser (the API returns the full list). */
 export function UsersPage() {
@@ -43,19 +41,15 @@ export function UsersPage() {
     [users.data, branchId],
   );
 
-  // `user` outlives `open`, so the dialog keeps its title while it fades out.
+  // `editing` outlives `dialogOpen`, so the dialog keeps its title while it fades out.
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<InternalUser | null>(null);
   const openDialog = useCallback((user: InternalUser | null) => {
     setEditing(user);
     setDialogOpen(true);
   }, []);
-  // The dialog opens from a menu item that's gone by the time it closes, so
-  // remember the button that started it and send focus back there.
-  const returnFocusRef = useRef<HTMLElement | null>(null);
-  const rememberFocus = useCallback((event: FocusEvent<HTMLElement>) => {
-    returnFocusRef.current = event.currentTarget;
-  }, []);
+  // The dialogs open from a menu item that's gone by the time they close.
+  const { ref: returnFocusRef, remember: rememberFocus } = useReturnFocus();
 
   // mutateAsync is stable, so it can sit in the columns' dependencies.
   const { mutateAsync: setStaffActive } = useSetStaffActive();
@@ -92,48 +86,17 @@ export function UsersPage() {
   // Rebuilt when the language or branch names change, so labels and the dates follow.
   const columns = useMemo(() => {
     const dateFormat = new Intl.DateTimeFormat(`${i18n.language}-u-nu-latn`, { dateStyle: "medium" });
+    const staff = staffColumns(t);
     return column.columns([
-      // Name and email in one value, so the search box matches either.
-      column.accessor((user) => `${user.name} ${user.email}`, {
-        id: "person",
-        header: ({ column }) => <DataTableColumnHeader column={column} title={t("app:users.columns.name")} />,
-        cell: ({ row }) => (
-          <div className="flex items-center gap-3">
-            {/* The name is right next to it, so the avatar stays silent for screen readers. */}
-            <Avatar name={row.original.name} size="md" aria-hidden="true" />
-            <div className="flex min-w-0 flex-col">
-              <span className="truncate text-label-14 text-gray-1000">{row.original.name}</span>
-              <span className="truncate text-copy-13 text-gray-900" dir="ltr">
-                {row.original.email}
-              </span>
-            </div>
-          </div>
-        ),
-      }),
-      column.accessor((user) => user.roleName ?? NO_ROLE, {
-        id: "role",
-        header: ({ column }) => <DataTableColumnHeader column={column} title={t("app:users.columns.role")} />,
-        cell: (info) => (
-          <Badge variant="outline" size="sm">
-            {roleLabel(info.getValue())}
-          </Badge>
-        ),
-      }),
+      staff.person,
+      staff.role,
       column.accessor((user) => branchName(user.organizationId), {
         id: "branch",
         header: ({ column }) => <DataTableColumnHeader column={column} title={t("app:users.columns.branch")} />,
         cell: (info) =>
           info.getValue() || <span className="text-gray-900">{t("app:users.noBranch")}</span>,
       }),
-      column.accessor((user) => (user.isActive ? "active" : "deactivated"), {
-        id: "status",
-        header: ({ column }) => <DataTableColumnHeader column={column} title={t("app:users.columns.status")} />,
-        cell: (info) => (
-          <Badge variant={info.getValue() === "active" ? "green" : "gray"} size="sm">
-            {t(`app:users.status.${info.getValue()}`)}
-          </Badge>
-        ),
-      }),
+      staff.status,
       column.accessor("createdAt", {
         header: ({ column }) => <DataTableColumnHeader column={column} title={t("app:users.columns.created")} />,
         cell: (info) => dateFormat.format(new Date(info.getValue())),
@@ -180,7 +143,7 @@ export function UsersPage() {
         meta: { align: "end", className: "w-12" },
       }),
     ]);
-  }, [t, i18n.language, branchName, roleLabel, openDialog, rememberFocus, askDeactivate, reactivate]);
+  }, [t, i18n.language, branchName, openDialog, rememberFocus, askDeactivate, reactivate]);
 
   const filters = useMemo(
     () => [

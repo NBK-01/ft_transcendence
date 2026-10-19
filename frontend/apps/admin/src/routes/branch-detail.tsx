@@ -1,26 +1,26 @@
 import { ArrowLeft, Building2, Mail, Pencil, UserMinus, UserPlus, Users as UsersIcon } from "lucide-react";
-import { useCallback, useMemo, useRef, useState, type FocusEvent } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router";
 
 import { isApiError, type InternalUser, type Organization } from "@trans/api";
 import { ConfirmDelete } from "@trans/ui/blocks/confirm-delete";
-import { createDataTableColumnHelper, DataTable } from "@trans/ui/blocks/data-table";
-import { DataTableColumnHeader } from "@trans/ui/blocks/data-table-column-header";
+import { DataTable } from "@trans/ui/blocks/data-table";
 import { EmptyState } from "@trans/ui/blocks/empty-state";
 import { PageHeader } from "@trans/ui/blocks/page-header";
-import { Avatar } from "@trans/ui/components/avatar";
 import { Badge } from "@trans/ui/components/badge";
 import { Button } from "@trans/ui/components/button";
 import { Skeleton } from "@trans/ui/components/skeleton";
 import { toast } from "@trans/ui/components/toaster";
+import { useReturnFocus } from "@trans/ui/hooks/use-return-focus";
 
 import { AddMemberDialog } from "../features/branches/add-member-dialog";
 import { useBranchStaff, useOrganization, useRemoveStaff } from "../features/branches/api";
 import { BranchFormDialog } from "../features/branches/branch-form-dialog";
 import { useBranchFilter } from "../features/branches/use-branch-filter";
+import { staffColumn, staffColumns } from "../features/users/columns";
 
-const column = createDataTableColumnHelper<InternalUser>();
+const column = staffColumn;
 
 /** /branches/:id: one branch, its details and its members. */
 export function BranchDetailPage() {
@@ -60,11 +60,8 @@ function BranchDetail({ branch }: { branch: Organization }) {
 
   // The remove dialog opens from a row button, so focus goes back there; after a
   // removal that row is gone, so it goes to "Add member" instead.
-  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const { ref: returnFocusRef, remember: rememberFocus } = useReturnFocus();
   const addButtonRef = useRef<HTMLButtonElement>(null);
-  const rememberFocus = useCallback((event: FocusEvent<HTMLElement>) => {
-    returnFocusRef.current = event.currentTarget;
-  }, []);
   const { mutateAsync: removeStaff } = useRemoveStaff();
   const [removeOpen, setRemoveOpen] = useState(false);
   const [removing, setRemoving] = useState<InternalUser | null>(null);
@@ -80,43 +77,12 @@ function BranchDetail({ branch }: { branch: Organization }) {
     toast.success(t("app:branches.members.removed", { name: user.name, branch: branch.name }));
   };
 
-  const columns = useMemo(
-    () =>
-      column.columns([
-        // Name and email in one value, so the search box matches either.
-        column.accessor((user) => `${user.name} ${user.email}`, {
-          id: "person",
-          header: ({ column }) => <DataTableColumnHeader column={column} title={t("app:users.columns.name")} />,
-          cell: ({ row }) => (
-            <div className="flex items-center gap-3">
-              <Avatar name={row.original.name} size="md" aria-hidden="true" />
-              <div className="flex min-w-0 flex-col">
-                <span className="truncate text-label-14 text-gray-1000">{row.original.name}</span>
-                <span className="truncate text-copy-13 text-gray-900" dir="ltr">
-                  {row.original.email}
-                </span>
-              </div>
-            </div>
-          ),
-        }),
-        column.accessor((user) => user.roleName ?? "none", {
-          id: "role",
-          header: ({ column }) => <DataTableColumnHeader column={column} title={t("app:users.columns.role")} />,
-          cell: (info) => (
-            <Badge variant="outline" size="sm">
-              {t(`app:users.roles.${info.getValue()}`, { defaultValue: info.getValue() })}
-            </Badge>
-          ),
-        }),
-        column.accessor((user) => (user.isActive ? "active" : "deactivated"), {
-          id: "status",
-          header: ({ column }) => <DataTableColumnHeader column={column} title={t("app:users.columns.status")} />,
-          cell: (info) => (
-            <Badge variant={info.getValue() === "active" ? "green" : "gray"} size="sm">
-              {t(`app:users.status.${info.getValue()}`)}
-            </Badge>
-          ),
-        }),
+  const columns = useMemo(() => {
+    const staff = staffColumns(t);
+    return column.columns([
+        staff.person,
+        staff.role,
+        staff.status,
         column.display({
           id: "actions",
           cell: ({ row }) => (
@@ -134,9 +100,8 @@ function BranchDetail({ branch }: { branch: Organization }) {
           enableSorting: false,
           meta: { align: "end", className: "w-12" },
         }),
-      ]),
-    [t, rememberFocus, askRemove],
-  );
+    ]);
+  }, [t, rememberFocus, askRemove]);
 
   return (
     <div className="flex flex-col gap-8">
@@ -203,7 +168,8 @@ function BranchDetail({ branch }: { branch: Organization }) {
       </section>
 
       <BranchFormDialog open={editOpen} onOpenChange={setEditOpen} branch={branch} />
-      <AddMemberDialog open={addOpen} onOpenChange={setAddOpen} branch={branch} />
+      {/* From the empty state, that button is gone once someone's added; the header's stays. */}
+      <AddMemberDialog open={addOpen} onOpenChange={setAddOpen} branch={branch} returnFocusTo={addButtonRef} />
       <ConfirmDelete
         open={removeOpen}
         onOpenChange={setRemoveOpen}

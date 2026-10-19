@@ -77,7 +77,7 @@ export function AdminLayout() {
       }
       nav={nav}
       user={MOCK_USER}
-      profileHref="/profile"
+      profileHref={withBranch("/profile")}
       onSignOut={() => navigate("/login")}
       topbarStart={<BranchFilter />}
     >

@@ -20,6 +20,7 @@ import { Input } from "@trans/ui/components/input";
 import { PasswordInput } from "@trans/ui/components/password-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@trans/ui/components/select";
 import { toast } from "@trans/ui/components/toaster";
+import { focusOnClose } from "@trans/ui/hooks/use-return-focus";
 import {
   createStaffSchema,
   editStaffSchema,
@@ -29,6 +30,14 @@ import {
 
 import { useOrganizations } from "../branches/api";
 import { EMAIL_TAKEN, useCreateInternalUser, useRoles, useUpdateInternalUser } from "./api";
+
+/**
+ * The form-level error, already translated: the backend's own message (it
+ * translates with Accept-Language), or `fallback`. Rendered as text, not as a key.
+ */
+function rootError(error: unknown, fallback: string) {
+  return isApiError(error) && error.messages[0] ? error.messages[0] : fallback;
+}
 
 /** Radix Select can't use "" as an item value, so this stands for "no branch". */
 const NO_BRANCH = "none";
@@ -56,11 +65,7 @@ export function UserFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="max-w-lg"
-        onCloseAutoFocus={(event) => {
-          if (!returnFocusTo?.current) return;
-          event.preventDefault();
-          returnFocusTo.current.focus();
-        }}
+        onCloseAutoFocus={focusOnClose(returnFocusTo)}
       >
         <DialogHeader>
           <DialogTitle>{user ? t("users.form.editTitle", { name: user.name }) : t("users.form.createTitle")}</DialogTitle>
@@ -90,10 +95,9 @@ function CreateStaffForm({ onDone }: { onDone: () => void }) {
       onDone();
     } catch (error) {
       if (isApiError(error) && error.errorCode === EMAIL_TAKEN) {
-        // The backend's message is already translated (Accept-Language).
-        form.setError("email", { message: error.messages[0] ?? "validation.email" }, { shouldFocus: true });
+        form.setError("email", { message: "app:users.form.emailTaken" }, { shouldFocus: true });
       } else {
-        form.setError("root", { message: isApiError(error) && error.messages[0] ? error.messages[0] : "app:users.form.error" });
+        form.setError("root", { message: rootError(error, t("app:users.form.error")) });
       }
     }
   });
@@ -118,7 +122,7 @@ function CreateStaffForm({ onDone }: { onDone: () => void }) {
           <RoleField control={form.control} name="roleName" error={errors.roleName?.message} />
           <BranchField control={form.control} name="organizationId" />
         </div>
-        {errors.root?.message && <FieldError message={errors.root.message} />}
+        {errors.root?.message && <FieldError>{errors.root.message}</FieldError>}
       </DialogBody>
       <FormFooter submitLabel={t("app:users.form.create")} pending={create.isPending} />
     </form>
@@ -140,7 +144,7 @@ function EditStaffForm({ user, onDone }: { user: InternalUser; onDone: () => voi
       toast.success(t("app:users.form.updated", { name: updated.name }));
       onDone();
     } catch (error) {
-      form.setError("root", { message: isApiError(error) && error.messages[0] ? error.messages[0] : "app:users.form.error" });
+      form.setError("root", { message: rootError(error, t("app:users.form.error")) });
     }
   });
 
@@ -151,13 +155,13 @@ function EditStaffForm({ user, onDone }: { user: InternalUser; onDone: () => voi
           <Input autoComplete="off" autoFocus {...form.register("name")} />
         </Field>
         <Field label={t("app:users.form.email")} hint={t("app:users.form.emailLocked")}>
-          <Input value={user.email} readOnly disabled dir="ltr" />
+          <Input value={user.email} disabled dir="ltr" />
         </Field>
         <div className="grid gap-5 sm:grid-cols-2">
           <RoleField control={form.control} name="roleName" error={errors.roleName?.message} />
           <BranchField control={form.control} name="organizationId" />
         </div>
-        {errors.root?.message && <FieldError message={errors.root.message} />}
+        {errors.root?.message && <FieldError>{errors.root.message}</FieldError>}
       </DialogBody>
       <FormFooter submitLabel={t("actions.save")} pending={update.isPending} />
     </form>
