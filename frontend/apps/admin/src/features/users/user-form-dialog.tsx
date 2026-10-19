@@ -27,7 +27,8 @@ import {
   type EditStaffValues,
 } from "@trans/ui/schemas/staff";
 
-import { EMAIL_TAKEN, useCreateInternalUser, useOrganizations, useRoles, useUpdateInternalUser } from "./api";
+import { useOrganizations } from "../branches/api";
+import { EMAIL_TAKEN, useCreateInternalUser, useRoles, useUpdateInternalUser } from "./api";
 
 /** Radix Select can't use "" as an item value, so this stands for "no branch". */
 const NO_BRANCH = "none";
@@ -230,11 +231,14 @@ function BranchField<T extends FieldValues>({ control, name }: { control: Contro
           </Field>
           <SelectContent>
             <SelectItem value={NO_BRANCH}>{t("users.noBranch")}</SelectItem>
-            {(organizations.data ?? []).map((org) => (
-              <SelectItem key={org.id} value={org.id}>
-                {org.name}
-              </SelectItem>
-            ))}
+            {/* Inactive branches only show when they're the current value, so editing doesn't drop it. */}
+            {(organizations.data ?? [])
+              .filter((org) => org.isActive || org.id === field.value)
+              .map((org) => (
+                <SelectItem key={org.id} value={org.id}>
+                  {org.name}
+                </SelectItem>
+              ))}
           </SelectContent>
         </Select>
       )}

@@ -1,10 +1,12 @@
-import { Building2, KeyRound, LayoutGrid, MessageSquare, Package, UserRound } from "lucide-react";
+import { KeyRound, LayoutGrid, MessageSquare, Package, UserRound } from "lucide-react";
 import { createBrowserRouter } from "react-router";
 
 import { LegalPage } from "@trans/ui/blocks/legal-layout";
 import { NotFoundPage } from "@trans/ui/blocks/not-found-page";
 
 import { AdminLayout } from "./layouts/admin-layout";
+import { BranchDetailPage } from "./routes/branch-detail";
+import { BranchesPage } from "./routes/branches";
 import { Stub } from "./routes/stub";
 import { UsersPage } from "./routes/users";
 
@@ -21,7 +23,8 @@ export const router = createBrowserRouter(
         { path: "shipments", element: <Stub page="shipments" icon={Package} /> },
         { path: "messages", element: <Stub page="messages" icon={MessageSquare} /> },
         { path: "users", element: <UsersPage /> },
-        { path: "branches", element: <Stub page="branches" icon={Building2} /> },
+        { path: "branches", element: <BranchesPage /> },
+        { path: "branches/:id", element: <BranchDetailPage /> },
         { path: "api-keys", element: <Stub page="apiKeys" icon={KeyRound} /> },
         { path: "profile", element: <Stub page="profile" icon={UserRound} /> },
       ],

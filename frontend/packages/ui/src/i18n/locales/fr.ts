@@ -127,6 +127,7 @@ const fr: CommonResources = {
     passwordStrength: "Incluez au moins une lettre et un chiffre.",
     passwordMatch: "Les mots de passe ne correspondent pas.",
     nameMax: "50 caractères maximum.",
+    descriptionMax: "200 caractères maximum.",
     dateOfBirth: "Saisissez une date réelle dans le passé.",
     phone: "Saisissez un numéro avec l'indicatif du pays, ex. +33 6 12 34 56 78.",
     otp: "Saisissez les 6 chiffres.",
