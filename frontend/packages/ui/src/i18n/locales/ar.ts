@@ -57,6 +57,7 @@ const ar: CommonResources = {
     allBranches: "كل الفروع",
     branch: "الفرع",
     more: "المزيد",
+    breadcrumb: "مسار التنقل",
     skipToContent: "الانتقال إلى المحتوى",
   },
   theme: {
