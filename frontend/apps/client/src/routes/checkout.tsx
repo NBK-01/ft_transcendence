@@ -28,12 +28,12 @@ import type { ShipmentDetail } from "../features/shipments/types";
 const MIN_QTY = 1;
 const MAX_QTY = 99;
 
-/** /app/shipment/:id/checkout — pay for an approved offer (pending_payment only). */
+/** /app/shipments/:id/checkout — pay for an approved offer (pending_payment only). */
 export function CheckoutPage() {
   const { t } = useTranslation(["common", "app"]);
   const { id = "" } = useParams();
   const { data, isPending, isError, error, refetch, isFetching } = useShipment(id);
-  const backTo = `/app/shipment/${encodeURIComponent(id)}`;
+  const backTo = `/app/shipments/${encodeURIComponent(id)}`;
 
   return (
     <div className="flex flex-col gap-8">
@@ -127,7 +127,7 @@ function CheckoutForm({ shipment }: { shipment: ShipmentDetail }) {
       {
         onSuccess: () => {
           toast.success(t("app:shipments.checkout.submitted"));
-          void navigate(`/app/shipment/${encodeURIComponent(shipment.trackingId)}`);
+          void navigate(`/app/shipments/${encodeURIComponent(shipment.trackingId)}`);
         },
         onError: (err) =>
           setErrors({ form: isApiError(err) && err.messages[0] ? err.messages[0] : "app:shipments.errorBody" }),
@@ -211,13 +211,14 @@ function CheckoutForm({ shipment }: { shipment: ShipmentDetail }) {
           {t("app:shipments.checkout.demoNotice")}
         </p>
 
+        {/* Demo form: autoComplete is off so the browser never fills in a real saved card. */}
         <Field label={t("app:shipments.checkout.holderName")} error={errors.holderName}>
-          <Input autoComplete="cc-name" value={holderName} onChange={(event) => setHolderName(event.target.value)} />
+          <Input autoComplete="off" value={holderName} onChange={(event) => setHolderName(event.target.value)} />
         </Field>
         <Field label={t("app:shipments.checkout.cardNumber")} error={errors.cardNumber}>
           <Input
             inputMode="numeric"
-            autoComplete="cc-number"
+            autoComplete="off"
             placeholder="1234 1234 1234 1234"
             dir="ltr"
             className="font-mono"
@@ -229,7 +230,7 @@ function CheckoutForm({ shipment }: { shipment: ShipmentDetail }) {
           <Field label={t("app:shipments.checkout.expiry")} error={errors.expiry}>
             <Input
               inputMode="numeric"
-              autoComplete="cc-exp"
+              autoComplete="off"
               placeholder="MM / YY"
               dir="ltr"
               className="font-mono"
@@ -240,7 +241,7 @@ function CheckoutForm({ shipment }: { shipment: ShipmentDetail }) {
           <Field label={t("app:shipments.checkout.cvc")} error={errors.cvc}>
             <Input
               inputMode="numeric"
-              autoComplete="cc-csc"
+              autoComplete="off"
               placeholder="123"
               maxLength={4}
               dir="ltr"

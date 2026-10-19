@@ -97,7 +97,7 @@ function NewShipmentButton() {
   const { t } = useTranslation("app");
   return (
     <Button variant="accent" asChild>
-      <Link to="/app/shipment/new">
+      <Link to="/app/shipments/new">
         <Plus aria-hidden="true" />
         {t("shipments.newShipment")}
       </Link>
@@ -142,7 +142,7 @@ function ShipmentRow({ shipment }: { shipment: Shipment }) {
   return (
     <li>
       <Link
-        to={`/app/shipment/${encodeURIComponent(shipment.trackingId)}`}
+        to={`/app/shipments/${encodeURIComponent(shipment.trackingId)}`}
         className={`${ROW} focus-ring transition-colors hover:bg-gray-alpha-100`}
       >
         <span className="text-label-mono-14 text-gray-1000">{shipment.trackingId}</span>

@@ -22,9 +22,9 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <ShipmentsPage /> },
       // "new" is a static segment, so it wins over ":id".
-      { path: "shipment/new", element: <NewShipmentPage /> },
-      { path: "shipment/:id", element: <ShipmentDetailPage /> },
-      { path: "shipment/:id/checkout", element: <CheckoutPage /> },
+      { path: "shipments/new", element: <NewShipmentPage /> },
+      { path: "shipments/:id", element: <ShipmentDetailPage /> },
+      { path: "shipments/:id/checkout", element: <CheckoutPage /> },
       { path: "messages", element: <Stub page="messages" icon={MessageSquare} /> },
       { path: "notifications", element: <Stub page="notifications" icon={Bell} /> },
       { path: "profile", element: <ProfilePage /> },

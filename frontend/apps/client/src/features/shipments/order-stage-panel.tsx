@@ -156,7 +156,7 @@ function ReadyToPay({ shipment }: { shipment: ShipmentDetail }) {
   return (
     <Panel icon={CreditCard} title={t("shipments.panel.payTitle")} body={t("shipments.panel.payBody")} highlight>
       <Button variant="accent" className="w-fit" asChild>
-        <Link to={`/app/shipment/${encodeURIComponent(shipment.trackingId)}/checkout`}>
+        <Link to={`/app/shipments/${encodeURIComponent(shipment.trackingId)}/checkout`}>
           {t("shipments.panel.goToCheckout")}
         </Link>
       </Button>
