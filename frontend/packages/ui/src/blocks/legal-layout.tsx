@@ -70,7 +70,7 @@ export function LegalLayout({
 }) {
   const { t, i18n } = useTranslation("common");
   const active = useActiveSection(doc.sections.map((section) => section.id));
-  const formattedDate = new Intl.DateTimeFormat(i18n.resolvedLanguage, { dateStyle: "long" }).format(
+  const formattedDate = new Intl.DateTimeFormat(`${i18n.resolvedLanguage ?? "en"}-u-nu-latn`, { dateStyle: "long" }).format(
     new Date(`${updatedAt}T00:00:00`),
   );
 

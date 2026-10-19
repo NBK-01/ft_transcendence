@@ -155,7 +155,7 @@ function ConfirmDeleteForm({
               />
             </Field>
           )}
-          {failed && <FieldError message={errorText ?? "confirmDelete.error"} />}
+          {failed && <FieldError>{errorText ?? t("confirmDelete.error")}</FieldError>}
         </div>
       )}
 

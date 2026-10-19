@@ -97,11 +97,12 @@ export function Button({
     <button
       data-slot="button"
       type={type}
+      {...props}
       className={classes}
+      // After the spread, so a caller's aria-disabled can't hide the loading state.
       aria-busy={loading || undefined}
       aria-disabled={loading || props["aria-disabled"] || undefined}
       onClick={handleClick}
-      {...props}
     >
       {loading ? <Spinner /> : prefix}
       {children}
