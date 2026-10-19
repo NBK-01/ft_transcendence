@@ -127,6 +127,7 @@ const fr: CommonResources = {
     passwordStrength: "Incluez au moins une lettre et un chiffre.",
     passwordMatch: "Les mots de passe ne correspondent pas.",
     nameMax: "50 caractères maximum.",
+    descriptionMax: "200 caractères maximum.",
     otp: "Saisissez les 6 chiffres.",
     terms: "Vous devez accepter les conditions pour continuer.",
   },

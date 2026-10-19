@@ -28,5 +28,7 @@ export const keys = {
   organizations: {
     all: ["organizations"] as const,
     list: () => [...keys.organizations.all, "list"] as const,
+    detail: (id: string) => [...keys.organizations.all, "detail", id] as const,
+    staff: (id: string) => [...keys.organizations.all, "staff", id] as const,
   },
 };

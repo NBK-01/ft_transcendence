@@ -1,11 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import {
   api,
   keys,
   type CreateInternalUserInput,
   type InternalUser,
-  type Organization,
   type Role,
   type UpdateInternalUserInput,
 } from "@trans/api";
@@ -30,20 +29,12 @@ export function useRoles() {
   });
 }
 
-/** GET /organizations: the branches, for names and the branch filter. */
-export function useOrganizations() {
-  return useQuery({
-    queryKey: keys.organizations.list(),
-    queryFn: ({ signal }) => api.get<Organization[]>("/organizations", { signal }),
-  });
-}
-
 /** POST /internal-users. The list refreshes on success. */
 export function useCreateInternalUser() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateInternalUserInput) => api.post<InternalUser>("/internal-users", input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.internalUsers.all }),
+    onSuccess: () => invalidateStaff(queryClient),
   });
 }
 
@@ -53,7 +44,7 @@ export function useUpdateInternalUser() {
   return useMutation({
     mutationFn: ({ id, ...input }: UpdateInternalUserInput & { id: string }) =>
       api.patch<InternalUser>(`/internal-users/${encodeURIComponent(id)}`, input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.internalUsers.all }),
+    onSuccess: () => invalidateStaff(queryClient),
   });
 }
 
@@ -71,6 +62,14 @@ export function useSetStaffActive() {
       const failed = results.filter((result) => result.status === "rejected").length;
       return { updated: ids.length - failed, failed };
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: keys.internalUsers.all }),
+    onSettled: () => invalidateStaff(queryClient),
   });
+}
+
+/** Staff also show on the branch pages (member lists and counts), so those refresh too. */
+function invalidateStaff(queryClient: QueryClient) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: keys.internalUsers.all }),
+    queryClient.invalidateQueries({ queryKey: keys.organizations.all }),
+  ]);
 }

@@ -112,3 +112,18 @@ export type Organization = {
   createdAt: string;
   updatedAt: string;
 };
+
+/** POST /organizations body (backend CreateOrganizationDto). Names are unique (409, code 4002). */
+export type CreateOrganizationInput = {
+  name: string;
+  description?: string;
+  contactEmail?: string;
+};
+
+/** PATCH /organizations/:id body (backend UpdateOrganizationDto). null clears a field. */
+export type UpdateOrganizationInput = Partial<{
+  name: string;
+  description: string | null;
+  contactEmail: string | null;
+  isActive: boolean;
+}>;

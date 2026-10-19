@@ -129,6 +129,7 @@ const en = {
     passwordStrength: "Include at least one letter and one number.",
     passwordMatch: "Passwords don't match.",
     nameMax: "Keep it under 50 characters.",
+    descriptionMax: "Keep it under 200 characters.",
     otp: "Enter all 6 digits.",
     terms: "You need to accept the terms to continue.",
   },

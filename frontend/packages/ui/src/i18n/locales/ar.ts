@@ -126,6 +126,7 @@ const ar: CommonResources = {
     passwordStrength: "يجب أن تحتوي على حرف ورقم على الأقل.",
     passwordMatch: "كلمتا المرور غير متطابقتين.",
     nameMax: "50 حرفًا كحد أقصى.",
+    descriptionMax: "200 حرف كحد أقصى.",
     otp: "أدخل الأرقام الستة كاملة.",
     terms: "يجب الموافقة على الشروط للمتابعة.",
   },
