@@ -51,6 +51,7 @@ const en = {
     allBranches: "All branches",
     branch: "Branch",
     more: "More",
+    breadcrumb: "Breadcrumb",
     skipToContent: "Skip to content",
   },
   theme: {

@@ -48,6 +48,7 @@ const fr: CommonResources = {
     allBranches: "Toutes les agences",
     branch: "Agence",
     more: "Plus",
+    breadcrumb: "Fil d'Ariane",
     skipToContent: "Aller au contenu",
   },
   theme: {

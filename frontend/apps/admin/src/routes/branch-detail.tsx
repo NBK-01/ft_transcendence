@@ -9,6 +9,14 @@ import { DataTable } from "@trans/ui/blocks/data-table";
 import { EmptyState } from "@trans/ui/blocks/empty-state";
 import { PageHeader } from "@trans/ui/blocks/page-header";
 import { Badge } from "@trans/ui/components/badge";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@trans/ui/components/breadcrumb";
 import { Button } from "@trans/ui/components/button";
 import { Skeleton } from "@trans/ui/components/skeleton";
 import { toast } from "@trans/ui/components/toaster";
@@ -107,7 +115,7 @@ function BranchDetail({ branch }: { branch: Organization }) {
     <div className="flex flex-col gap-8">
       <title>{`${branch.name} · ${t("brand.name")}`}</title>
       <div className="flex flex-col gap-4">
-        <BackLink />
+        <BranchBreadcrumb name={branch.name} />
         <PageHeader
           title={branch.name}
           description={branch.description ?? undefined}
@@ -184,6 +192,27 @@ function BranchDetail({ branch }: { branch: Organization }) {
   );
 }
 
+function BranchBreadcrumb({ name }: { name: string }) {
+  const { t } = useTranslation("common");
+  const { withBranch } = useBranchFilter();
+  return (
+    <Breadcrumb>
+      <BreadcrumbList>
+        <BreadcrumbItem>
+          <BreadcrumbLink asChild>
+            <Link to={withBranch("/branches")}>{t("nav.branches")}</Link>
+          </BreadcrumbLink>
+        </BreadcrumbItem>
+        <BreadcrumbSeparator />
+        <BreadcrumbItem>
+          <BreadcrumbPage>{name}</BreadcrumbPage>
+        </BreadcrumbItem>
+      </BreadcrumbList>
+    </Breadcrumb>
+  );
+}
+
+/** Not-found and error states: no branch name for a breadcrumb, just the way back. */
 function BackLink() {
   const { t } = useTranslation("common");
   const { withBranch } = useBranchFilter();
@@ -204,7 +233,7 @@ function DetailSkeleton() {
     <div className="flex flex-col gap-8" aria-busy="true">
       <span className="sr-only">{t("table.loading")}</span>
       <div className="flex flex-col gap-4">
-        <Skeleton className="h-5 w-24" />
+        <Skeleton className="h-5 w-48" />
         <Skeleton className="h-9 w-64" />
         <Skeleton className="h-5 w-96 max-w-full" />
       </div>
