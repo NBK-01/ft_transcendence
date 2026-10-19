@@ -7,6 +7,7 @@ export enum AccessControlErrorCodes {
   InternalUserInactive = 7003,
   RoleNotFound = 7004,
   PermissionNotFound = 7005,
+  NotCustomer = 7006,
 }
 
 export enum AccessControlErrorMessages {
@@ -15,6 +16,7 @@ export enum AccessControlErrorMessages {
   InternalUserInactive = 'errors.INTERNAL_USER_INACTIVE',
   RoleNotFound = 'errors.ROLE_NOT_FOUND',
   PermissionNotFound = 'errors.PERMISSION_NOT_FOUND',
+  NotCustomer = 'errors.NOT_CUSTOMER',
 }
 
 export class InsufficientPermissionsException extends DomainException {
@@ -70,6 +72,17 @@ export class PermissionNotFoundException extends DomainException {
       },
       HttpStatus.NOT_FOUND,
       AccessControlErrorCodes.PermissionNotFound,
+    );
+  }
+}
+
+/** Thrown when a route requires a customer but the authenticated principal is staff. */
+export class NotCustomerException extends DomainException {
+  constructor() {
+    super(
+      { key: AccessControlErrorMessages.NotCustomer },
+      HttpStatus.FORBIDDEN,
+      AccessControlErrorCodes.NotCustomer,
     );
   }
 }

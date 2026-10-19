@@ -42,6 +42,10 @@ export const PERMISSIONS: { name: string; description: string }[] = [
   },
   { name: 'shipments:assign', description: 'Assign a shipment to a driver' },
   { name: 'shipments:cancel', description: 'Cancel a shipment' },
+  {
+    name: 'chat:support:access',
+    description: 'View and reply to any customer support conversation',
+  },
 ];
 
 export const ROLE_PERMISSION_MATRIX: Record<RoleName, string[]> = {
@@ -53,6 +57,7 @@ export const ROLE_PERMISSION_MATRIX: Record<RoleName, string[]> = {
     'shipments:update:org',
     'shipments:assign',
     'shipments:cancel',
+    'chat:support:access',
   ],
   dispatcher: [
     'organizations:read',
@@ -62,5 +67,5 @@ export const ROLE_PERMISSION_MATRIX: Record<RoleName, string[]> = {
     'shipments:assign',
   ],
   driver: ['organizations:read', 'shipments:read:own', 'shipments:update:own'],
-  support: ['organizations:read', 'shipments:read:all'],
+  support: ['organizations:read', 'shipments:read:all', 'chat:support:access'],
 };
