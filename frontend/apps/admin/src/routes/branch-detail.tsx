@@ -3,7 +3,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router";
 
-import { isApiError, type InternalUser, type Organization } from "@trans/api";
+import { isApiError, useStaffAccess, type InternalUser, type Organization } from "@trans/api";
 import { ConfirmDelete } from "@trans/ui/blocks/confirm-delete";
 import { DataTable } from "@trans/ui/blocks/data-table";
 import { EmptyState } from "@trans/ui/blocks/empty-state";
@@ -60,8 +60,10 @@ export function BranchDetailPage() {
   return <BranchDetail branch={branch.data} />;
 }
 
+/** Every role can see a branch and its members; changing them needs "organizations:manage" (admins). */
 function BranchDetail({ branch }: { branch: Organization }) {
   const { t } = useTranslation(["common", "app"]);
+  const canManage = useStaffAccess().can("organizations:manage");
   const members = useBranchStaff(branch.id);
   const [editOpen, setEditOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -88,28 +90,32 @@ function BranchDetail({ branch }: { branch: Organization }) {
   const columns = useMemo(() => {
     const staff = staffColumns(t);
     return column.columns([
-        staff.person,
-        staff.role,
-        staff.status,
-        column.display({
-          id: "actions",
-          cell: ({ row }) => (
-            <Button
-              variant="tertiary"
-              size="sm"
-              shape="square"
-              aria-label={t("app:branches.members.removeOne", { name: row.original.name })}
-              onFocus={rememberFocus}
-              onClick={() => askRemove(row.original)}
-            >
-              <UserMinus />
-            </Button>
-          ),
-          enableSorting: false,
-          meta: { align: "end", className: "w-12" },
-        }),
+      staff.person,
+      staff.role,
+      staff.status,
+      ...(canManage
+        ? [
+            column.display({
+              id: "actions",
+              cell: ({ row }) => (
+                <Button
+                  variant="tertiary"
+                  size="sm"
+                  shape="square"
+                  aria-label={t("app:branches.members.removeOne", { name: row.original.name })}
+                  onFocus={rememberFocus}
+                  onClick={() => askRemove(row.original)}
+                >
+                  <UserMinus />
+                </Button>
+              ),
+              enableSorting: false,
+              meta: { align: "end", className: "w-12" },
+            }),
+          ]
+        : []),
     ]);
-  }, [t, rememberFocus, askRemove]);
+  }, [t, canManage, rememberFocus, askRemove]);
 
   return (
     <div className="flex flex-col gap-8">
@@ -120,14 +126,16 @@ function BranchDetail({ branch }: { branch: Organization }) {
           title={branch.name}
           description={branch.description ?? undefined}
           actions={
-            <>
-              <Button variant="secondary" prefix={<Pencil />} onClick={() => setEditOpen(true)}>
-                {t("app:branches.edit")}
-              </Button>
-              <Button ref={addButtonRef} prefix={<UserPlus />} onClick={() => setAddOpen(true)}>
-                {t("app:branches.members.add")}
-              </Button>
-            </>
+            canManage && (
+              <>
+                <Button variant="secondary" prefix={<Pencil />} onClick={() => setEditOpen(true)}>
+                  {t("app:branches.edit")}
+                </Button>
+                <Button ref={addButtonRef} prefix={<UserPlus />} onClick={() => setAddOpen(true)}>
+                  {t("app:branches.members.add")}
+                </Button>
+              </>
+            )
           }
         />
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-copy-14 text-gray-900">
@@ -163,11 +171,13 @@ function BranchDetail({ branch }: { branch: Organization }) {
             <EmptyState
               icon={UsersIcon}
               title={t("app:branches.members.emptyTitle")}
-              description={t("app:branches.members.emptyBody")}
+              description={t(canManage ? "app:branches.members.emptyBody" : "app:branches.members.emptyBodyReadOnly")}
               action={
-                <Button variant="secondary" prefix={<UserPlus />} onClick={() => setAddOpen(true)}>
-                  {t("app:branches.members.add")}
-                </Button>
+                canManage && (
+                  <Button variant="secondary" prefix={<UserPlus />} onClick={() => setAddOpen(true)}>
+                    {t("app:branches.members.add")}
+                  </Button>
+                )
               }
             />
           }
@@ -175,9 +185,13 @@ function BranchDetail({ branch }: { branch: Organization }) {
         />
       </section>
 
-      <BranchFormDialog open={editOpen} onOpenChange={setEditOpen} branch={branch} />
-      {/* From the empty state, that button is gone once someone's added; the header's stays. */}
-      <AddMemberDialog open={addOpen} onOpenChange={setAddOpen} branch={branch} returnFocusTo={addButtonRef} />
+      {canManage && (
+        <>
+          <BranchFormDialog open={editOpen} onOpenChange={setEditOpen} branch={branch} />
+          {/* From the empty state, that button is gone once someone's added; the header's stays. */}
+          <AddMemberDialog open={addOpen} onOpenChange={setAddOpen} branch={branch} returnFocusTo={addButtonRef} />
+        </>
+      )}
       <ConfirmDelete
         open={removeOpen}
         onOpenChange={setRemoveOpen}

@@ -3,7 +3,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 
-import type { Organization } from "@trans/api";
+import { isForbidden, useStaffAccess, type Organization } from "@trans/api";
 import { ConfirmDelete } from "@trans/ui/blocks/confirm-delete";
 import { createDataTableColumnHelper, DataTable } from "@trans/ui/blocks/data-table";
 import { DataTableColumnHeader } from "@trans/ui/blocks/data-table-column-header";
@@ -28,13 +28,20 @@ import { useInternalUsers } from "../features/users/api";
 
 const column = createDataTableColumnHelper<Organization>();
 
-/** /branches: every branch (organization), sorted and filtered in the browser (the API returns the full list). */
+/**
+ * /branches: every branch (organization), sorted and filtered in the browser (the API returns the full list).
+ * Every role can read it; only "organizations:manage" (admins) gets the create, edit and deactivate actions.
+ */
 export function BranchesPage() {
   const { t, i18n } = useTranslation(["common", "app"]);
   const organizations = useOrganizations();
   const { withBranch } = useBranchFilter();
-  // The API has no member count, so it's counted from the staff list.
-  const staff = useInternalUsers();
+  const { isAdmin, can } = useStaffAccess();
+  const canManage = can("organizations:manage");
+  // The API has no member count, so it's counted from the staff list, which only admins can read.
+  const staff = useInternalUsers({ enabled: isAdmin });
+  // A 403 there (the role changed since signing in) drops the column, not the whole list.
+  const showMembers = isAdmin && !isForbidden(staff.error);
 
   // `branch` outlives `open`, so the dialog keeps its title while it fades out.
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -115,13 +122,19 @@ export function BranchesPage() {
             <span className="text-gray-900">{t("app:branches.noContact")}</span>
           ),
       }),
-      column.accessor((branch) => memberCount(branch.id), {
-        id: "members",
-        header: ({ column }) => <DataTableColumnHeader column={column} title={t("app:branches.columns.members")} />,
-        cell: (info) => <span className="tabular-nums">{numberFormat.format(info.getValue())}</span>,
-        sortDescFirst: true,
-        meta: { align: "end" },
-      }),
+      ...(showMembers
+        ? [
+            column.accessor((branch) => memberCount(branch.id), {
+              id: "members",
+              header: ({ column }) => (
+                <DataTableColumnHeader column={column} title={t("app:branches.columns.members")} />
+              ),
+              cell: (info) => <span className="tabular-nums">{numberFormat.format(info.getValue())}</span>,
+              sortDescFirst: true,
+              meta: { align: "end" },
+            }),
+          ]
+        : []),
       column.accessor((branch) => (branch.isActive ? "active" : "deactivated"), {
         id: "status",
         header: ({ column }) => <DataTableColumnHeader column={column} title={t("app:branches.columns.status")} />,
@@ -138,46 +151,50 @@ export function BranchesPage() {
         sortDescFirst: true,
         meta: { align: "end" },
       }),
-      column.display({
-        id: "actions",
-        cell: ({ row }) => (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="tertiary"
-                size="sm"
-                shape="square"
-                aria-label={t("app:branches.rowActions", { name: row.original.name })}
-                onFocus={rememberFocus}
-              >
-                <MoreHorizontal />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => openDialog(row.original)}>
-                <Pencil aria-hidden="true" />
-                {t("app:branches.edit")}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {row.original.isActive ? (
-                <DropdownMenuItem variant="destructive" onSelect={() => askDeactivate(row.original)}>
-                  <Ban aria-hidden="true" />
-                  {t("app:branches.deactivate")}
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem onSelect={() => void reactivate(row.original)}>
-                  <RotateCcw aria-hidden="true" />
-                  {t("app:branches.reactivate")}
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ),
-        enableSorting: false,
-        meta: { align: "end", className: "w-12" },
-      }),
+      ...(canManage
+        ? [
+            column.display({
+              id: "actions",
+              cell: ({ row }) => (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="tertiary"
+                      size="sm"
+                      shape="square"
+                      aria-label={t("app:branches.rowActions", { name: row.original.name })}
+                      onFocus={rememberFocus}
+                    >
+                      <MoreHorizontal />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => openDialog(row.original)}>
+                      <Pencil aria-hidden="true" />
+                      {t("app:branches.edit")}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {row.original.isActive ? (
+                      <DropdownMenuItem variant="destructive" onSelect={() => askDeactivate(row.original)}>
+                        <Ban aria-hidden="true" />
+                        {t("app:branches.deactivate")}
+                      </DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem onSelect={() => void reactivate(row.original)}>
+                        <RotateCcw aria-hidden="true" />
+                        {t("app:branches.reactivate")}
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ),
+              enableSorting: false,
+              meta: { align: "end", className: "w-12" },
+            }),
+          ]
+        : []),
     ]);
-  }, [t, i18n.language, memberCount, withBranch, openDialog, rememberFocus, askDeactivate, reactivate]);
+  }, [t, i18n.language, showMembers, canManage, memberCount, withBranch, openDialog, rememberFocus, askDeactivate, reactivate]);
 
   const filters = useMemo(
     () => [
@@ -200,20 +217,23 @@ export function BranchesPage() {
         title={t("nav.branches")}
         description={t("app:pages.branches")}
         actions={
-          <Button prefix={<Plus />} onFocus={rememberFocus} onClick={() => openDialog(null)}>
-            {t("app:branches.newBranch")}
-          </Button>
+          canManage && (
+            <Button prefix={<Plus />} onFocus={rememberFocus} onClick={() => openDialog(null)}>
+              {t("app:branches.newBranch")}
+            </Button>
+          )
         }
       />
       <DataTable
         columns={columns}
         data={organizations.data}
         getRowId={(branch) => branch.id}
-        isLoading={organizations.isPending || staff.isPending}
-        error={organizations.error ?? staff.error}
+        // A disabled query stays "pending", so only wait for the staff list when it's used.
+        isLoading={organizations.isPending || (showMembers && staff.isPending)}
+        error={organizations.error ?? (showMembers ? staff.error : null)}
         onRetry={() => {
           void organizations.refetch();
-          void staff.refetch();
+          if (showMembers) void staff.refetch();
         }}
         search={{ column: "name", placeholder: t("app:branches.search") }}
         filters={filters}
@@ -221,7 +241,7 @@ export function BranchesPage() {
           <EmptyState
             icon={Building2}
             title={t("app:branches.emptyTitle")}
-            description={t("app:branches.emptyBody")}
+            description={t(canManage ? "app:branches.emptyBody" : "app:branches.emptyBodyReadOnly")}
           />
         }
         pageSizeOptions={[20, 50, 100]}

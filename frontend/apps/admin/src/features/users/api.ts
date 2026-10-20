@@ -13,10 +13,12 @@ import {
 export const EMAIL_TAKEN = 8002;
 
 /** GET /internal-users: every staff account (unpaginated, so the table sorts and filters in the browser). */
-export function useInternalUsers() {
+/** GET /internal-users: admin-only, so pages other roles can open pass `enabled: isAdmin`. */
+export function useInternalUsers({ enabled = true }: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: keys.internalUsers.list(),
     queryFn: ({ signal }) => api.get<InternalUser[]>("/internal-users", { signal }),
+    enabled,
   });
 }
 

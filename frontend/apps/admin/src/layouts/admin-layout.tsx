@@ -2,7 +2,7 @@ import { Building2, KeyRound, LayoutGrid, MessageSquare, Package, Users } from "
 import { useTranslation } from "react-i18next";
 import { Link, Outlet } from "react-router";
 
-import { useStaffLogout, useStaffSession } from "@trans/api";
+import { useStaffAccess, useStaffLogout, useStaffSession } from "@trans/api";
 import { AppShell, type NavGroup } from "@trans/ui/blocks/app-shell";
 import { Logo } from "@trans/ui/blocks/logo";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@trans/ui/components/select";
@@ -48,6 +48,7 @@ export function AdminLayout() {
   const { t } = useTranslation(["common", "app"]);
   const { withBranch } = useBranchFilter();
   const { user } = useStaffSession();
+  const { isAdmin } = useStaffAccess();
   const signOut = useStaffLogout();
 
   const nav: NavGroup[] = [
@@ -61,10 +62,11 @@ export function AdminLayout() {
     },
     {
       label: t("app:groups.manage"),
+      // Staff accounts and API keys are admin-only; every role can read the branches.
       items: [
-        { to: withBranch("/users"), label: t("nav.users"), icon: Users },
+        ...(isAdmin ? [{ to: withBranch("/users"), label: t("nav.users"), icon: Users }] : []),
         { to: withBranch("/branches"), label: t("nav.branches"), icon: Building2 },
-        { to: withBranch("/api-keys"), label: t("nav.apiKeys"), icon: KeyRound },
+        ...(isAdmin ? [{ to: withBranch("/api-keys"), label: t("nav.apiKeys"), icon: KeyRound }] : []),
       ],
     },
   ];

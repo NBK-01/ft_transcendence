@@ -3,7 +3,7 @@ import type { RefObject } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
-import { isApiError, type Organization } from "@trans/api";
+import { isApiError, isForbidden, type Organization } from "@trans/api";
 import { Button } from "@trans/ui/components/button";
 import {
   Dialog,
@@ -103,7 +103,12 @@ function BranchForm({ branch, onDone }: { branch: Organization | null; onDone: (
       } else {
         // Already translated: the backend's message (Accept-Language) or ours. Rendered as text.
         form.setError("root", {
-          message: isApiError(error) && error.messages[0] ? error.messages[0] : t("app:branches.form.error"),
+          // A 403: the role changed since signing in (the backend's message is English-only).
+          message: isForbidden(error)
+            ? t("app:noAccess.action")
+            : isApiError(error) && error.messages[0]
+              ? error.messages[0]
+              : t("app:branches.form.error"),
         });
       }
     }

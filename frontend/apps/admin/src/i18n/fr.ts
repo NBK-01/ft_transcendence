@@ -15,6 +15,11 @@ const fr: AdminResources = {
     apiKeys: "Clés permettant aux systèmes partenaires d'utiliser l'API publique.",
     profile: "Les informations de votre compte.",
   },
+  noAccess: {
+    title: "Vous n'avez pas accès à cette page",
+    body: "Votre rôle ne l'inclut pas. Demandez à un administrateur si vous en avez besoin.",
+    action: "Votre rôle ne permet pas cette action. Demandez à un administrateur si nécessaire.",
+  },
   login: {
     invalidCredentials: "E-mail ou mot de passe incorrect.",
     inactive: "Ce compte est désactivé. Demandez à un administrateur de le réactiver.",
@@ -72,6 +77,7 @@ const fr: AdminResources = {
     search: "Rechercher une agence…",
     emptyTitle: "Aucune agence",
     emptyBody: "Les agences que vous créez apparaîtront ici.",
+    emptyBodyReadOnly: "Aucune agence n'a encore été créée.",
     newBranch: "Nouvelle agence",
     rowActions: "Actions pour {{name}}",
     edit: "Modifier",
@@ -90,6 +96,7 @@ const fr: AdminResources = {
       title: "Membres",
       emptyTitle: "Aucun membre",
       emptyBody: "Ajoutez du personnel à cette agence pour le voir ici.",
+      emptyBodyReadOnly: "Personne ne travaille encore dans cette agence.",
       add: "Ajouter un membre",
       addShort: "Ajouter",
       addOne: "Ajouter {{name}}",

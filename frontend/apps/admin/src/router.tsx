@@ -4,6 +4,7 @@ import { createBrowserRouter } from "react-router";
 import { LegalPage } from "@trans/ui/blocks/legal-layout";
 import { NotFoundPage } from "@trans/ui/blocks/not-found-page";
 
+import { RequireAdmin } from "./features/auth/require-admin";
 import { RequireStaff } from "./features/auth/require-staff";
 import { AdminLayout } from "./layouts/admin-layout";
 import { BranchDetailPage } from "./routes/branch-detail";
@@ -29,10 +30,24 @@ export const router = createBrowserRouter(
         { index: true, element: <Stub page="dashboard" icon={LayoutGrid} /> },
         { path: "shipments", element: <Stub page="shipments" icon={Package} /> },
         { path: "messages", element: <Stub page="messages" icon={MessageSquare} /> },
-        { path: "users", element: <UsersPage /> },
+        {
+          path: "users",
+          element: (
+            <RequireAdmin>
+              <UsersPage />
+            </RequireAdmin>
+          ),
+        },
         { path: "branches", element: <BranchesPage /> },
         { path: "branches/:id", element: <BranchDetailPage /> },
-        { path: "api-keys", element: <Stub page="apiKeys" icon={KeyRound} /> },
+        {
+          path: "api-keys",
+          element: (
+            <RequireAdmin>
+              <Stub page="apiKeys" icon={KeyRound} />
+            </RequireAdmin>
+          ),
+        },
         { path: "profile", element: <Stub page="profile" icon={UserRound} /> },
       ],
     },
