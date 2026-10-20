@@ -1,7 +1,8 @@
 import { Building2, KeyRound, LayoutGrid, MessageSquare, Package, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Link, Outlet, useNavigate } from "react-router";
+import { Link, Outlet } from "react-router";
 
+import { useStaffLogout, useStaffSession } from "@trans/api";
 import { AppShell, type NavGroup } from "@trans/ui/blocks/app-shell";
 import { Logo } from "@trans/ui/blocks/logo";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@trans/ui/components/select";
@@ -9,8 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useOrganizations } from "../features/branches/api";
 import { useBranchFilter } from "../features/branches/use-branch-filter";
 
-// Preview data until staff login is wired.
-const MOCK_USER = { name: "Youssef Benali", email: "youssef@shiptrack.example", role: "Administrator" };
 const ALL = "all";
 
 /**
@@ -44,10 +43,12 @@ function BranchFilter() {
   );
 }
 
+/** The signed-in shell. Rendered inside RequireStaff, so there's always a staff session here. */
 export function AdminLayout() {
   const { t } = useTranslation(["common", "app"]);
-  const navigate = useNavigate();
   const { withBranch } = useBranchFilter();
+  const { user } = useStaffSession();
+  const signOut = useStaffLogout();
 
   const nav: NavGroup[] = [
     {
@@ -76,9 +77,14 @@ export function AdminLayout() {
         </Link>
       }
       nav={nav}
-      user={MOCK_USER}
+      user={{
+        name: user?.name ?? "",
+        email: user?.email ?? "",
+        role: user?.roleName ? t(`app:users.roles.${user.roleName}`, { defaultValue: user.roleName }) : undefined,
+      }}
       profileHref={withBranch("/profile")}
-      onSignOut={() => navigate("/login")}
+      // RequireStaff takes it from here: it shows /login once the session is gone.
+      onSignOut={signOut}
       topbarStart={<BranchFilter />}
     >
       <Outlet />

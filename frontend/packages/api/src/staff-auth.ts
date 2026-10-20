@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 import { api } from "./client";
 import { tokens } from "./session";
@@ -17,17 +17,23 @@ export const STAFF_ACCOUNT_INACTIVE = 7003;
 
 export type StaffSessionState =
   | { status: "authenticated"; user: StaffUser }
-  | { status: "anonymous"; user: null };
+  /** `signedOut`: this tab signed out on purpose, as opposed to never signed in or an expired session. */
+  | { status: "anonymous"; user: null; signedOut: boolean };
+
+let signedOutHere = false;
+const sessionSnapshot = () => (tokens.hasSession() ? "active" : signedOutHere ? "signed-out" : "none");
 
 /**
  * What the route guard and the account menu read. Synchronous: the user is
  * stored with the tokens, so there's no loading state. A revoked or expired
- * refresh token shows up on the first request, which sends you to login.
+ * refresh token shows up on the first request, which ends the session.
  */
 export function useStaffSession(): StaffSessionState {
-  const hasSession = useSyncExternalStore(tokens.subscribe, tokens.hasSession, () => false);
+  const session = useSyncExternalStore(tokens.subscribe, sessionSnapshot, () => "none");
   const user = useSyncExternalStore(tokens.subscribe, () => tokens.getUser<StaffUser>(), () => null);
-  return hasSession && user ? { status: "authenticated", user } : { status: "anonymous", user: null };
+  return session === "active" && user
+    ? { status: "authenticated", user }
+    : { status: "anonymous", user: null, signedOut: session === "signed-out" };
 }
 
 /** POST /staff-auth/login. On success the session starts; errors are ApiErrors (8003, 7003). */
@@ -38,25 +44,27 @@ export function useStaffLogin() {
     onSuccess: ({ user, ...pair }) => {
       // Nothing cached from a previous account may show to this one.
       queryClient.clear();
+      signedOutHere = false;
       tokens.set(pair, user);
     },
   });
 }
 
 /**
- * Sign out: ends the session here at once, then revokes the refresh token
- * (POST /staff-auth/logout). Signing out never fails: if the revoke can't
- * reach the server, the token just expires.
+ * Sign out: ends the session here at once (the route guard then shows the
+ * login page, with `signedOut` set), then revokes the refresh token in the
+ * background (POST /staff-auth/logout). Never fails: if the revoke can't reach
+ * the server, the token just expires.
  */
 export function useStaffLogout() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async () => {
-      const refreshToken = tokens.getRefresh();
-      tokens.clear();
-      queryClient.clear();
-      if (!refreshToken) return;
-      await api.post<MessageResponse>("/staff-auth/logout", { refreshToken }, { auth: false }).catch(() => undefined);
-    },
-  });
+  return useCallback(() => {
+    const refreshToken = tokens.getRefresh();
+    signedOutHere = true;
+    tokens.clear();
+    queryClient.clear();
+    if (refreshToken) {
+      void api.post<MessageResponse>("/staff-auth/logout", { refreshToken }, { auth: false }).catch(() => undefined);
+    }
+  }, [queryClient]);
 }
