@@ -4,7 +4,7 @@ import type { AuthResponse, TokenPair, User } from "../types";
 import { organizationHandlers } from "./organizations";
 import { error, ok } from "./respond";
 import { staffHandlers } from "./staff";
-import { requireStaffToken, staffAuthHandlers } from "./staff-auth";
+import { requireStaffAccess, staffAuthHandlers } from "./staff-auth";
 
 export { error, ok, paginated } from "./respond";
 
@@ -60,8 +60,8 @@ export const handlers = [
   }),
 
   ...staffAuthHandlers,
-  // Before the staff-only handlers, so they answer 401 without a staff token.
-  requireStaffToken,
+  // Before the staff-only handlers: 401 without a staff token, 403 for a role without access.
+  requireStaffAccess,
   ...staffHandlers,
   ...organizationHandlers,
 ];

@@ -32,3 +32,8 @@ export class ApiError extends Error {
 export function isApiError(error: unknown): error is ApiError {
   return error instanceof ApiError;
 }
+
+/** 403: signed in, but this account may not do it (its role, or a role change since signing in). */
+export function isForbidden(error: unknown) {
+  return isApiError(error) && error.status === 403;
+}

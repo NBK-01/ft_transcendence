@@ -7,8 +7,8 @@ import { error, ok } from "./respond";
 /**
  * Staff accounts and roles for the admin app.
  *
- * The real endpoints require an admin token. `requireStaffToken` (staff-auth.ts)
- * checks for a staff token; the admin-only role check comes with role-based screens.
+ * The real endpoints require an admin token. `requireStaffAccess` (staff-auth.ts)
+ * checks it before these handlers run.
  */
 
 /** Backend InternalUserErrorCodes. */
