@@ -22,7 +22,7 @@ import {
   type RowData,
   type Table as CoreTable,
 } from "@tanstack/react-table";
-import { CircleAlert } from "lucide-react";
+import { CircleAlert, Lock } from "lucide-react";
 import { useMemo, type MouseEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -137,6 +137,7 @@ export type DataTableProps<TData extends RowData> = {
   data: TData[] | undefined;
   getRowId?: (row: TData) => string;
   isLoading?: boolean;
+  /** A 403 (anything with `status: 403`, like the API's errors) shows "no access" without a retry button. */
   error?: unknown;
   onRetry?: () => void;
   /** Shown instead of the table when there's no data at all. */
@@ -195,6 +196,8 @@ export function DataTable<TData extends RowData>({
   const rows = table.getRowModel().rows;
   const columnCount = table.getAllLeafColumns().length;
   const hasError = Boolean(error) && !isLoading;
+  // Retrying won't help: the account's role doesn't include this list.
+  const forbidden = hasError && (error as { status?: unknown }).status === 403;
   const isEmpty = !isLoading && !hasError && (data?.length ?? 0) === 0;
 
   if (isEmpty && emptyState) return <div className={className}>{emptyState}</div>;
@@ -249,12 +252,16 @@ export function DataTable<TData extends RowData>({
             <TableRow className="hover:bg-transparent">
               <TableCell colSpan={columnCount} className="h-48 text-center whitespace-normal">
                 <div role="alert" className="flex flex-col items-center gap-3">
-                  <CircleAlert className="size-5 text-red-700" aria-hidden="true" />
+                  {forbidden ? (
+                    <Lock className="size-5 text-gray-900" aria-hidden="true" />
+                  ) : (
+                    <CircleAlert className="size-5 text-red-700" aria-hidden="true" />
+                  )}
                   <div className="flex flex-col gap-1">
-                    <p className="text-label-14">{t("table.errorTitle")}</p>
-                    <p className="text-copy-13 text-gray-900">{t("table.errorBody")}</p>
+                    <p className="text-label-14">{t(forbidden ? "table.forbiddenTitle" : "table.errorTitle")}</p>
+                    <p className="text-copy-13 text-gray-900">{t(forbidden ? "table.forbiddenBody" : "table.errorBody")}</p>
                   </div>
-                  {onRetry && (
+                  {onRetry && !forbidden && (
                     <Button variant="secondary" size="sm" onClick={onRetry}>
                       {t("table.retry")}
                     </Button>

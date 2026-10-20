@@ -134,6 +134,8 @@ const fr: CommonResources = {
     noResults: "Aucun résultat.",
     errorTitle: "Impossible de charger cette liste",
     errorBody: "Vérifiez votre connexion et réessayez.",
+    forbiddenTitle: "Vous n'avez pas accès à cette liste",
+    forbiddenBody: "Votre rôle ne l'inclut pas. Demandez à un administrateur si vous en avez besoin.",
     retry: "Réessayer",
     loading: "Chargement…",
     rowsPerPage: "Lignes par page",

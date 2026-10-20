@@ -6,8 +6,8 @@ import { error, ok } from "./respond";
 
 /**
  * Branches (backend OrganizationsController). Writes need `organizations:manage`,
- * reads any staff token. `requireStaffToken` (staff-auth.ts) checks for a staff
- * token; the permission check comes with role-based screens.
+ * reads any staff token. `requireStaffAccess` (staff-auth.ts) checks both
+ * before these handlers run.
  */
 
 /** Backend OrganizationErrorCodes. */

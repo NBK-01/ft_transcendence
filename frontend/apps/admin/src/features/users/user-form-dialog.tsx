@@ -3,7 +3,7 @@ import type { RefObject } from "react";
 import { Controller, useForm, type Control, type FieldValues, type Path } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
-import { isApiError, type InternalUser } from "@trans/api";
+import { isApiError, isForbidden, type InternalUser } from "@trans/api";
 import { Button } from "@trans/ui/components/button";
 import {
   Dialog,
@@ -32,11 +32,12 @@ import { useOrganizations } from "../branches/api";
 import { EMAIL_TAKEN, useCreateInternalUser, useRoles, useUpdateInternalUser } from "./api";
 
 /**
- * The form-level error, already translated: the backend's own message (it
- * translates with Accept-Language), or `fallback`. Rendered as text, not as a key.
+ * The form-level error, as text (not a key): ours for a 403 (the role changed
+ * since signing in), else the backend's message, else our generic one.
  */
-function rootError(error: unknown, fallback: string) {
-  return isApiError(error) && error.messages[0] ? error.messages[0] : fallback;
+function rootError(error: unknown, t: (key: string) => string) {
+  if (isForbidden(error)) return t("app:noAccess.action");
+  return isApiError(error) && error.messages[0] ? error.messages[0] : t("app:users.form.error");
 }
 
 /** Radix Select can't use "" as an item value, so this stands for "no branch". */
@@ -97,7 +98,7 @@ function CreateStaffForm({ onDone }: { onDone: () => void }) {
       if (isApiError(error) && error.errorCode === EMAIL_TAKEN) {
         form.setError("email", { message: "app:users.form.emailTaken" }, { shouldFocus: true });
       } else {
-        form.setError("root", { message: rootError(error, t("app:users.form.error")) });
+        form.setError("root", { message: rootError(error, t) });
       }
     }
   });
@@ -144,7 +145,7 @@ function EditStaffForm({ user, onDone }: { user: InternalUser; onDone: () => voi
       toast.success(t("app:users.form.updated", { name: updated.name }));
       onDone();
     } catch (error) {
-      form.setError("root", { message: rootError(error, t("app:users.form.error")) });
+      form.setError("root", { message: rootError(error, t) });
     }
   });
 

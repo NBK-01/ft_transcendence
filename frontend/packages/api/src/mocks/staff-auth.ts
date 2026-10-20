@@ -1,5 +1,6 @@
 import { http } from "msw/http";
 
+import { INSUFFICIENT_PERMISSIONS, roleCan } from "../permissions";
 import type { MessageResponse, StaffAuthResponse, TokenPair } from "../types";
 import { internalUsers, staffPasswords } from "./data";
 import { error, ok } from "./respond";
@@ -48,13 +49,29 @@ const bearer = (request: Request) => request.headers.get("Authorization")?.repla
 const unauthorized = () => error(401, ["Authentication failed"]);
 
 /**
- * Runs before the staff-only handlers (staff, roles, branches): without a staff
- * access token they answer 401, like the real endpoints. With one it returns
- * nothing, so MSW moves on to the matching handler.
+ * Runs before the staff-only handlers, in the same order as the backend's
+ * guards: no staff token → 401; a deactivated account → 401 (7003); a role
+ * without access → 403 (7001). Otherwise it returns nothing, so MSW moves on
+ * to the matching handler. The role is read from the account as it is now,
+ * like the backend does, not from when the token was issued.
+ *  - Staff accounts and roles (@RequireRole("admin")): admins only.
+ *  - Branches: any staff member may read; changes need "organizations:manage".
  */
-export const requireStaffToken = http.all(/\/api\/(internal-users|organizations|access-control)(\/|$|\?)/, ({ request }) => {
-  if (!accountOf(bearer(request), ACCESS_PREFIX)) return unauthorized();
-});
+export const requireStaffAccess = http.all(
+  /\/api\/(internal-users|organizations|access-control)(\/|$|\?)/,
+  ({ request }) => {
+    const caller = accountOf(bearer(request), ACCESS_PREFIX);
+    if (!caller) return unauthorized();
+    if (!caller.isActive) return error(401, ["This staff account has been deactivated"], ACCOUNT_INACTIVE);
+
+    const { pathname } = new URL(request.url);
+    const adminOnly = /\/api\/(internal-users|access-control)(\/|$)/.test(pathname);
+    const allowed = adminOnly
+      ? caller.roleName === "admin"
+      : request.method === "GET" || roleCan(caller.roleName, "organizations:manage");
+    if (!allowed) return error(403, ["You do not have permission to perform this action"], INSUFFICIENT_PERMISSIONS);
+  },
+);
 
 export const staffAuthHandlers = [
   http.post("*/api/staff-auth/login", async ({ request }) => {

@@ -100,6 +100,11 @@ export const Error: Story = {
   args: { data: undefined, error: new globalThis.Error("Network error"), onRetry: () => {} },
 };
 
+/** A 403 from the API: the role doesn't include this list, so there's nothing to retry. */
+export const Forbidden: Story = {
+  args: { data: undefined, error: { status: 403 }, onRetry: () => {} },
+};
+
 export const LargePages: Story = { args: { pageSizeOptions: [20, 50, 100] } };
 
 const STATUS_LABELS: Record<ShipmentStatus, string> = {

@@ -135,6 +135,8 @@ const en = {
     noResults: "No results.",
     errorTitle: "Couldn't load this list",
     errorBody: "Check your connection and try again.",
+    forbiddenTitle: "You don't have access to this list",
+    forbiddenBody: "Your role doesn't include it. Ask an administrator if you need it.",
     retry: "Try again",
     loading: "Loading…",
     rowsPerPage: "Rows per page",

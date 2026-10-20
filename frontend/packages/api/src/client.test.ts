@@ -5,7 +5,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { api, configureApi } from "./client";
 import { ApiError } from "./errors";
 import { handlers, ok, paginated } from "./mocks/handlers";
-import { internalUsers, MOCK_STAFF_PASSWORD } from "./mocks/data";
+import { internalUsers, MOCK_STAFF_PASSWORD, ORGANIZATIONS } from "./mocks/data";
+import { roleCan } from "./permissions";
 import { tokens } from "./session";
 import type { AuthResponse, InternalUser, StaffAuthResponse, User } from "./types";
 
@@ -275,5 +276,59 @@ describe("staff sign-in", () => {
     tokens.clear();
     expect(localStorage.getItem("trans-staff-refresh-token")).toBeNull();
     expect(tokens.getUser()).toBeNull();
+  });
+});
+
+describe("roles and permissions", () => {
+  const dispatcher = internalUsers.find((user) => user.roleName === "dispatcher" && user.isActive)!;
+  const branch = ORGANIZATIONS[0]!;
+  const forbidden = { status: 403, errorCode: 7001 };
+
+  it("roleCan follows the backend's table; no role, or an unknown one, has nothing", () => {
+    expect(roleCan("admin", "organizations:manage")).toBe(true);
+    expect(roleCan("dispatcher", "organizations:manage")).toBe(false);
+    expect(roleCan("dispatcher", "organizations:read")).toBe(true);
+    expect(roleCan("driver", "shipments:assign")).toBe(false);
+    expect(roleCan(null, "organizations:read")).toBe(false);
+    expect(roleCan("toString", "organizations:read")).toBe(false);
+  });
+
+  it("a dispatcher reads branches but gets 403 (7001) on staff, roles and branch changes", async () => {
+    await signInAsStaff(dispatcher.email);
+
+    await expect(api.get("/organizations")).resolves.toBeInstanceOf(Array);
+    await expect(api.get(`/organizations/${branch.id}`)).resolves.toMatchObject({ id: branch.id });
+    await expect(api.get(`/organizations/${branch.id}/staff`)).resolves.toBeInstanceOf(Array);
+
+    await expect(api.get("/internal-users")).rejects.toMatchObject(forbidden);
+    await expect(api.get("/access-control/roles")).rejects.toMatchObject(forbidden);
+    await expect(api.post("/organizations", { name: "Tangier Port" })).rejects.toMatchObject(forbidden);
+    await expect(api.patch(`/organizations/${branch.id}`, { name: "Renamed" })).rejects.toMatchObject(forbidden);
+    await expect(api.delete(`/organizations/${branch.id}`)).rejects.toMatchObject(forbidden);
+    await expect(api.post(`/organizations/${branch.id}/staff/${dispatcher.id}`)).rejects.toMatchObject(forbidden);
+  });
+
+  it("checks the role as it is now, not as it was when the token was issued", async () => {
+    const own = await staffLogin(dispatcher.email);
+    await signInAsStaff();
+    await api.patch(`/internal-users/${dispatcher.id}`, { roleName: "admin" });
+
+    tokens.set(own, own.user);
+    await expect(api.get("/internal-users")).resolves.toBeInstanceOf(Array);
+
+    await signInAsStaff();
+    await api.patch(`/internal-users/${dispatcher.id}`, { roleName: "dispatcher" });
+  });
+
+  it("an account deactivated mid-session gets 401 (7003)", async () => {
+    const own = await staffLogin(dispatcher.email);
+    await signInAsStaff();
+    await api.patch(`/internal-users/${dispatcher.id}`, { isActive: false });
+
+    tokens.set(own, own.user);
+    await expect(api.get("/organizations")).rejects.toMatchObject({ status: 401, errorCode: 7003 });
+
+    await signInAsStaff();
+    await api.patch(`/internal-users/${dispatcher.id}`, { isActive: true });
   });
 });

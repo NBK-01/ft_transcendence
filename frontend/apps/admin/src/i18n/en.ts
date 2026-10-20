@@ -14,6 +14,11 @@ const en = {
     apiKeys: "Keys that let partner systems use the public API.",
     profile: "Your account details.",
   },
+  noAccess: {
+    title: "You don't have access to this page",
+    body: "Your role doesn't include it. Ask an administrator if you need it.",
+    action: "Your role can't do this. Ask an administrator if you need it.",
+  },
   login: {
     invalidCredentials: "Wrong email or password.",
     inactive: "This account is deactivated. Ask an administrator to reactivate it.",
@@ -71,6 +76,7 @@ const en = {
     search: "Search branches…",
     emptyTitle: "No branches yet",
     emptyBody: "Branches you create will appear here.",
+    emptyBodyReadOnly: "No branches have been set up yet.",
     newBranch: "New branch",
     rowActions: "Actions for {{name}}",
     edit: "Edit",
@@ -89,6 +95,7 @@ const en = {
       title: "Members",
       emptyTitle: "No members yet",
       emptyBody: "Add staff to this branch to see them here.",
+      emptyBodyReadOnly: "No one works at this branch yet.",
       add: "Add member",
       addShort: "Add",
       addOne: "Add {{name}}",
