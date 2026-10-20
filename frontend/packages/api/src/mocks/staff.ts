@@ -1,14 +1,14 @@
 import { http } from "msw/http";
 
 import type { InternalUser } from "../types";
-import { internalUsers, isUuid, ROLES, roleExists } from "./data";
+import { internalUsers, isUuid, ROLES, roleExists, staffPasswords } from "./data";
 import { error, ok } from "./respond";
 
 /**
  * Staff accounts and roles for the admin app.
  *
- * The real endpoints require an admin (or staff) token. These don't check one
- * yet, because the admin app has no staff login wired.
+ * The real endpoints require an admin token. `requireStaffToken` (staff-auth.ts)
+ * checks for a staff token; the admin-only role check comes with role-based screens.
  */
 
 /** Backend InternalUserErrorCodes. */
@@ -55,6 +55,7 @@ export const staffHandlers = [
       updatedAt: now,
     };
     internalUsers.push(user);
+    staffPasswords.set(user.id, body.password!);
     return ok(user, 201);
   }),
 

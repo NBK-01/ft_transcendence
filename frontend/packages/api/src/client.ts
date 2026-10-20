@@ -1,5 +1,5 @@
 import { ApiError } from "./errors";
-import { tokens } from "./session";
+import { setStorageKey, tokens } from "./session";
 import type { ApiErrorBody, Page, SuccessEnvelope, TokenPair } from "./types";
 
 type ApiConfig = {
@@ -9,17 +9,24 @@ type ApiConfig = {
   getLanguage: () => string;
   /** Called once the session is definitely gone (refresh failed). Redirect to login here. */
   onSessionExpired: () => void;
+  /** Where to exchange the refresh token: "/auth/refresh" for customers, "/staff-auth/refresh" for staff. */
+  refreshPath: string;
+  /** localStorage key for this app's session, so the customer and staff apps never share one. */
+  storageKey: string;
 };
 
 const config: ApiConfig = {
   baseUrl: "/api",
   getLanguage: () => (typeof document === "undefined" ? "en" : document.documentElement.lang || "en"),
   onSessionExpired: () => {},
+  refreshPath: "/auth/refresh",
+  storageKey: "trans-refresh-token",
 };
 
 /** Call once at app start-up (main.tsx). */
 export function configureApi(options: Partial<ApiConfig>) {
   Object.assign(config, options);
+  if (options.storageKey) setStorageKey(options.storageKey);
 }
 
 export type Query = Record<string, string | number | boolean | null | undefined>;
@@ -97,7 +104,7 @@ function refreshSession(): Promise<boolean> {
     const refreshToken = tokens.getRefresh();
     if (!refreshToken) return false;
     try {
-      const response = await fetch(buildUrl("/auth/refresh"), {
+      const response = await fetch(buildUrl(config.refreshPath), {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({ refreshToken }),

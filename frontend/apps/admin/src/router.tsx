@@ -4,9 +4,11 @@ import { createBrowserRouter } from "react-router";
 import { LegalPage } from "@trans/ui/blocks/legal-layout";
 import { NotFoundPage } from "@trans/ui/blocks/not-found-page";
 
+import { RequireStaff } from "./features/auth/require-staff";
 import { AdminLayout } from "./layouts/admin-layout";
 import { BranchDetailPage } from "./routes/branch-detail";
 import { BranchesPage } from "./routes/branches";
+import { LoginPage } from "./routes/login";
 import { Stub } from "./routes/stub";
 import { UsersPage } from "./routes/users";
 
@@ -15,9 +17,14 @@ export const router = createBrowserRouter(
   [
     { path: "privacy", element: <LegalPage kind="privacy" /> },
     { path: "terms", element: <LegalPage kind="terms" /> },
+    { path: "login", element: <LoginPage /> },
     {
       path: "/",
-      element: <AdminLayout />,
+      element: (
+        <RequireStaff>
+          <AdminLayout />
+        </RequireStaff>
+      ),
       children: [
         { index: true, element: <Stub page="dashboard" icon={LayoutGrid} /> },
         { path: "shipments", element: <Stub page="shipments" icon={Package} /> },

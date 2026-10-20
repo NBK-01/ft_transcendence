@@ -14,6 +14,12 @@ const en = {
     apiKeys: "Keys that let partner systems use the public API.",
     profile: "Your account details.",
   },
+  login: {
+    invalidCredentials: "Wrong email or password.",
+    inactive: "This account is deactivated. Ask an administrator to reactivate it.",
+    error: "Couldn't sign in. Try again.",
+    expired: "Your session has ended. Sign in again.",
+  },
   users: {
     columns: { name: "Name", role: "Role", branch: "Branch", status: "Status", created: "Created" },
     roles: { admin: "Admin", dispatcher: "Dispatcher", driver: "Driver", support: "Support", none: "No role" },

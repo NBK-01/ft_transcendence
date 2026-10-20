@@ -1,0 +1,104 @@
+import { http } from "msw/http";
+
+import type { MessageResponse, StaffAuthResponse, TokenPair } from "../types";
+import { internalUsers, staffPasswords } from "./data";
+import { error, ok } from "./respond";
+
+/**
+ * Staff sign-in (backend StaffAuthController). Every mock account signs in
+ * with MOCK_STAFF_PASSWORD (see data.ts), e.g. nadia.haddad@shiptrack.example
+ * (admin) or rami.khoury@shiptrack.example (dispatcher).
+ *
+ * Tokens carry the account id, so a refresh still works after a page reload,
+ * when this module's state starts over. Only tokens revoked since the page
+ * loaded are refused.
+ */
+
+/** Backend StaffAuthErrorCodes and AccessControlErrorCodes. */
+const INVALID_CREDENTIALS = 8003;
+const INVALID_REFRESH_TOKEN = 8004;
+const ACCOUNT_INACTIVE = 7003;
+
+const ACCESS_PREFIX = "mock-staff-access-";
+const REFRESH_PREFIX = "mock-staff-refresh-";
+
+let counter = 0;
+const revoked = new Set<string>();
+/** logout-all: tokens issued up to this counter value are refused, per account. */
+const signedOutUpTo = new Map<string, number>();
+
+const issueTokens = (userId: string): TokenPair => {
+  counter += 1;
+  return { accessToken: `${ACCESS_PREFIX}${counter}.${userId}`, refreshToken: `${REFRESH_PREFIX}${counter}.${userId}` };
+};
+
+/** The account a token belongs to, or undefined if it isn't one of ours or was signed out everywhere. */
+const accountOf = (token: string | null | undefined, prefix: string) => {
+  if (!token?.startsWith(prefix)) return undefined;
+  const dot = token.indexOf(".");
+  const issued = Number(token.slice(prefix.length, dot));
+  const user = internalUsers.find((candidate) => candidate.id === token.slice(dot + 1));
+  if (!user || issued <= (signedOutUpTo.get(user.id) ?? 0)) return undefined;
+  return user;
+};
+
+const bearer = (request: Request) => request.headers.get("Authorization")?.replace(/^Bearer /, "");
+
+/** Like the backend's JwtAuthGuard: no valid token, 401 without an error code. */
+const unauthorized = () => error(401, ["Authentication failed"]);
+
+/**
+ * Runs before the staff-only handlers (staff, roles, branches): without a staff
+ * access token they answer 401, like the real endpoints. With one it returns
+ * nothing, so MSW moves on to the matching handler.
+ */
+export const requireStaffToken = http.all(/\/api\/(internal-users|organizations|access-control)(\/|$|\?)/, ({ request }) => {
+  if (!accountOf(bearer(request), ACCESS_PREFIX)) return unauthorized();
+});
+
+export const staffAuthHandlers = [
+  http.post("*/api/staff-auth/login", async ({ request }) => {
+    const body = (await request.json()) as { email?: string; password?: string };
+    const email = body.email?.trim().toLowerCase() ?? "";
+    const messages = [
+      !/^\S+@\S+\.\S+$/.test(email) && "email must be an email",
+      !body.password && "password should not be empty",
+    ].filter((message): message is string => Boolean(message));
+    if (messages.length > 0) return error(400, messages);
+
+    // Same order as StaffAuthService.login: unknown email and wrong password look alike.
+    const user = internalUsers.find((candidate) => candidate.email === email);
+    if (!user || staffPasswords.get(user.id) !== body.password) {
+      return error(401, ["Invalid email or password"], INVALID_CREDENTIALS);
+    }
+    if (!user.isActive) return error(401, ["This staff account has been deactivated"], ACCOUNT_INACTIVE);
+
+    const { id, name, roleName } = user;
+    return ok<StaffAuthResponse>({ ...issueTokens(id), user: { id, email: user.email, name, roleName } });
+  }),
+
+  http.post("*/api/staff-auth/refresh", async ({ request }) => {
+    const { refreshToken } = (await request.json()) as { refreshToken?: string };
+    const user = accountOf(refreshToken, REFRESH_PREFIX);
+    if (!user || !user.isActive || revoked.has(refreshToken!)) {
+      return error(401, ["Invalid refresh token"], INVALID_REFRESH_TOKEN);
+    }
+    // Rotates in place: the old refresh token stops working.
+    revoked.add(refreshToken!);
+    return ok<TokenPair>(issueTokens(user.id));
+  }),
+
+  // Public, and always 200: an unknown or expired token has nothing left to revoke.
+  http.post("*/api/staff-auth/logout", async ({ request }) => {
+    const { refreshToken } = (await request.json()) as { refreshToken?: string };
+    if (refreshToken) revoked.add(refreshToken);
+    return ok<MessageResponse>({ message: "Logged out" });
+  }),
+
+  http.post("*/api/staff-auth/logout-all", ({ request }) => {
+    const user = accountOf(bearer(request), ACCESS_PREFIX);
+    if (!user) return unauthorized();
+    signedOutUpTo.set(user.id, counter);
+    return ok<MessageResponse>({ message: "Logged out of all sessions" });
+  }),
+];

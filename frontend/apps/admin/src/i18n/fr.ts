@@ -15,6 +15,12 @@ const fr: AdminResources = {
     apiKeys: "Clés permettant aux systèmes partenaires d'utiliser l'API publique.",
     profile: "Les informations de votre compte.",
   },
+  login: {
+    invalidCredentials: "E-mail ou mot de passe incorrect.",
+    inactive: "Ce compte est désactivé. Demandez à un administrateur de le réactiver.",
+    error: "Connexion impossible. Réessayez.",
+    expired: "Votre session a pris fin. Reconnectez-vous.",
+  },
   users: {
     columns: { name: "Nom", role: "Rôle", branch: "Agence", status: "Statut", created: "Créé le" },
     roles: { admin: "Admin", dispatcher: "Dispatcheur", driver: "Chauffeur", support: "Support", none: "Aucun rôle" },

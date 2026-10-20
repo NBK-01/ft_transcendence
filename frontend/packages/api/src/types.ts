@@ -62,6 +62,24 @@ export type TokenPair = {
  */
 export type AuthResponse = TokenPair & { user: Pick<User, "id" | "email" | "name"> };
 
+/**
+ * The signed-in staff member, as POST /staff-auth/login returns it. There's no
+ * staff /me yet, so this is stored with the session and only updates on the next sign-in.
+ */
+export type StaffUser = {
+  id: string;
+  email: string;
+  name: string;
+  /** "admin" | "dispatcher" | "driver" | "support", or null if unassigned. */
+  roleName: string | null;
+};
+
+/** POST /staff-auth/login body. */
+export type StaffLoginInput = { email: string; password: string };
+
+/** Returned by POST /staff-auth/login. */
+export type StaffAuthResponse = TokenPair & { user: StaffUser };
+
 /** Returned by endpoints that only confirm an action. */
 export type MessageResponse = { message: string };
 
