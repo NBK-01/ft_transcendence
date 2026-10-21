@@ -7,7 +7,14 @@ import { NotFoundPage } from "@trans/ui/blocks/not-found-page";
 import { RequireAdmin } from "./features/auth/require-admin";
 import { RequireStaff } from "./features/auth/require-staff";
 import { AdminLayout } from "./layouts/admin-layout";
-import { BranchDetailPage, BranchesPage, LegalPage, ProfilePage, UsersPage } from "./routes/lazy-pages";
+import {
+  BranchDetailPage,
+  BranchesPage,
+  ContactsPage,
+  LegalPage,
+  ProfilePage,
+  UsersPage,
+} from "./routes/lazy-pages";
 import { LoginPage } from "./routes/login";
 import { Stub } from "./routes/stub";
 
@@ -42,6 +49,7 @@ export const router = createBrowserRouter(
         { index: true, element: <Stub page="dashboard" icon={LayoutGrid} /> },
         { path: "shipments", element: <Stub page="shipments" icon={Package} /> },
         { path: "messages", element: <Stub page="messages" icon={MessageSquare} /> },
+        { path: "contacts", element: <ContactsPage /> },
         {
           path: "users",
           element: (

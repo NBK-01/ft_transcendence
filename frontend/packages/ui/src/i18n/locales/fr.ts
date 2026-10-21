@@ -36,6 +36,7 @@ const fr: CommonResources = {
     main: "Navigation principale",
     shipments: "Expéditions",
     chat: "Messages",
+    contacts: "Contacts",
     notifications: "Notifications",
     profile: "Profil",
     dashboard: "Vue d'ensemble",

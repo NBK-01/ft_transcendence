@@ -1,4 +1,4 @@
-import { Building2, KeyRound, LayoutGrid, MessageSquare, Package, Users } from "lucide-react";
+import { Building2, Contact, KeyRound, LayoutGrid, MessageSquare, Package, Users } from "lucide-react";
 import { Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, Outlet } from "react-router";
@@ -6,10 +6,12 @@ import { Link, Outlet } from "react-router";
 import { useStaffAccess, useStaffLogout, useStaffSession } from "@trans/api";
 import { AppShell, type NavGroup } from "@trans/ui/blocks/app-shell";
 import { Logo } from "@trans/ui/blocks/logo";
+import { Badge } from "@trans/ui/components/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@trans/ui/components/select";
 import { Skeleton } from "@trans/ui/components/skeleton";
 
 import { useOrganizations } from "../features/branches/api";
+import { tabOf, useContacts } from "../features/contacts/api";
 import { useBranchFilter } from "../features/branches/use-branch-filter";
 
 const ALL = "all";
@@ -52,6 +54,9 @@ export function AdminLayout() {
   const { user } = useStaffSession();
   const { isAdmin } = useStaffAccess();
   const signOut = useStaffLogout();
+  // Requests waiting for an answer, as a count on the Contacts nav item.
+  const contacts = useContacts();
+  const requests = (contacts.data ?? []).filter((contact) => user && tabOf(contact, user.id) === "received").length;
 
   const nav: NavGroup[] = [
     {
@@ -60,6 +65,18 @@ export function AdminLayout() {
         { to: withBranch("/"), label: t("nav.dashboard"), icon: LayoutGrid, end: true },
         { to: withBranch("/shipments"), label: t("nav.shipments"), icon: Package },
         { to: withBranch("/messages"), label: t("nav.chat"), icon: MessageSquare },
+        {
+          to: withBranch("/contacts"),
+          label: t("nav.contacts"),
+          icon: Contact,
+          // undefined, not false: the shell draws a badge (or a dot) for anything else.
+          badge:
+            requests > 0 ? (
+              <Badge size="sm" className="tabular-nums">
+                {requests}
+              </Badge>
+            ) : undefined,
+        },
       ],
     },
     {

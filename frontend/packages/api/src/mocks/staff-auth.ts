@@ -49,7 +49,7 @@ const bearer = (request: Request) => request.headers.get("Authorization")?.repla
 const unauthorized = () => error(401, ["Authentication failed"]);
 
 /** @RequireStaff(): the signed-in, active staff member, or the 401 the backend would send. */
-const staffCaller = (request: Request) => {
+export const staffCaller = (request: Request) => {
   const caller = accountOf(bearer(request), ACCESS_PREFIX);
   if (!caller) return { response: unauthorized() };
   if (!caller.isActive) return { response: error(401, ["This staff account has been deactivated"], ACCOUNT_INACTIVE) };
@@ -64,18 +64,20 @@ const staffCaller = (request: Request) => {
  * like the backend does, not from when the token was issued.
  *  - Staff accounts and roles (@RequireRole("admin")): admins only.
  *  - Branches: any staff member may read; changes need "organizations:manage".
+ *  - Contacts: any staff member.
  */
 export const requireStaffAccess = http.all(
-  /\/api\/(internal-users|organizations|access-control)(\/|$|\?)/,
+  /\/api\/(internal-users|organizations|access-control|contacts)(\/|$|\?)/,
   ({ request }) => {
     const { caller, response } = staffCaller(request);
     if (!caller) return response;
 
     const { pathname } = new URL(request.url);
     const adminOnly = /\/api\/(internal-users|access-control)(\/|$)/.test(pathname);
+    const branches = /\/api\/organizations(\/|$)/.test(pathname);
     const allowed = adminOnly
       ? caller.roleName === "admin"
-      : request.method === "GET" || roleCan(caller.roleName, "organizations:manage");
+      : !branches || request.method === "GET" || roleCan(caller.roleName, "organizations:manage");
     if (!allowed) return error(403, ["You do not have permission to perform this action"], INSUFFICIENT_PERMISSIONS);
   },
 );

@@ -20,6 +20,10 @@ export const keys = {
   roles: {
     all: ["roles"] as const,
   },
+  contacts: {
+    all: ["contacts"] as const,
+    list: () => [...keys.contacts.all, "list"] as const,
+  },
   organizations: {
     all: ["organizations"] as const,
     list: () => [...keys.organizations.all, "list"] as const,

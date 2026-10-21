@@ -1,6 +1,7 @@
 import { http } from "msw/http";
 
 import type { AuthResponse, TokenPair, User } from "../types";
+import { contactHandlers } from "./contacts";
 import { organizationHandlers } from "./organizations";
 import { error, ok } from "./respond";
 import { staffHandlers } from "./staff";
@@ -64,4 +65,5 @@ export const handlers = [
   requireStaffAccess,
   ...staffHandlers,
   ...organizationHandlers,
+  ...contactHandlers,
 ];
