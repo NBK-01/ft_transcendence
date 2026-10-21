@@ -79,18 +79,25 @@ export function AuthLayout({
   );
 }
 
-/** No time zone (local time), so the preview reads 09:42 everywhere. */
-const DEMO_EVENTS: TimelineEvent[] = [
-  { status: "out_for_delivery", location: "Paris 11e", occurredAt: "2026-10-16T09:42:00" },
-  { status: "in_transit", location: "Lyon hub", occurredAt: "2026-10-16T04:10:00" },
-  { status: "in_transit", location: "Casablanca hub", occurredAt: "2026-10-15T22:18:00" },
-  { status: "confirmed", location: "Casablanca, Maârif", occurredAt: "2026-10-15T16:05:00" },
-];
+/**
+ * No time zone (local time), so the preview reads 09:42 everywhere. Places are
+ * keys under `auth.panelPlaces`, so the preview reads in the page's language.
+ */
+const DEMO_EVENTS = [
+  { status: "out_for_delivery", place: "paris", occurredAt: "2026-10-16T09:42:00" },
+  { status: "in_transit", place: "lyonHub", occurredAt: "2026-10-16T04:10:00" },
+  { status: "in_transit", place: "casablancaHub", occurredAt: "2026-10-15T22:18:00" },
+  { status: "confirmed", place: "casablanca", occurredAt: "2026-10-15T16:05:00" },
+] as const;
 const TIME_ONLY: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit", hourCycle: "h23" };
 
 /** Decorative product preview (aria-hidden): a shipment moving, rendered with real components. */
 function TrackingPanel() {
   const { t } = useTranslation("common");
+  const events: TimelineEvent[] = DEMO_EVENTS.map(({ place, ...event }) => ({
+    ...event,
+    location: t(`auth.panelPlaces.${place}`),
+  }));
 
   return (
     <aside
@@ -127,7 +134,7 @@ function TrackingPanel() {
           <span>CDG</span>
         </div>
 
-        <TimelineList events={DEMO_EVENTS} format={TIME_ONLY} />
+        <TimelineList events={events} format={TIME_ONLY} />
       </div>
     </aside>
   );

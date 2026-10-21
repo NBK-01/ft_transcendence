@@ -108,6 +108,12 @@ const ar: CommonResources = {
     panelBody: "يرى العملاء والمُرسِلون والسائقون الشحنة نفسها، وتُحدَّث لحظة تحرّكها.",
     panelLive: "مباشر",
     panelTracking: "التتبّع",
+    panelPlaces: {
+      paris: "باريس، الدائرة 11",
+      lyonHub: "مركز ليون",
+      casablancaHub: "مركز الدار البيضاء",
+      casablanca: "الدار البيضاء، المعاريف",
+    },
     or: "أو",
   },
   validation: {

@@ -66,7 +66,7 @@ export function AppShell({
   onSignOut: () => void;
   /** Adds a "Profile" item to the account menu. */
   profileHref?: string;
-  /** e.g. breadcrumb or branch switcher. */
+  /** e.g. a branch switcher. Shown on phones too, so keep it narrow there (it gets the space between logo and account). */
   topbarStart?: ReactNode;
   /** e.g. notifications button. */
   topbarEnd?: ReactNode;
@@ -130,7 +130,8 @@ export function AppShell({
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-gray-alpha-400 bg-background-100 px-3 md:px-4">
-          <div className="md:hidden">{brand}</div>
+          {/* Phones: just the mark when there's a topbarStart (e.g. the branch filter), so it fits beside it. */}
+          <div className={cn("md:hidden", topbarStart && "max-sm:[&_[data-wordmark]]:hidden")}>{brand}</div>
           <Button
             variant="tertiary"
             size="sm"
@@ -142,7 +143,8 @@ export function AppShell({
           >
             <PanelLeft className="rtl:-scale-x-100" aria-hidden="true" />
           </Button>
-          {topbarStart && <div className="hidden min-w-0 items-center gap-2 md:flex">{topbarStart}</div>}
+          {/* On phones it takes the room left between the logo and the account button. */}
+          {topbarStart && <div className="flex min-w-0 flex-1 items-center gap-2 md:flex-none">{topbarStart}</div>}
           <div className="ms-auto flex items-center gap-1.5">
             {topbarEnd}
             <div className="md:hidden">
@@ -170,7 +172,6 @@ function SidebarLink({ item, collapsed }: { item: NavItem; collapsed: boolean })
     <NavLink
       to={item.to}
       end={item.end}
-      aria-label={collapsed ? item.label : undefined}
       className={({ isActive }) =>
         cn(
           "focus-ring group relative flex h-9 items-center gap-2.5 rounded-md text-label-14 text-gray-900",
@@ -191,8 +192,17 @@ function SidebarLink({ item, collapsed }: { item: NavItem; collapsed: boolean })
             )}
           />
           <Icon className="size-4 shrink-0" aria-hidden="true" />
-          {!collapsed && <span className="truncate">{item.label}</span>}
-          {!collapsed && item.badge != null && <span className="ms-auto">{item.badge}</span>}
+          {/* Collapsed: label and count stay in the link's name for screen readers; a dot shows the count is there. */}
+          <span className={collapsed ? "sr-only" : "truncate"}>{item.label}</span>
+          {item.badge != null &&
+            (collapsed ? (
+              <>
+                <span className="sr-only">{item.badge}</span>
+                <span aria-hidden="true" className="absolute end-2 top-1.5 size-2 rounded-full bg-orange-700" />
+              </>
+            ) : (
+              <span className="ms-auto">{item.badge}</span>
+            ))}
         </>
       )}
     </NavLink>
@@ -202,7 +212,10 @@ function SidebarLink({ item, collapsed }: { item: NavItem; collapsed: boolean })
   return (
     <Tooltip>
       <TooltipTrigger asChild>{link}</TooltipTrigger>
-      <TooltipContent side={dir === "rtl" ? "left" : "right"}>{item.label}</TooltipContent>
+      <TooltipContent side={dir === "rtl" ? "left" : "right"} className="flex items-center gap-2">
+        {item.label}
+        {item.badge}
+      </TooltipContent>
     </Tooltip>
   );
 }

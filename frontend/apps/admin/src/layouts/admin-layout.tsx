@@ -1,4 +1,5 @@
 import { Building2, KeyRound, LayoutGrid, MessageSquare, Package, Users } from "lucide-react";
+import { Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, Outlet } from "react-router";
 
@@ -6,6 +7,7 @@ import { useStaffAccess, useStaffLogout, useStaffSession } from "@trans/api";
 import { AppShell, type NavGroup } from "@trans/ui/blocks/app-shell";
 import { Logo } from "@trans/ui/blocks/logo";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@trans/ui/components/select";
+import { Skeleton } from "@trans/ui/components/skeleton";
 
 import { useOrganizations } from "../features/branches/api";
 import { useBranchFilter } from "../features/branches/use-branch-filter";
@@ -25,7 +27,7 @@ function BranchFilter() {
 
   return (
     <Select value={branchId ?? ALL} onValueChange={(next) => setBranchId(next === ALL ? null : next)}>
-      <SelectTrigger size="sm" className="w-56" aria-label={t("nav.branch")}>
+      <SelectTrigger size="sm" className="w-full max-w-56 md:w-56" aria-label={t("nav.branch")}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -89,7 +91,25 @@ export function AdminLayout() {
       onSignOut={signOut}
       topbarStart={<BranchFilter />}
     >
-      <Outlet />
+      {/* Pages load their code on first visit (see router.tsx). */}
+      <Suspense fallback={<PageSkeleton />}>
+        <Outlet />
+      </Suspense>
     </AppShell>
+  );
+}
+
+/** While a page's code loads on a first visit: the shape of a page header and its table. */
+function PageSkeleton() {
+  const { t } = useTranslation("common");
+  return (
+    <div className="flex flex-col gap-8" aria-busy="true">
+      <span className="sr-only">{t("table.loading")}</span>
+      <div className="flex flex-col gap-3">
+        <Skeleton className="h-9 w-48" />
+        <Skeleton className="h-5 w-96 max-w-full" />
+      </div>
+      <Skeleton className="h-64 w-full" />
+    </div>
   );
 }

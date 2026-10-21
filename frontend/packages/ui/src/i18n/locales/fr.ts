@@ -109,6 +109,12 @@ const fr: CommonResources = {
     panelBody: "Clients, dispatcheurs et livreurs voient la même expédition, mise à jour dès qu'elle bouge.",
     panelLive: "En direct",
     panelTracking: "Suivi",
+    panelPlaces: {
+      paris: "Paris 11e",
+      lyonHub: "Hub de Lyon",
+      casablancaHub: "Hub de Casablanca",
+      casablanca: "Casablanca, Maârif",
+    },
     or: "ou",
   },
   validation: {

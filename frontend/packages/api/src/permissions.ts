@@ -20,6 +20,7 @@ export const ROLE_PERMISSIONS = {
     "shipments:update:org",
     "shipments:assign",
     "shipments:cancel",
+    "chat:support:access",
   ],
   dispatcher: [
     "organizations:read",
@@ -29,7 +30,7 @@ export const ROLE_PERMISSIONS = {
     "shipments:assign",
   ],
   driver: ["organizations:read", "shipments:read:own", "shipments:update:own"],
-  support: ["organizations:read", "shipments:read:all"],
+  support: ["organizations:read", "shipments:read:all", "chat:support:access"],
 } as const;
 
 export type StaffRole = keyof typeof ROLE_PERMISSIONS;

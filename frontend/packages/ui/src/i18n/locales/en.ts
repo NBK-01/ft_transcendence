@@ -111,6 +111,12 @@ const en = {
     panelBody: "Customers, dispatchers and drivers see the same shipment, updated the moment it moves.",
     panelLive: "Live",
     panelTracking: "Tracking",
+    panelPlaces: {
+      paris: "Paris 11e",
+      lyonHub: "Lyon hub",
+      casablancaHub: "Casablanca hub",
+      casablanca: "Casablanca, Maârif",
+    },
     or: "or",
   },
   validation: {
