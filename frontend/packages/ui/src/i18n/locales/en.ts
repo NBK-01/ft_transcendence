@@ -39,6 +39,7 @@ const en = {
     main: "Main navigation",
     shipments: "Shipments",
     chat: "Messages",
+    contacts: "Contacts",
     notifications: "Notifications",
     profile: "Profile",
     dashboard: "Overview",

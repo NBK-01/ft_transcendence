@@ -29,11 +29,12 @@ export function useOrganization(id: string) {
 }
 
 /** GET /organizations/:id/staff: the branch's members. */
-export function useBranchStaff(id: string) {
+export function useBranchStaff(id: string, { enabled = true }: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: keys.organizations.staff(id),
     queryFn: ({ signal }) =>
       api.get<InternalUser[]>(`/organizations/${encodeURIComponent(id)}/staff`, { signal }),
+    enabled: enabled && Boolean(id),
   });
 }
 

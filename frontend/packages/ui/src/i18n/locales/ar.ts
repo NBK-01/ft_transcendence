@@ -36,6 +36,7 @@ const ar: CommonResources = {
     main: "التنقل الرئيسي",
     shipments: "الشحنات",
     chat: "الرسائل",
+    contacts: "جهات الاتصال",
     notifications: "الإشعارات",
     profile: "الملف الشخصي",
     dashboard: "نظرة عامة",
