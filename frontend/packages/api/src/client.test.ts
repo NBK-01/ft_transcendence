@@ -289,6 +289,8 @@ describe("roles and permissions", () => {
     expect(roleCan("dispatcher", "organizations:manage")).toBe(false);
     expect(roleCan("dispatcher", "organizations:read")).toBe(true);
     expect(roleCan("driver", "shipments:assign")).toBe(false);
+    expect(roleCan("support", "chat:support:access")).toBe(true);
+    expect(roleCan("dispatcher", "chat:support:access")).toBe(false);
     expect(roleCan(null, "organizations:read")).toBe(false);
     expect(roleCan("toString", "organizations:read")).toBe(false);
   });
