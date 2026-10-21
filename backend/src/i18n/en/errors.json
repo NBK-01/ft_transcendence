@@ -53,5 +53,15 @@
   "GOOGLE_EMAIL_NOT_VERIFIED": "Your Google account's email address is not verified",
   "INVALID_FILE_TYPE": "File type not allowed. Accepted types: {allowed}",
   "FILE_TOO_LARGE": "File exceeds the maximum size of {maxSizeMb}MB",
-  "FILE_UPLOAD_FAILED": "File upload failed. Please try again"
+  "FILE_UPLOAD_FAILED": "File upload failed. Please try again",
+  "CONTACT_NOT_FOUND": "Contact {id} not found",
+  "CONTACT_ALREADY_EXISTS": "A contact request already exists between these two staff members",
+  "CONTACT_SCOPE_VIOLATION": "You can only add contacts within your own organization",
+  "CONTACT_SELF_REQUEST": "You cannot add yourself as a contact",
+  "CONTACT_NOT_PENDING": "This contact request is no longer pending",
+  "NOT_CUSTOMER": "This action is restricted to customer accounts",
+  "CONVERSATION_NOT_FOUND": "Conversation {id} not found",
+  "NOT_CONVERSATION_PARTICIPANT": "You do not have access to this conversation",
+  "STAFF_NOT_CONNECTED": "You must be connected contacts to message each other",
+  "WS_AUTHENTICATION_FAILED": "WebSocket authentication failed"
 }
