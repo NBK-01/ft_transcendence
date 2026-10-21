@@ -116,6 +116,7 @@ const ar: CommonResources = {
     passwordMin: "استخدم 8 أحرف على الأقل.",
     passwordStrength: "يجب أن تحتوي على حرف ورقم على الأقل.",
     passwordMatch: "كلمتا المرور غير متطابقتين.",
+    passwordSame: "اختر كلمة مرور مختلفة عن كلمتك الحالية.",
     nameMax: "50 حرفًا كحد أقصى.",
     descriptionMax: "200 حرف كحد أقصى.",
     dateOfBirth: "أدخل تاريخًا حقيقيًا في الماضي.",
