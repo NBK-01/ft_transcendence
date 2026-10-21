@@ -8,7 +8,7 @@ import { handlers, ok, paginated } from "./mocks/handlers";
 import { internalUsers, MOCK_STAFF_PASSWORD, ORGANIZATIONS, staffPasswords } from "./mocks/data";
 import { roleCan } from "./permissions";
 import { tokens } from "./session";
-import type { AuthResponse, InternalUser, StaffAuthResponse, User } from "./types";
+import type { AuthResponse, Contact, InternalUser, StaffAuthResponse, User } from "./types";
 
 // Same handlers the dev app uses — tests and mocks can't drift apart.
 const server = setupServer(...handlers);
@@ -369,5 +369,71 @@ describe("change password", () => {
 
     await expect(staffLogin(account.email, "newpass123")).resolves.toHaveProperty("accessToken");
     await expect(staffLogin(account.email)).rejects.toMatchObject({ errorCode: 8003 });
+  });
+});
+
+describe("contacts", () => {
+  const staffNamed = (name: string) => internalUsers.find((user) => user.name === name)!;
+  const rami = staffNamed("Rami Khoury"); // dispatcher, Beirut
+  const youssef = staffNamed("Youssef Benali"); // admin, no branch
+  const omar = staffNamed("Omar Fassi"); // driver, Casablanca
+  const karim = staffNamed("Karim Saade"); // driver, Beirut: his request to Rami is pending
+  const list = (status?: string) => api.get<Contact[]>("/contacts", { query: { status } });
+  const request = (addresseeId: string) => api.post<Contact>("/contacts", { addresseeId });
+
+  it("needs a staff token, and lists only your own contacts, by status", async () => {
+    await expect(api.get("/contacts", { auth: false })).rejects.toMatchObject({ status: 401 });
+
+    await signInAsStaff(rami.email);
+    const all = await list();
+    expect(all.length).toBeGreaterThan(0);
+    expect(all.every((contact) => contact.requesterId === rami.id || contact.addresseeId === rami.id)).toBe(true);
+    expect((await list("pending")).every((contact) => contact.status === "pending")).toBe(true);
+    await expect(list("friends")).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("adding: your own branch or an admin; not yourself, not someone already connected", async () => {
+    await signInAsStaff(rami.email);
+    await expect(request(omar.id)).rejects.toMatchObject({ status: 403, errorCode: 10003 });
+    await expect(request(rami.id)).rejects.toMatchObject({ status: 400, errorCode: 10004 });
+    await expect(request(karim.id)).rejects.toMatchObject({ status: 409, errorCode: 10002 });
+
+    const sent = await request(youssef.id);
+    expect(sent).toMatchObject({ status: "pending", requesterName: rami.name, addresseeName: youssef.name });
+    await api.delete(`/contacts/${sent.id}`);
+  });
+
+  it("only the addressee accepts; accepting twice is 409 (10005)", async () => {
+    await signInAsStaff(rami.email);
+    const sent = await request(youssef.id);
+    await expect(api.patch(`/contacts/${sent.id}/accept`)).rejects.toMatchObject({ status: 404, errorCode: 10001 });
+
+    await signInAsStaff(youssef.email);
+    await expect(api.patch<Contact>(`/contacts/${sent.id}/accept`)).resolves.toMatchObject({ status: "accepted" });
+    await expect(api.patch(`/contacts/${sent.id}/accept`)).rejects.toMatchObject({ status: 409, errorCode: 10005 });
+    await api.delete(`/contacts/${sent.id}`);
+  });
+
+  it("rejecting deletes the request", async () => {
+    await signInAsStaff(rami.email);
+    const sent = await request(youssef.id);
+
+    await signInAsStaff(youssef.email);
+    await api.patch(`/contacts/${sent.id}/reject`);
+    expect((await list()).some((contact) => contact.id === sent.id)).toBe(false);
+    await expect(api.patch(`/contacts/${sent.id}/reject`)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("either side blocks or removes; someone else gets 404", async () => {
+    await signInAsStaff(rami.email);
+    const sent = await request(youssef.id);
+    await expect(api.patch<Contact>(`/contacts/${sent.id}/block`)).resolves.toMatchObject({ status: "blocked" });
+
+    await signInAsStaff(); // Nadia: not a party
+    await expect(api.delete(`/contacts/${sent.id}`)).rejects.toMatchObject({ status: 404, errorCode: 10001 });
+
+    await signInAsStaff(youssef.email);
+    await api.delete(`/contacts/${sent.id}`);
+    expect((await list()).some((contact) => contact.id === sent.id)).toBe(false);
   });
 });

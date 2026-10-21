@@ -83,6 +83,26 @@ export type StaffChangePasswordInput = { currentPassword: string; newPassword: s
 /** Returned by POST /staff-auth/login. */
 export type StaffAuthResponse = TokenPair & { user: StaffUser };
 
+/** A contact's state (backend ContactStatus). A rejected request is deleted, not kept. */
+export type ContactStatus = "pending" | "accepted" | "blocked";
+
+/**
+ * A connection between two staff members (backend ContactDto). Staff can only
+ * message their accepted contacts. The block doesn't record who blocked.
+ */
+export type Contact = {
+  id: string;
+  requesterId: string;
+  requesterName: string;
+  requesterEmail: string;
+  addresseeId: string;
+  addresseeName: string;
+  addresseeEmail: string;
+  status: ContactStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
 /** Returned by endpoints that only confirm an action. */
 export type MessageResponse = { message: string };
 
