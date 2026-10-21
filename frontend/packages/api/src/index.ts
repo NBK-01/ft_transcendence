@@ -7,8 +7,10 @@ export { useMe, useSession, useSessionActions, type SessionState } from "./auth"
 export {
   STAFF_ACCOUNT_INACTIVE,
   STAFF_INVALID_CREDENTIALS,
+  useChangeStaffPassword,
   useStaffLogin,
   useStaffLogout,
+  useStaffLogoutEverywhere,
   useStaffSession,
   type StaffSessionState,
 } from "./staff-auth";

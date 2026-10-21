@@ -126,6 +126,19 @@ function expireSession() {
   config.onSessionExpired();
 }
 
+/** A 401 that ends the session even though it carries a code: the staff account was deactivated (7003). */
+const SESSION_ENDING_CODES: ReadonlySet<number> = new Set([7003]);
+
+/**
+ * What a 401 means. The backend sends an expired or invalid token as a plain
+ * 401 with no error code; a 401 *with* a code is the request's own answer
+ * (e.g. a wrong current password on change-password) and leaves the session alone.
+ */
+function on401(errorCode: number | undefined): "refresh" | "end-session" | "keep-session" {
+  if (errorCode === undefined) return "refresh";
+  return SESSION_ENDING_CODES.has(errorCode) ? "end-session" : "keep-session";
+}
+
 /* ---------------------------------------------------------------------------
  * Request
  * ------------------------------------------------------------------------ */
@@ -162,10 +175,13 @@ async function send(method: string, path: string, options: RequestOptions = {}, 
   }
 
   if (response.status === 401 && auth) {
-    if (!isRetry && (await refreshSession())) {
+    const error = await parseError(response);
+    const action = on401(error.errorCode);
+    if (action === "refresh" && !isRetry && (await refreshSession())) {
       return send(method, path, options, true);
     }
-    expireSession();
+    if (action !== "keep-session") expireSession();
+    throw error;
   }
 
   if (!response.ok) throw await parseError(response);
@@ -224,8 +240,9 @@ async function upload<T>(path: string, form: FormData, options: UploadOptions = 
   const { status, data } = await sendXhr(path, form, options);
 
   if (status === 401) {
-    if (!isRetry && (await refreshSession())) return upload<T>(path, form, options, true);
-    expireSession();
+    const action = on401((data as Partial<ApiErrorBody> | undefined)?.errorCode);
+    if (action === "refresh" && !isRetry && (await refreshSession())) return upload<T>(path, form, options, true);
+    if (action !== "keep-session") expireSession();
   }
   if (status < 200 || status >= 300) throw new ApiError("http", status, data as Partial<ApiErrorBody>);
   return unwrap<T>(data);

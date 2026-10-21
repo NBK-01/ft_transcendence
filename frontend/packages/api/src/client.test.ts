@@ -5,7 +5,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { api, configureApi } from "./client";
 import { ApiError } from "./errors";
 import { handlers, ok, paginated } from "./mocks/handlers";
-import { internalUsers, MOCK_STAFF_PASSWORD, ORGANIZATIONS } from "./mocks/data";
+import { internalUsers, MOCK_STAFF_PASSWORD, ORGANIZATIONS, staffPasswords } from "./mocks/data";
 import { roleCan } from "./permissions";
 import { tokens } from "./session";
 import type { AuthResponse, InternalUser, StaffAuthResponse, User } from "./types";
@@ -326,9 +326,46 @@ describe("roles and permissions", () => {
     await api.patch(`/internal-users/${dispatcher.id}`, { isActive: false });
 
     tokens.set(own, own.user);
+    onSessionExpired.mockClear();
     await expect(api.get("/organizations")).rejects.toMatchObject({ status: 401, errorCode: 7003 });
+    // Unlike other coded 401s, this one ends the session.
+    expect(tokens.hasSession()).toBe(false);
+    expect(onSessionExpired).toHaveBeenCalledOnce();
 
     await signInAsStaff();
     await api.patch(`/internal-users/${dispatcher.id}`, { isActive: true });
+  });
+});
+
+describe("change password", () => {
+  const account = internalUsers.find((user) => user.roleName === "support" && user.isActive)!;
+  afterEach(() => void staffPasswords.set(account.id, MOCK_STAFF_PASSWORD));
+
+  it("a wrong current password is 401 (8003) and keeps the session: no refresh, no sign-out", async () => {
+    await signInAsStaff(account.email);
+    const refreshes = countRefreshes();
+
+    await expect(
+      api.post("/staff-auth/change-password", { currentPassword: "wrong", newPassword: "newpass123" }),
+    ).rejects.toMatchObject({ status: 401, errorCode: 8003 });
+
+    expect(refreshes()).toBe(0);
+    expect(tokens.hasSession()).toBe(true);
+    expect(onSessionExpired).not.toHaveBeenCalled();
+  });
+
+  it("a new password under 8 characters is 400", async () => {
+    await signInAsStaff(account.email);
+    await expect(
+      api.post("/staff-auth/change-password", { currentPassword: MOCK_STAFF_PASSWORD, newPassword: "short" }),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("after a change, the new password signs in and the old one doesn't", async () => {
+    await signInAsStaff(account.email);
+    await api.post("/staff-auth/change-password", { currentPassword: MOCK_STAFF_PASSWORD, newPassword: "newpass123" });
+
+    await expect(staffLogin(account.email, "newpass123")).resolves.toHaveProperty("accessToken");
+    await expect(staffLogin(account.email)).rejects.toMatchObject({ errorCode: 8003 });
   });
 });

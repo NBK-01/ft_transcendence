@@ -77,6 +77,9 @@ export type StaffUser = {
 /** POST /staff-auth/login body. */
 export type StaffLoginInput = { email: string; password: string };
 
+/** POST /staff-auth/change-password body. A wrong `currentPassword` is 401 with code 8003. */
+export type StaffChangePasswordInput = { currentPassword: string; newPassword: string };
+
 /** Returned by POST /staff-auth/login. */
 export type StaffAuthResponse = TokenPair & { user: StaffUser };
 
