@@ -66,10 +66,8 @@ export class ChatService {
     conversationId: string,
     content: string,
   ): Promise<MessageDto> {
-    const conversation = await this.getAuthorizedConversation(
-      actor,
-      conversationId,
-    );
+    const conversation = await this.getConversationOrThrow(conversationId);
+    await this.chatAccessService.assertCanSendMessage(actor, conversation);
     const message = await this.createMessage(conversation.id, actor, content);
     await this.markConversationAsRead(actor, conversation.id);
     return MessageFactory.toDto(message);

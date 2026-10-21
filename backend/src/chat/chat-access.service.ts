@@ -21,23 +21,33 @@ export class ChatAccessService {
     private readonly accessControlService: AccessControlService,
   ) {}
 
-  /** Gates read, join, and send alike — there's no separate read-only participant tier in this design. */
+  /**
+   * Gates read, join, and mark-as-read alike: participant-ship (and, for
+   * SUPPORT, the support-access permission) is enough to look at a
+   * conversation's history even after the underlying contact has since been
+   * blocked/removed — blocking must not erase what was already said. Sending
+   * a *new* message is gated separately, see assertCanSendMessage().
+   */
   async assertCanAccessConversation(
     actor: RequestUser,
     conversation: Conversation,
   ): Promise<void> {
     if (conversation.type === ConversationType.STAFF_DM) {
-      return this.assertStaffDmAccess(actor, conversation);
+      this.assertIsDmParticipant(actor, conversation);
+      return;
     }
     return this.assertSupportConversationAccess(actor, conversation);
   }
 
-  private async assertStaffDmAccess(
+  /** Read access plus, for STAFF_DM, a live ACCEPTED contact — this is the stricter gate sending a new message must pass. */
+  async assertCanSendMessage(
     actor: RequestUser,
     conversation: Conversation,
   ): Promise<void> {
-    this.assertIsDmParticipant(actor, conversation);
-    await this.assertStillConnected(conversation);
+    await this.assertCanAccessConversation(actor, conversation);
+    if (conversation.type === ConversationType.STAFF_DM) {
+      await this.assertStillConnected(conversation);
+    }
   }
 
   private assertIsDmParticipant(

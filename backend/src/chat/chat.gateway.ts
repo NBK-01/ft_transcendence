@@ -4,6 +4,7 @@ import {
   MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
@@ -32,7 +33,9 @@ interface SocketData {
   cors: { origin: websocketConfig().corsOrigins, credentials: true },
 })
 @UseFilters(WsExceptionFilter)
-export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class ChatGateway
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   private readonly server!: Server;
 
@@ -44,11 +47,34 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly internalUsersService: InternalUsersService,
   ) {}
 
+  /**
+   * Authenticates during the Socket.IO handshake itself (middleware), not in
+   * handleConnection — a handshake-time check blocks the client's 'connect'
+   * event until it resolves. Authenticating inside handleConnection instead
+   * (an async, non-blocking hook) raced a client that emits an event the
+   * instant it sees 'connect': the event could reach handleJoinConversation/
+   * handleSendMessage before handleConnection's awaited DB lookup finished
+   * and set client.data, throwing "Socket reached a message handler without
+   * an authenticated user" for a perfectly normal connect-then-act client.
+   */
+  afterInit(server: Server): void {
+    server.use((socket, next) => {
+      this.connectionAuthenticator
+        .authenticate(socket)
+        .then((user) => {
+          socket.data = { user } as Partial<SocketData>;
+          next();
+        })
+        .catch(() => next(new Error('Unauthorized')));
+    });
+  }
+
   async handleConnection(client: Socket): Promise<void> {
-    let user: RequestUser;
-    try {
-      user = await this.connectionAuthenticator.authenticate(client);
-    } catch {
+    // Auth already happened in the handshake middleware (see afterInit) — a
+    // socket that reaches here always has client.data.user set; the ?. is
+    // defensive only, there's no legitimate path where it's missing.
+    const user = this.dataOf(client)?.user;
+    if (!user) {
       client.disconnect();
       return;
     }
@@ -176,6 +202,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return staff?.organizationId ?? null;
   }
 
+  /**
+   * Targets both rooms in a single emit (array form) rather than two separate
+   * .emit() calls — a staff member is a member of both their own personal
+   * room and their org room, and two separate emits each deliver once,
+   * duplicating the event for that one socket. Socket.IO's array form
+   * dedupes by socket id before sending, so each recipient gets exactly one.
+   */
   private broadcastPresenceChanged(
     user: RequestUser,
     organizationId: string | null,
@@ -186,12 +219,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       accountType: user.accountType,
       online,
     };
-    this.server.to(this.personalRoom(user)).emit('presence.changed', payload);
+    const rooms = [this.personalRoom(user)];
     if (organizationId) {
-      this.server
-        .to(this.organizationRoom(organizationId))
-        .emit('presence.changed', payload);
+      rooms.push(this.organizationRoom(organizationId));
     }
+    this.server.to(rooms).emit('presence.changed', payload);
   }
 
   private personalRoom(user: RequestUser): string {
