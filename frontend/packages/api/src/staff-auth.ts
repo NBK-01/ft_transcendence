@@ -3,7 +3,13 @@ import { useCallback, useSyncExternalStore } from "react";
 
 import { api } from "./client";
 import { tokens } from "./session";
-import type { MessageResponse, StaffAuthResponse, StaffLoginInput, StaffUser } from "./types";
+import type {
+  MessageResponse,
+  StaffAuthResponse,
+  StaffChangePasswordInput,
+  StaffLoginInput,
+  StaffUser,
+} from "./types";
 
 /**
  * Staff sign-in for the admin app (backend StaffAuthController). The admin app
@@ -67,4 +73,34 @@ export function useStaffLogout() {
       void api.post<MessageResponse>("/staff-auth/logout", { refreshToken }, { auth: false }).catch(() => undefined);
     }
   }, [queryClient]);
+}
+
+/**
+ * POST /staff-auth/change-password. A wrong current password is an ApiError
+ * with code 8003 and the session stays. Other sessions stay signed in too:
+ * offer useStaffLogoutEverywhere after it.
+ */
+export function useChangeStaffPassword() {
+  return useMutation({
+    mutationFn: (input: StaffChangePasswordInput) =>
+      api.post<MessageResponse>("/staff-auth/change-password", input),
+  });
+}
+
+/**
+ * POST /staff-auth/logout-all: ends every session of this account, this one
+ * included, so the route guard then shows the login page. Unlike useStaffLogout
+ * it waits for the server: if the request fails, the other sessions are still
+ * signed in, and the caller should say so.
+ */
+export function useStaffLogoutEverywhere() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<MessageResponse>("/staff-auth/logout-all"),
+    onSuccess: () => {
+      signedOutHere = true;
+      tokens.clear();
+      queryClient.clear();
+    },
+  });
 }

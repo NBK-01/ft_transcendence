@@ -10,7 +10,6 @@ const TITLE_KEY = {
   shipments: "nav.shipments",
   messages: "nav.chat",
   apiKeys: "nav.apiKeys",
-  profile: "nav.profile",
 } as const;
 
 /** Route stub for features that land in a later milestone. */

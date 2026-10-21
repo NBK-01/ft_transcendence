@@ -117,6 +117,7 @@ const fr: CommonResources = {
     passwordMin: "Utilisez au moins 8 caractères.",
     passwordStrength: "Incluez au moins une lettre et un chiffre.",
     passwordMatch: "Les mots de passe ne correspondent pas.",
+    passwordSame: "Choisissez un mot de passe différent de l'actuel.",
     nameMax: "50 caractères maximum.",
     descriptionMax: "200 caractères maximum.",
     dateOfBirth: "Saisissez une date réelle dans le passé.",

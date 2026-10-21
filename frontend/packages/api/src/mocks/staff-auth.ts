@@ -48,6 +48,14 @@ const bearer = (request: Request) => request.headers.get("Authorization")?.repla
 /** Like the backend's JwtAuthGuard: no valid token, 401 without an error code. */
 const unauthorized = () => error(401, ["Authentication failed"]);
 
+/** @RequireStaff(): the signed-in, active staff member, or the 401 the backend would send. */
+const staffCaller = (request: Request) => {
+  const caller = accountOf(bearer(request), ACCESS_PREFIX);
+  if (!caller) return { response: unauthorized() };
+  if (!caller.isActive) return { response: error(401, ["This staff account has been deactivated"], ACCOUNT_INACTIVE) };
+  return { caller };
+};
+
 /**
  * Runs before the staff-only handlers, in the same order as the backend's
  * guards: no staff token → 401; a deactivated account → 401 (7003); a role
@@ -60,9 +68,8 @@ const unauthorized = () => error(401, ["Authentication failed"]);
 export const requireStaffAccess = http.all(
   /\/api\/(internal-users|organizations|access-control)(\/|$|\?)/,
   ({ request }) => {
-    const caller = accountOf(bearer(request), ACCESS_PREFIX);
-    if (!caller) return unauthorized();
-    if (!caller.isActive) return error(401, ["This staff account has been deactivated"], ACCOUNT_INACTIVE);
+    const { caller, response } = staffCaller(request);
+    if (!caller) return response;
 
     const { pathname } = new URL(request.url);
     const adminOnly = /\/api\/(internal-users|access-control)(\/|$)/.test(pathname);
@@ -113,9 +120,29 @@ export const staffAuthHandlers = [
   }),
 
   http.post("*/api/staff-auth/logout-all", ({ request }) => {
-    const user = accountOf(bearer(request), ACCESS_PREFIX);
-    if (!user) return unauthorized();
-    signedOutUpTo.set(user.id, counter);
+    const { caller, response } = staffCaller(request);
+    if (!caller) return response;
+    signedOutUpTo.set(caller.id, counter);
     return ok<MessageResponse>({ message: "Logged out of all sessions" });
+  }),
+
+  // Like the backend: other sessions stay signed in (use logout-all for that).
+  http.post("*/api/staff-auth/change-password", async ({ request }) => {
+    const { caller, response } = staffCaller(request);
+    if (!caller) return response;
+
+    const body = (await request.json()) as { currentPassword?: string; newPassword?: string };
+    const messages = [
+      !body.currentPassword && "currentPassword should not be empty",
+      (body.newPassword?.length ?? 0) < 8 && "newPassword must be longer than or equal to 8 characters",
+    ].filter((message): message is string => Boolean(message));
+    if (messages.length > 0) return error(400, messages);
+
+    // StaffAuthService.changePassword reuses the login error for a wrong current password.
+    if (staffPasswords.get(caller.id) !== body.currentPassword) {
+      return error(401, ["Invalid email or password"], INVALID_CREDENTIALS);
+    }
+    staffPasswords.set(caller.id, body.newPassword!);
+    return ok<MessageResponse>({ message: "Password changed successfully" });
   }),
 ];

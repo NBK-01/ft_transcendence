@@ -119,6 +119,7 @@ const en = {
     passwordMin: "Use at least 8 characters.",
     passwordStrength: "Include at least one letter and one number.",
     passwordMatch: "Passwords don't match.",
+    passwordSame: "Choose a password different from your current one.",
     nameMax: "Keep it under 50 characters.",
     descriptionMax: "Keep it under 200 characters.",
     dateOfBirth: "Enter a real date in the past.",

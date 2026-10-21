@@ -1,4 +1,4 @@
-import { KeyRound, LayoutGrid, MessageSquare, Package, UserRound } from "lucide-react";
+import { KeyRound, LayoutGrid, MessageSquare, Package } from "lucide-react";
 import { createBrowserRouter } from "react-router";
 
 import { LegalPage } from "@trans/ui/blocks/legal-layout";
@@ -10,6 +10,7 @@ import { AdminLayout } from "./layouts/admin-layout";
 import { BranchDetailPage } from "./routes/branch-detail";
 import { BranchesPage } from "./routes/branches";
 import { LoginPage } from "./routes/login";
+import { ProfilePage } from "./routes/profile";
 import { Stub } from "./routes/stub";
 import { UsersPage } from "./routes/users";
 
@@ -48,7 +49,7 @@ export const router = createBrowserRouter(
             </RequireAdmin>
           ),
         },
-        { path: "profile", element: <Stub page="profile" icon={UserRound} /> },
+        { path: "profile", element: <ProfilePage /> },
       ],
     },
     { path: "*", element: <NotFoundPage /> },
