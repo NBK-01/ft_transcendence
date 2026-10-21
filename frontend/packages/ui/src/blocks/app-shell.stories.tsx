@@ -68,3 +68,18 @@ export const Mobile: Story = {
     docs: { description: { story: "Below 768px the sidebar becomes a floating bottom bar; extra items go in “More”." } },
   },
 };
+
+export const CollapsedSidebar: Story = {
+  // The shell reads the collapsed state from storage when it mounts.
+  beforeEach: () => {
+    localStorage.setItem("trans-sidebar-collapsed", "1");
+    return () => localStorage.removeItem("trans-sidebar-collapsed");
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: "Icons only. An item with a badge shows an orange dot; hover shows its name and count, and screen readers get both.",
+      },
+    },
+  },
+};

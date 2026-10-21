@@ -1,24 +1,35 @@
 import { KeyRound, LayoutGrid, MessageSquare, Package } from "lucide-react";
+import { Suspense } from "react";
 import { createBrowserRouter } from "react-router";
 
-import { LegalPage } from "@trans/ui/blocks/legal-layout";
 import { NotFoundPage } from "@trans/ui/blocks/not-found-page";
 
 import { RequireAdmin } from "./features/auth/require-admin";
 import { RequireStaff } from "./features/auth/require-staff";
 import { AdminLayout } from "./layouts/admin-layout";
-import { BranchDetailPage } from "./routes/branch-detail";
-import { BranchesPage } from "./routes/branches";
+import { BranchDetailPage, BranchesPage, LegalPage, ProfilePage, UsersPage } from "./routes/lazy-pages";
 import { LoginPage } from "./routes/login";
-import { ProfilePage } from "./routes/profile";
 import { Stub } from "./routes/stub";
-import { UsersPage } from "./routes/users";
 
 /** Served under /admin (Vite `base` + router `basename`), so links here are relative to it. */
 export const router = createBrowserRouter(
   [
-    { path: "privacy", element: <LegalPage kind="privacy" /> },
-    { path: "terms", element: <LegalPage kind="terms" /> },
+    {
+      path: "privacy",
+      element: (
+        <Suspense>
+          <LegalPage kind="privacy" />
+        </Suspense>
+      ),
+    },
+    {
+      path: "terms",
+      element: (
+        <Suspense>
+          <LegalPage kind="terms" />
+        </Suspense>
+      ),
+    },
     { path: "login", element: <LoginPage /> },
     {
       path: "/",
