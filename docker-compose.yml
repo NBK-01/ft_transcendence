@@ -1,0 +1,88 @@
+services:
+  postgres:
+    image: postgres:14-alpine
+    env_file: ./backend/.env
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_DB: ${DB_NAME}
+      # backend/.env's DB_PASSWORD is empty (local Homebrew Postgres uses trust
+      # auth) — the official postgres image refuses an empty POSTGRES_PASSWORD,
+      # so trust auth is mirrored here too rather than inventing a password
+      # backend/.env doesn't have.
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # migrate/seed build from the `build` stage, not the final `production` one —
+  # both `npm run migration:run` and `npm run seed:bootstrap` run TypeScript
+  # source directly via ts-node/tsconfig-paths (devDependencies), which the
+  # lean production image deliberately doesn't carry.
+  migrate:
+    build:
+      context: ./backend
+      target: build
+    env_file: ./backend/.env
+    environment:
+      DB_HOST: postgres
+    command: ["npm", "run", "migration:run"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  seed:
+    build:
+      context: ./backend
+      target: build
+    env_file: ./backend/.env
+    environment:
+      DB_HOST: postgres
+    command: ["npm", "run", "seed:bootstrap"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  backend:
+    build: ./backend
+    env_file: ./backend/.env
+    environment:
+      DB_HOST: postgres
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    env_file: ./backend/.env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - nginx_certs:/etc/nginx/certs
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:
+  nginx_certs:
