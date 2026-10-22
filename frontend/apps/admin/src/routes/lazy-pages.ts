@@ -11,5 +11,6 @@ export const UsersPage = lazy(() => import("./users").then((m) => ({ default: m.
 export const BranchesPage = lazy(() => import("./branches").then((m) => ({ default: m.BranchesPage })));
 export const BranchDetailPage = lazy(() => import("./branch-detail").then((m) => ({ default: m.BranchDetailPage })));
 export const ContactsPage = lazy(() => import("./contacts").then((m) => ({ default: m.ContactsPage })));
+export const MessagesPage = lazy(() => import("./messages").then((m) => ({ default: m.MessagesPage })));
 export const ProfilePage = lazy(() => import("./profile").then((m) => ({ default: m.ProfilePage })));
 export const LegalPage = lazy(() => import("@trans/ui/blocks/legal-layout").then((m) => ({ default: m.LegalPage })));

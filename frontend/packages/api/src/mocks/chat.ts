@@ -230,6 +230,7 @@ export function createMockChatConnection(): ChatConnection {
   const joined = new Set<string>();
   const timers = new Set<ReturnType<typeof setTimeout>>();
   let replies = 0;
+  let connected = false;
 
   const emit = (event: keyof ChatEvents, payload?: unknown) => {
     for (const listener of listeners.get(event) ?? []) listener(payload);
@@ -282,13 +283,21 @@ export function createMockChatConnection(): ChatConnection {
       later(() => deliver(addMessage(conversation, replier.id, replier.type, reply, new Date().toISOString()), conversation), 1800);
     },
     connect() {
-      later(() => emit("connect"), 0);
+      later(() => {
+        connected = true;
+        emit("connect");
+      }, 0);
     },
     close() {
       for (const timer of timers) clearTimeout(timer);
       timers.clear();
+      connected = false;
+      emit("disconnect");
       listeners.clear();
       joined.clear();
+    },
+    get connected() {
+      return connected;
     },
   };
 }

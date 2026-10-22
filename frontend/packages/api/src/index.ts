@@ -12,7 +12,13 @@ export {
   useMessages,
   useOpenStaffConversation,
 } from "./chat";
-export { setChatConnectionFactory, useChatConnection, type ChatConnection, type ChatEvents } from "./chat-socket";
+export {
+  setChatConnectionFactory,
+  useChatConnected,
+  useChatConnection,
+  type ChatConnection,
+  type ChatEvents,
+} from "./chat-socket";
 export { ApiError, isApiError, isForbidden } from "./errors";
 export { tokens } from "./session";
 export { keys } from "./keys";

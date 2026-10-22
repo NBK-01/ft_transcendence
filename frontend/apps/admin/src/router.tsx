@@ -1,4 +1,4 @@
-import { KeyRound, LayoutGrid, MessageSquare, Package } from "lucide-react";
+import { KeyRound, LayoutGrid, Package } from "lucide-react";
 import { Suspense } from "react";
 import { createBrowserRouter } from "react-router";
 
@@ -12,6 +12,7 @@ import {
   BranchesPage,
   ContactsPage,
   LegalPage,
+  MessagesPage,
   ProfilePage,
   UsersPage,
 } from "./routes/lazy-pages";
@@ -48,7 +49,8 @@ export const router = createBrowserRouter(
       children: [
         { index: true, element: <Stub page="dashboard" icon={LayoutGrid} /> },
         { path: "shipments", element: <Stub page="shipments" icon={Package} /> },
-        { path: "messages", element: <Stub page="messages" icon={MessageSquare} /> },
+        { path: "messages", element: <MessagesPage /> },
+        { path: "messages/:id", element: <MessagesPage /> },
         { path: "contacts", element: <ContactsPage /> },
         {
           path: "users",

@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import type { Socket } from "socket.io-client";
 
 import { ensureAccessToken, renewAccessToken, socketPath } from "./client";
@@ -32,6 +32,8 @@ export type ChatConnection = {
   send(conversationId: string, content: string): void;
   connect(): void;
   close(): void;
+  /** Whether it's connected right now (see useChatConnected to follow it). */
+  readonly connected: boolean;
 };
 
 type Factory = () => ChatConnection;
@@ -102,6 +104,9 @@ function createSocketConnection(): ChatConnection {
       joined.clear();
       socket?.disconnect();
     },
+    get connected() {
+      return socket?.connected ?? false;
+    },
   };
 }
 
@@ -161,4 +166,21 @@ const getConnection = () => shared?.connection ?? null;
  */
 export function useChatConnection(): ChatConnection | null {
   return useSyncExternalStore(subscribe, getConnection, () => null);
+}
+
+/** Whether `connection` is up, re-rendering when it connects or drops (e.g. to show "Offline"). */
+export function useChatConnected(connection: ChatConnection | null) {
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      if (!connection) return () => {};
+      const offConnect = connection.on("connect", onChange);
+      const offDisconnect = connection.on("disconnect", onChange);
+      return () => {
+        offConnect();
+        offDisconnect();
+      };
+    },
+    [connection],
+  );
+  return useSyncExternalStore(subscribe, () => connection?.connected ?? false, () => false);
 }
