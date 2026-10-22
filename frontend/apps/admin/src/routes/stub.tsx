@@ -8,7 +8,6 @@ import { useBranchFilter } from "../features/branches/use-branch-filter";
 const TITLE_KEY = {
   dashboard: "nav.dashboard",
   shipments: "nav.shipments",
-  messages: "nav.chat",
   apiKeys: "nav.apiKeys",
 } as const;
 

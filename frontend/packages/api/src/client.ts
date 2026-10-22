@@ -13,6 +13,8 @@ type ApiConfig = {
   refreshPath: string;
   /** localStorage key for this app's session, so the customer and staff apps never share one. */
   storageKey: string;
+  /** Socket.IO path for chat, on the same origin (the dev server and nginx proxy it to the backend). */
+  socketPath: string;
 };
 
 const config: ApiConfig = {
@@ -21,6 +23,7 @@ const config: ApiConfig = {
   onSessionExpired: () => {},
   refreshPath: "/auth/refresh",
   storageKey: "trans-refresh-token",
+  socketPath: "/socket.io",
 };
 
 /** Call once at app start-up (main.tsx). */
@@ -124,6 +127,24 @@ function refreshSession(): Promise<boolean> {
 function expireSession() {
   tokens.clear();
   config.onSessionExpired();
+}
+
+/* ---------------------------------------------------------------------------
+ * For the chat socket, which signs in with the access token outside fetch.
+ * ------------------------------------------------------------------------ */
+export const socketPath = () => config.socketPath;
+
+/** Before connecting: after a reload there's only a refresh token, so get an access token first. */
+export async function ensureAccessToken(): Promise<boolean> {
+  if (tokens.getAccess()) return true;
+  return tokens.getRefresh() ? refreshSession() : false;
+}
+
+/** The handshake refused the token (expired): get a new one, or end the session like a failed request would. */
+export async function renewAccessToken(): Promise<boolean> {
+  const renewed = await refreshSession();
+  if (!renewed) expireSession();
+  return renewed;
 }
 
 /** A 401 that ends the session even though it carries a code: the staff account was deactivated (7003). */

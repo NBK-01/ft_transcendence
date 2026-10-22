@@ -1,8 +1,9 @@
-import { Ban, Check, Contact as ContactIcon, MoreHorizontal, UserMinus, UserPlus, X } from "lucide-react";
+import { Ban, Check, Contact as ContactIcon, MessageSquare, MoreHorizontal, UserMinus, UserPlus, X } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router";
 
-import { isApiError, useStaffSession, type Contact } from "@trans/api";
+import { isApiError, STAFF_NOT_CONNECTED, useOpenStaffConversation, useStaffSession, type Contact } from "@trans/api";
 import { ConfirmDelete } from "@trans/ui/blocks/confirm-delete";
 import { createDataTableColumnHelper, DataTable } from "@trans/ui/blocks/data-table";
 import { DataTableColumnHeader } from "@trans/ui/blocks/data-table-column-header";
@@ -21,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@trans/ui/components/t
 import { toast } from "@trans/ui/components/toaster";
 import { useReturnFocus } from "@trans/ui/hooks/use-return-focus";
 
+import { useBranchFilter } from "../features/branches/use-branch-filter";
 import { AddContactDialog } from "../features/contacts/add-contact-dialog";
 import {
   CONTACT_NOT_PENDING,
@@ -67,6 +69,23 @@ export function ContactsPage() {
   const { mutateAsync: rejectContact, isPending: rejecting, variables: rejectingId } = useRejectContact();
   const { mutateAsync: removeContact, isPending: removing, variables: removingId } = useRemoveContact();
   const { mutateAsync: blockContact } = useBlockContact();
+  const { mutateAsync: openConversation, isPending: opening, variables: openingWith } = useOpenStaffConversation();
+  const navigate = useNavigate();
+  const { withBranch } = useBranchFilter();
+
+  /** Finds or starts the DM with this contact, then opens it. */
+  const message = useCallback(
+    async (contact: Contact) => {
+      try {
+        const conversation = await openConversation(otherParty(contact, myId).id);
+        void navigate(withBranch(`/messages/${conversation.id}`));
+      } catch (error) {
+        const gone = isApiError(error) && error.errorCode === STAFF_NOT_CONNECTED;
+        toast.error(t(gone ? "app:messages.notConnected" : "app:messages.openError"));
+      }
+    },
+    [openConversation, myId, navigate, withBranch, t],
+  );
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirming, setConfirming] = useState<Confirming | null>(null);
 
@@ -200,29 +219,41 @@ export function ContactsPage() {
             );
           }
           return (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="tertiary"
-                  size="sm"
-                  shape="square"
-                  aria-label={t("app:contacts.rowActions", { name: who })}
-                  onFocus={rememberFocus}
-                >
-                  <MoreHorizontal />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => askConfirm("remove", contact)}>
-                  <UserMinus aria-hidden="true" />
-                  {t("app:contacts.remove")}
-                </DropdownMenuItem>
-                <DropdownMenuItem variant="destructive" onSelect={() => askConfirm("block", contact)}>
-                  <Ban aria-hidden="true" />
-                  {t("app:contacts.block")}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                prefix={<MessageSquare />}
+                aria-label={t("app:messages.messageOne", { name: who })}
+                loading={opening && openingWith === otherParty(contact, myId).id}
+                onClick={() => void message(contact)}
+              >
+                {t("app:messages.message")}
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="tertiary"
+                    size="sm"
+                    shape="square"
+                    aria-label={t("app:contacts.rowActions", { name: who })}
+                    onFocus={rememberFocus}
+                  >
+                    <MoreHorizontal />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => askConfirm("remove", contact)}>
+                    <UserMinus aria-hidden="true" />
+                    {t("app:contacts.remove")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem variant="destructive" onSelect={() => askConfirm("block", contact)}>
+                    <Ban aria-hidden="true" />
+                    {t("app:contacts.block")}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           );
         },
         enableSorting: false,
@@ -236,6 +267,9 @@ export function ContactsPage() {
     myId,
     quick,
     askConfirm,
+    message,
+    opening,
+    openingWith,
     rememberFocus,
     acceptContact,
     rejectContact,

@@ -1,4 +1,4 @@
-import type { InternalUser, Organization, Role } from "../types";
+import type { InternalUser, Organization, Role, User } from "../types";
 
 /**
  * Mock staff, roles and branches shared by the staff and organizations handlers,
@@ -95,3 +95,14 @@ export const staffPasswords = new Map(internalUsers.map((user) => [user.id, MOCK
 
 export const isUuid = (value: unknown) => typeof value === "string" && /^[0-9a-f-]{36}$/i.test(value);
 export const roleExists = (name: unknown) => ROLES.some((role) => role.name === name);
+
+/** The signed-in customer in the client app's mocks (any email signs in as her). */
+export const MOCK_USER: User = {
+  id: "8f0c1d2e-0000-4000-8000-000000000001",
+  email: "amina@example.com",
+  name: "Amina El Idrissi",
+  isVerified: true,
+  avatarUrl: null,
+  createdAt: "2026-09-01T09:00:00.000Z",
+  updatedAt: "2026-10-01T09:00:00.000Z",
+};

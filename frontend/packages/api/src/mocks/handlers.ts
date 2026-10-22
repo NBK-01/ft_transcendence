@@ -1,6 +1,8 @@
 import { http } from "msw/http";
 
 import type { AuthResponse, TokenPair, User } from "../types";
+import { MOCK_USER } from "./data";
+import { chatHandlers } from "./chat";
 import { contactHandlers } from "./contacts";
 import { organizationHandlers } from "./organizations";
 import { error, ok } from "./respond";
@@ -17,16 +19,6 @@ export { error, ok, paginated } from "./respond";
  * When the real endpoint ships: delete its handler here. Nothing else changes.
  * Requests with no handler pass through to the real backend (Vite proxy).
  */
-
-const MOCK_USER: User = {
-  id: "8f0c1d2e-0000-4000-8000-000000000001",
-  email: "amina@example.com",
-  name: "Amina El Idrissi",
-  isVerified: true,
-  avatarUrl: null,
-  createdAt: "2026-09-01T09:00:00.000Z",
-  updatedAt: "2026-10-01T09:00:00.000Z",
-};
 
 let counter = 0;
 const issueTokens = (): TokenPair => {
@@ -66,4 +58,5 @@ export const handlers = [
   ...staffHandlers,
   ...organizationHandlers,
   ...contactHandlers,
+  ...chatHandlers,
 ];

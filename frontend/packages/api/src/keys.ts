@@ -20,6 +20,11 @@ export const keys = {
   roles: {
     all: ["roles"] as const,
   },
+  chat: {
+    all: ["chat"] as const,
+    conversations: () => [...keys.chat.all, "conversations"] as const,
+    messages: (conversationId: string) => [...keys.chat.all, "messages", conversationId] as const,
+  },
   contacts: {
     all: ["contacts"] as const,
     list: () => [...keys.contacts.all, "list"] as const,
