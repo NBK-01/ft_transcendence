@@ -138,6 +138,13 @@ const en = {
     messageOne: "Message {{name}}",
     openError: "Couldn't open the conversation. Try again.",
     newMessages: "New messages",
+    inbox: {
+      team: "Team",
+      support: "Support",
+      label: "Inbox",
+      supportEmptyTitle: "No support conversations",
+      supportEmptyBody: "Customer conversations appear here as soon as a customer writes.",
+    },
   },
   profile: {
     accountTitle: "Account",

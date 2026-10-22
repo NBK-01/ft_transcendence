@@ -139,6 +139,13 @@ const fr: AdminResources = {
     messageOne: "Écrire à {{name}}",
     openError: "Impossible d'ouvrir la conversation. Réessayez.",
     newMessages: "Nouveaux messages",
+    inbox: {
+      team: "Équipe",
+      support: "Support",
+      label: "Boîte de réception",
+      supportEmptyTitle: "Aucune conversation de support",
+      supportEmptyBody: "Les conversations des clients apparaissent ici dès qu'un client écrit.",
+    },
   },
   profile: {
     accountTitle: "Compte",

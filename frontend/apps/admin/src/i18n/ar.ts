@@ -139,6 +139,13 @@ const ar: AdminResources = {
     messageOne: "مراسلة {{name}}",
     openError: "تعذّر فتح المحادثة. حاول مرة أخرى.",
     newMessages: "رسائل جديدة",
+    inbox: {
+      team: "الفريق",
+      support: "الدعم",
+      label: "صندوق الوارد",
+      supportEmptyTitle: "لا توجد محادثات دعم",
+      supportEmptyBody: "تظهر محادثات العملاء هنا بمجرد أن يكتب أحدهم.",
+    },
   },
   profile: {
     accountTitle: "الحساب",
