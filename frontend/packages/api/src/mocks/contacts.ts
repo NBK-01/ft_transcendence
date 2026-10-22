@@ -83,6 +83,10 @@ const partyContact = (id: unknown, actorId: string) => {
   return { row };
 };
 
+/** ContactsService.areConnected: an accepted contact, either way round. Chat checks it on every send. */
+export const areConnected = (a: string, b: string) =>
+  contacts.some((row) => row.status === "accepted" && isParty(row, a) && isParty(row, b));
+
 export const contactHandlers = [
   http.get("*/api/contacts", ({ request }) => {
     const { caller, response } = staffCaller(request);

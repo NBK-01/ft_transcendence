@@ -48,6 +48,12 @@ const bearer = (request: Request) => request.headers.get("Authorization")?.repla
 /** Like the backend's JwtAuthGuard: no valid token, 401 without an error code. */
 const unauthorized = () => error(401, ["Authentication failed"]);
 
+/** The active staff member an access token belongs to (for the chat mocks, which read the token directly). */
+export const staffForToken = (token: string | null | undefined) => {
+  const user = accountOf(token, ACCESS_PREFIX);
+  return user?.isActive ? user : undefined;
+};
+
 /** @RequireStaff(): the signed-in, active staff member, or the 401 the backend would send. */
 export const staffCaller = (request: Request) => {
   const caller = accountOf(bearer(request), ACCESS_PREFIX);

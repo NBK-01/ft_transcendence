@@ -1,4 +1,18 @@
 export { api, configureApi, type Query, type RequestOptions, type UploadOptions } from "./client";
+export {
+  addMessageToCache,
+  CONVERSATION_NOT_FOUND,
+  MESSAGES_PAGE_SIZE,
+  messagesOf,
+  NOT_CONVERSATION_PARTICIPANT,
+  STAFF_NOT_CONNECTED,
+  useConversations,
+  useLiveChat,
+  useMarkConversationRead,
+  useMessages,
+  useOpenStaffConversation,
+} from "./chat";
+export { setChatConnectionFactory, useChatConnection, type ChatConnection, type ChatEvents } from "./chat-socket";
 export { ApiError, isApiError, isForbidden } from "./errors";
 export { tokens } from "./session";
 export { keys } from "./keys";

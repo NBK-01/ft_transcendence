@@ -103,6 +103,43 @@ export type Contact = {
   updatedAt: string;
 };
 
+/** Who's on the other end of a chat event (backend AccountType). */
+export type AccountType = "staff" | "customer";
+
+/** Staff-to-staff, or a customer's support conversation (backend ConversationType). */
+export type ConversationType = "staff_dm" | "support";
+
+/**
+ * A conversation (backend ConversationDto). A staff DM has `participantAId` and
+ * `participantBId` (staff ids, sorted); a support conversation has `customerId`.
+ * There are no names, last message or unread count yet: the app fills in what it can.
+ */
+export type Conversation = {
+  id: string;
+  type: ConversationType;
+  customerId?: string | null;
+  participantAId?: string | null;
+  participantBId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** A chat message (backend MessageDto). GET /chat/conversations/:id/messages pages them newest first. */
+export type ChatMessage = {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  senderType: AccountType;
+  content: string;
+  createdAt: string;
+};
+
+/** Socket event `support.message.new`, sent to everyone with support access. */
+export type SupportMessageEvent = { conversationId: string; preview: string };
+
+/** Socket event `presence.changed`. */
+export type PresenceEvent = { accountId: string; accountType: AccountType; online: boolean };
+
 /** Returned by endpoints that only confirm an action. */
 export type MessageResponse = { message: string };
 
