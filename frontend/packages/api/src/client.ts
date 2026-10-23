@@ -1,5 +1,5 @@
 import { ApiError } from "./errors";
-import { tokens } from "./session";
+import { setStorageKey, tokens } from "./session";
 import type { ApiErrorBody, Page, SuccessEnvelope, TokenPair } from "./types";
 
 type ApiConfig = {
@@ -9,17 +9,27 @@ type ApiConfig = {
   getLanguage: () => string;
   /** Called once the session is definitely gone (refresh failed). Redirect to login here. */
   onSessionExpired: () => void;
+  /** Where to exchange the refresh token: "/auth/refresh" for customers, "/staff-auth/refresh" for staff. */
+  refreshPath: string;
+  /** localStorage key for this app's session, so the customer and staff apps never share one. */
+  storageKey: string;
+  /** Socket.IO path for chat, on the same origin (the dev server and nginx proxy it to the backend). */
+  socketPath: string;
 };
 
 const config: ApiConfig = {
   baseUrl: "/api",
   getLanguage: () => (typeof document === "undefined" ? "en" : document.documentElement.lang || "en"),
   onSessionExpired: () => {},
+  refreshPath: "/auth/refresh",
+  storageKey: "trans-refresh-token",
+  socketPath: "/socket.io",
 };
 
 /** Call once at app start-up (main.tsx). */
 export function configureApi(options: Partial<ApiConfig>) {
   Object.assign(config, options);
+  if (options.storageKey) setStorageKey(options.storageKey);
 }
 
 export type Query = Record<string, string | number | boolean | null | undefined>;
@@ -97,7 +107,7 @@ function refreshSession(): Promise<boolean> {
     const refreshToken = tokens.getRefresh();
     if (!refreshToken) return false;
     try {
-      const response = await fetch(buildUrl("/auth/refresh"), {
+      const response = await fetch(buildUrl(config.refreshPath), {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({ refreshToken }),
@@ -117,6 +127,37 @@ function refreshSession(): Promise<boolean> {
 function expireSession() {
   tokens.clear();
   config.onSessionExpired();
+}
+
+/* ---------------------------------------------------------------------------
+ * For the chat socket, which signs in with the access token outside fetch.
+ * ------------------------------------------------------------------------ */
+export const socketPath = () => config.socketPath;
+
+/** Before connecting: after a reload there's only a refresh token, so get an access token first. */
+export async function ensureAccessToken(): Promise<boolean> {
+  if (tokens.getAccess()) return true;
+  return tokens.getRefresh() ? refreshSession() : false;
+}
+
+/** The handshake refused the token (expired): get a new one, or end the session like a failed request would. */
+export async function renewAccessToken(): Promise<boolean> {
+  const renewed = await refreshSession();
+  if (!renewed) expireSession();
+  return renewed;
+}
+
+/** A 401 that ends the session even though it carries a code: the staff account was deactivated (7003). */
+const SESSION_ENDING_CODES: ReadonlySet<number> = new Set([7003]);
+
+/**
+ * What a 401 means. The backend sends an expired or invalid token as a plain
+ * 401 with no error code; a 401 *with* a code is the request's own answer
+ * (e.g. a wrong current password on change-password) and leaves the session alone.
+ */
+function on401(errorCode: number | undefined): "refresh" | "end-session" | "keep-session" {
+  if (errorCode === undefined) return "refresh";
+  return SESSION_ENDING_CODES.has(errorCode) ? "end-session" : "keep-session";
 }
 
 /* ---------------------------------------------------------------------------
@@ -155,10 +196,13 @@ async function send(method: string, path: string, options: RequestOptions = {}, 
   }
 
   if (response.status === 401 && auth) {
-    if (!isRetry && (await refreshSession())) {
+    const error = await parseError(response);
+    const action = on401(error.errorCode);
+    if (action === "refresh" && !isRetry && (await refreshSession())) {
       return send(method, path, options, true);
     }
-    expireSession();
+    if (action !== "keep-session") expireSession();
+    throw error;
   }
 
   if (!response.ok) throw await parseError(response);
@@ -217,8 +261,9 @@ async function upload<T>(path: string, form: FormData, options: UploadOptions = 
   const { status, data } = await sendXhr(path, form, options);
 
   if (status === 401) {
-    if (!isRetry && (await refreshSession())) return upload<T>(path, form, options, true);
-    expireSession();
+    const action = on401((data as Partial<ApiErrorBody> | undefined)?.errorCode);
+    if (action === "refresh" && !isRetry && (await refreshSession())) return upload<T>(path, form, options, true);
+    if (action !== "keep-session") expireSession();
   }
   if (status < 200 || status >= 300) throw new ApiError("http", status, data as Partial<ApiErrorBody>);
   return unwrap<T>(data);

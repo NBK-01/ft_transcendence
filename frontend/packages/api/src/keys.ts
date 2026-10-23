@@ -13,8 +13,26 @@ export const keys = {
   auth: {
     me: ["auth", "me"] as const,
   },
-  users: {
-    all: ["users"] as const,
-    list: () => [...keys.users.all, "list"] as const,
+  internalUsers: {
+    all: ["internal-users"] as const,
+    list: () => [...keys.internalUsers.all, "list"] as const,
+  },
+  roles: {
+    all: ["roles"] as const,
+  },
+  chat: {
+    all: ["chat"] as const,
+    conversations: () => [...keys.chat.all, "conversations"] as const,
+    messages: (conversationId: string) => [...keys.chat.all, "messages", conversationId] as const,
+  },
+  contacts: {
+    all: ["contacts"] as const,
+    list: () => [...keys.contacts.all, "list"] as const,
+  },
+  organizations: {
+    all: ["organizations"] as const,
+    list: () => [...keys.organizations.all, "list"] as const,
+    detail: (id: string) => [...keys.organizations.all, "detail", id] as const,
+    staff: (id: string) => [...keys.organizations.all, "staff", id] as const,
   },
 };

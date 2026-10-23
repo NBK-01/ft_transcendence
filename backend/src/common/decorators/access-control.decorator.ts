@@ -8,6 +8,7 @@ export const ACCESS_CONTROL_KEYS = {
   ANY_ROLE: 'access_control:any_role',
   ANY_OF: 'access_control:any_of',
   STAFF: 'access_control:staff',
+  CUSTOMER: 'access_control:customer',
   SKIP: 'access_control:skip',
 } as const;
 
@@ -33,5 +34,12 @@ export const RequireAnyOf = (rolesOrPermissions: string[]) =>
  * but undecorated" state — every staff-facing route needs at least this.
  */
 export const RequireStaff = () => SetMetadata(ACCESS_CONTROL_KEYS.STAFF, true);
+/**
+ * The customer-side equivalent of @RequireStaff() — rejects any STAFF token.
+ * Never stack this with @RequireStaff()/a role/permission decorator on the
+ * same handler: this check returns immediately and would short-circuit them.
+ */
+export const RequireCustomer = () =>
+  SetMetadata(ACCESS_CONTROL_KEYS.CUSTOMER, true);
 export const SkipAccessControl = () =>
   SetMetadata(ACCESS_CONTROL_KEYS.SKIP, true);

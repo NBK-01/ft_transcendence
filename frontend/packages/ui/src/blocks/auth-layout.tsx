@@ -4,8 +4,9 @@ import { Link } from "react-router";
 
 import { LanguageSwitcher } from "@trans/ui/blocks/language-switcher";
 import { Logo } from "@trans/ui/blocks/logo";
-import { StatusDot, type ShipmentStatus } from "@trans/ui/blocks/status";
+import { StatusDot } from "@trans/ui/blocks/status";
 import { ThemeSwitcher } from "@trans/ui/blocks/theme-switcher";
+import { TimelineList, type TimelineEvent } from "@trans/ui/blocks/timeline";
 import { Badge } from "@trans/ui/components/badge";
 import { cn } from "@trans/ui/lib/utils";
 
@@ -78,16 +79,25 @@ export function AuthLayout({
   );
 }
 
-const DEMO_EVENTS: { status: ShipmentStatus; place: string; time: string }[] = [
-  { status: "out_for_delivery", place: "Paris 11e", time: "09:42" },
-  { status: "in_transit", place: "Lyon hub", time: "04:10" },
-  { status: "in_transit", place: "Casablanca hub", time: "22:18" },
-  { status: "confirmed", place: "Casablanca, Maârif", time: "16:05" },
-];
+/**
+ * No time zone (local time), so the preview reads 09:42 everywhere. Places are
+ * keys under `auth.panelPlaces`, so the preview reads in the page's language.
+ */
+const DEMO_EVENTS = [
+  { status: "out_for_delivery", place: "paris", occurredAt: "2026-10-16T09:42:00" },
+  { status: "in_transit", place: "lyonHub", occurredAt: "2026-10-16T04:10:00" },
+  { status: "in_transit", place: "casablancaHub", occurredAt: "2026-10-15T22:18:00" },
+  { status: "confirmed", place: "casablanca", occurredAt: "2026-10-15T16:05:00" },
+] as const;
+const TIME_ONLY: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit", hourCycle: "h23" };
 
 /** Decorative product preview (aria-hidden): a shipment moving, rendered with real components. */
 function TrackingPanel() {
   const { t } = useTranslation("common");
+  const events: TimelineEvent[] = DEMO_EVENTS.map(({ place, ...event }) => ({
+    ...event,
+    location: t(`auth.panelPlaces.${place}`),
+  }));
 
   return (
     <aside
@@ -124,31 +134,7 @@ function TrackingPanel() {
           <span>CDG</span>
         </div>
 
-        <ol className="flex flex-col px-5 py-4">
-          {DEMO_EVENTS.map((event, index) => (
-            <li key={`${event.place}-${index}`} className="relative flex gap-3 pb-4 last:pb-0">
-              {index < DEMO_EVENTS.length - 1 && (
-                <span className="absolute start-[3.5px] top-4 bottom-0 w-px bg-gray-alpha-400" />
-              )}
-              <span className="pt-1.5">
-                {index === 0 ? (
-                  <StatusDot status={event.status} />
-                ) : (
-                  <span className="block size-2 rounded-full bg-gray-alpha-600" />
-                )}
-              </span>
-              <div className="flex min-w-0 flex-1 items-baseline justify-between gap-3">
-                <div className="flex min-w-0 flex-col">
-                  <span className={cn("text-label-14", index === 0 ? "font-medium text-gray-1000" : "text-gray-900")}>
-                    {t(`status.${event.status}`)}
-                  </span>
-                  <span className="truncate text-label-13 text-gray-900">{event.place}</span>
-                </div>
-                <span className="shrink-0 text-label-mono-12 text-gray-900 tabular-nums">{event.time}</span>
-              </div>
-            </li>
-          ))}
-        </ol>
+        <TimelineList events={events} format={TIME_ONLY} />
       </div>
     </aside>
   );

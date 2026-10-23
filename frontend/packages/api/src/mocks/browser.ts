@@ -1,5 +1,7 @@
 import { setupWorker } from "msw/browser";
 
+import { setChatConnectionFactory } from "../chat-socket";
+import { createMockChatConnection } from "./chat";
 import { handlers } from "./handlers";
 
 /**
@@ -8,6 +10,8 @@ import { handlers } from "./handlers";
  * The worker script is served by the `msw/vite` plugin at `${BASE_URL}mockServiceWorker.js`.
  */
 export async function startMocks(baseUrl: string) {
+  // MSW can't stand in for Socket.IO's protocol; chat uses an in-memory connection instead.
+  setChatConnectionFactory(createMockChatConnection);
   const worker = setupWorker(...handlers);
   await worker.start({
     serviceWorker: { url: `${baseUrl}mockServiceWorker.js` },
@@ -19,4 +23,4 @@ export async function startMocks(baseUrl: string) {
 
 export { handlers };
 /** Response helpers for app-level mock handlers, so every mock is enveloped like the real API. */
-export { error, ok, paginated } from "./handlers";
+export { error, ok, paginated } from "./respond";

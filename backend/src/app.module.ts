@@ -21,6 +21,8 @@ import { InternalUsersModule } from './internal-users/internal-users.module';
 import { StaffAuthModule } from './staff-auth/staff-auth.module';
 import { AccessControlModule } from './access-control/access-control.module';
 import { OrganizationsModule } from './organizations/organizations.module';
+import { ContactsModule } from './contacts/contacts.module';
+import { ChatModule } from './chat/chat.module';
 import { ShipmentsModule } from './shipments/shipments.module';
 
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
@@ -60,9 +62,11 @@ import { AccessControlGuard } from './access-control/guards/access-control.guard
     StaffAuthModule,
     AccessControlModule,
     OrganizationsModule,
+    ContactsModule,
+    ChatModule,
     ShipmentsModule,
     // Domain modules land here as they're built:
-    // NotificationsModule, QueuesModule, FileStorageModule
+    // NotificationsModule, QueuesModule
   ],
   providers: [
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },

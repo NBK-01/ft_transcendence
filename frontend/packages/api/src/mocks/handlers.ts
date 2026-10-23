@@ -1,6 +1,15 @@
-import { http, HttpResponse } from "msw/http";
+import { http } from "msw/http";
 
-import type { ApiErrorBody, AuthResponse, PaginationMeta, SuccessEnvelope, TokenPair, User } from "../types";
+import type { AuthResponse, TokenPair, User } from "../types";
+import { MOCK_USER } from "./data";
+import { chatHandlers } from "./chat";
+import { contactHandlers } from "./contacts";
+import { organizationHandlers } from "./organizations";
+import { error, ok } from "./respond";
+import { staffHandlers } from "./staff";
+import { requireStaffAccess, staffAuthHandlers } from "./staff-auth";
+
+export { error, ok, paginated } from "./respond";
 
 /**
  * Mock backend for development (VITE_API_MOCKS=true).
@@ -11,53 +20,11 @@ import type { ApiErrorBody, AuthResponse, PaginationMeta, SuccessEnvelope, Token
  * Requests with no handler pass through to the real backend (Vite proxy).
  */
 
-const MOCK_USER: User = {
-  id: "8f0c1d2e-0000-4000-8000-000000000001",
-  email: "amina@example.com",
-  name: "Amina El Idrissi",
-  isVerified: true,
-  createdAt: "2026-09-01T09:00:00.000Z",
-  updatedAt: "2026-10-01T09:00:00.000Z",
-};
-
 let counter = 0;
 const issueTokens = (): TokenPair => {
   counter += 1;
   return { accessToken: `mock-access-${counter}`, refreshToken: `mock-refresh-${counter}` };
 };
-
-/** A success response, enveloped like the backend's ResponseInterceptor. */
-export const ok = <T>(data: T, statusCode = 200) =>
-  HttpResponse.json({ success: true, statusCode, data } satisfies SuccessEnvelope<T>, { status: statusCode });
-
-/** One page of a list, enveloped with `meta` like the backend's PaginatedResponseDto. */
-export const paginated = <T>(all: T[], page = 1, limit = 20) => {
-  const meta: PaginationMeta = {
-    page,
-    limit,
-    totalItems: all.length,
-    totalPages: Math.max(1, Math.ceil(all.length / limit)),
-  };
-  return HttpResponse.json({
-    success: true,
-    statusCode: 200,
-    data: all.slice((page - 1) * limit, page * limit),
-    meta,
-  } satisfies SuccessEnvelope<T[]>);
-};
-
-/** An error response, shaped like the backend's GlobalExceptionFilter (never enveloped). */
-export const error = (statusCode: number, messages: string[], errorCode?: number) =>
-  HttpResponse.json(
-    {
-      statusCode,
-      messages,
-      errorCode,
-      timestamp: new Date().toISOString(),
-      traceId: "mock",
-    } satisfies ApiErrorBody,
-    { status: statusCode },
-  );
 
 const isAuthorized = (request: Request) =>
   request.headers.get("Authorization")?.startsWith("Bearer mock-access-") ?? false;
@@ -67,7 +34,9 @@ export const handlers = [
     const body = (await request.json()) as { email?: string; password?: string };
     if (!body.email || !body.password) return error(400, ["email must be an email"]);
     if (body.password === "wrong") return error(401, ["Invalid email or password."], 2002);
-    return ok<AuthResponse>({ ...issueTokens(), user: { ...MOCK_USER, email: body.email } });
+    // Like the real AuthService.login: only id, email and name.
+    const { id, name } = MOCK_USER;
+    return ok<AuthResponse>({ ...issueTokens(), user: { id, email: body.email, name } });
   }),
 
   http.post("*/api/auth/refresh", async ({ request }) => {
@@ -82,4 +51,12 @@ export const handlers = [
     if (!isAuthorized(request)) return error(401, ["Unauthorized"]);
     return ok<User>(MOCK_USER);
   }),
+
+  ...staffAuthHandlers,
+  // Before the staff-only handlers: 401 without a staff token, 403 for a role without access.
+  requireStaffAccess,
+  ...staffHandlers,
+  ...organizationHandlers,
+  ...contactHandlers,
+  ...chatHandlers,
 ];

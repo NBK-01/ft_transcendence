@@ -1,28 +1,76 @@
-import { Building2, KeyRound, LayoutGrid, MessageSquare, Package, UserRound, Users } from "lucide-react";
+import { KeyRound, LayoutGrid, Package } from "lucide-react";
+import { Suspense } from "react";
 import { createBrowserRouter } from "react-router";
 
-import { LegalPage } from "@trans/ui/blocks/legal-layout";
 import { NotFoundPage } from "@trans/ui/blocks/not-found-page";
 
+import { RequireAdmin } from "./features/auth/require-admin";
+import { RequireStaff } from "./features/auth/require-staff";
 import { AdminLayout } from "./layouts/admin-layout";
+import {
+  BranchDetailPage,
+  BranchesPage,
+  ContactsPage,
+  LegalPage,
+  MessagesPage,
+  ProfilePage,
+  UsersPage,
+} from "./routes/lazy-pages";
+import { LoginPage } from "./routes/login";
 import { Stub } from "./routes/stub";
 
 /** Served under /admin (Vite `base` + router `basename`), so links here are relative to it. */
 export const router = createBrowserRouter(
   [
-    { path: "privacy", element: <LegalPage kind="privacy" /> },
-    { path: "terms", element: <LegalPage kind="terms" /> },
+    {
+      path: "privacy",
+      element: (
+        <Suspense>
+          <LegalPage kind="privacy" />
+        </Suspense>
+      ),
+    },
+    {
+      path: "terms",
+      element: (
+        <Suspense>
+          <LegalPage kind="terms" />
+        </Suspense>
+      ),
+    },
+    { path: "login", element: <LoginPage /> },
     {
       path: "/",
-      element: <AdminLayout />,
+      element: (
+        <RequireStaff>
+          <AdminLayout />
+        </RequireStaff>
+      ),
       children: [
         { index: true, element: <Stub page="dashboard" icon={LayoutGrid} /> },
         { path: "shipments", element: <Stub page="shipments" icon={Package} /> },
-        { path: "messages", element: <Stub page="messages" icon={MessageSquare} /> },
-        { path: "users", element: <Stub page="users" icon={Users} /> },
-        { path: "branches", element: <Stub page="branches" icon={Building2} /> },
-        { path: "api-keys", element: <Stub page="apiKeys" icon={KeyRound} /> },
-        { path: "profile", element: <Stub page="profile" icon={UserRound} /> },
+        { path: "messages", element: <MessagesPage /> },
+        { path: "messages/:id", element: <MessagesPage /> },
+        { path: "contacts", element: <ContactsPage /> },
+        {
+          path: "users",
+          element: (
+            <RequireAdmin>
+              <UsersPage />
+            </RequireAdmin>
+          ),
+        },
+        { path: "branches", element: <BranchesPage /> },
+        { path: "branches/:id", element: <BranchDetailPage /> },
+        {
+          path: "api-keys",
+          element: (
+            <RequireAdmin>
+              <Stub page="apiKeys" icon={KeyRound} />
+            </RequireAdmin>
+          ),
+        },
+        { path: "profile", element: <ProfilePage /> },
       ],
     },
     { path: "*", element: <NotFoundPage /> },

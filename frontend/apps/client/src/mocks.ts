@@ -5,13 +5,14 @@ import { handlers } from "@trans/api/mocks";
 
 /**
  * Client mock backend: the shared handlers from @trans/api plus every
- * feature's own, picked up from `features/<name>/mocks.ts` automatically —
- * each exports an array of handlers. Adding a feature's mocks needs no edit here.
+ * feature's own, picked up from `features/<name>/mocks.ts` automatically.
+ * Each of those exports one `handlers` array (only that export is read, so
+ * mock data can be exported too). Adding a feature's mocks needs no edit here.
  * Same worker options as @trans/api's startMocks.
  */
 const featureHandlers = Object.values(
-  import.meta.glob<Record<string, unknown>>("./features/*/mocks.ts", { eager: true }),
-).flatMap((module) => Object.values(module).filter(Array.isArray).flat() as RequestHandler[]);
+  import.meta.glob<RequestHandler[]>("./features/*/mocks.ts", { eager: true, import: "handlers" }),
+).flat();
 
 export async function startClientMocks(baseUrl: string) {
   const worker = setupWorker(...handlers, ...featureHandlers);

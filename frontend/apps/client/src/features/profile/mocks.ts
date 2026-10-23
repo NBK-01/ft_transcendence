@@ -1,9 +1,10 @@
 import { http } from "msw/http";
 
 import { error, ok } from "@trans/api/mocks";
+import { profileSchema } from "@trans/ui/schemas/profile";
 
 import type { AvatarUploadResult, Profile, ProfileUpdate } from "./types";
-import { AVATAR_MAX_BYTES, AVATAR_TYPES, dateOfBirthError, nameError, phoneError } from "./validation";
+import { AVATAR_MAX_BYTES, AVATAR_TYPES } from "./validation";
 
 /**
  * Mock profile endpoints (VITE_API_MOCKS=true), enveloped like the real API.
@@ -29,23 +30,24 @@ const profile: Profile = {
   phoneNumber: "+961 70 123 456",
 };
 
-/** A 400 like the backend's validation errors, naming the field that failed. */
-const invalid = (field: string) => error(400, [`${field} is invalid`]);
-
-export const profileHandlers = [
+export const handlers = [
   http.get("*/api/users/profile", () => ok<Profile>(profile)),
 
   http.patch("*/api/users/profile", async ({ request }) => {
     const body = (await request.json()) as Partial<ProfileUpdate>;
-    const firstName = body.firstName?.trim() ?? "";
-    const lastName = body.lastName?.trim() ?? "";
-    const dateOfBirth = body.dateOfBirth || null;
-    const phoneNumber = body.phoneNumber?.trim() || null;
-
-    if (nameError(firstName)) return invalid("firstName");
-    if (nameError(lastName)) return invalid("lastName");
-    if (dateOfBirth && dateOfBirthError(dateOfBirth)) return invalid("dateOfBirth");
-    if (phoneNumber && phoneError(phoneNumber)) return invalid("phoneNumber");
+    // Same rules as the form; a 400 names the fields that failed, like the backend's validation errors.
+    const parsed = profileSchema.safeParse({
+      firstName: body.firstName ?? "",
+      lastName: body.lastName ?? "",
+      dateOfBirth: body.dateOfBirth ?? "",
+      phoneNumber: body.phoneNumber ?? "",
+    });
+    if (!parsed.success) {
+      return error(400, [...new Set(parsed.error.issues.map((issue) => `${String(issue.path[0])} is invalid`))]);
+    }
+    const { firstName, lastName } = parsed.data;
+    const dateOfBirth = parsed.data.dateOfBirth || null;
+    const phoneNumber = parsed.data.phoneNumber || null;
 
     Object.assign(profile, {
       firstName,

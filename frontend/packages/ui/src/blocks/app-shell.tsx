@@ -5,9 +5,7 @@ import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, NavLink } from "react-router";
 
-import { LanguageSwitcher } from "@trans/ui/blocks/language-switcher";
 import { SiteFooter } from "@trans/ui/blocks/site-footer";
-import { ThemeSwitcher } from "@trans/ui/blocks/theme-switcher";
 import { Avatar } from "@trans/ui/components/avatar";
 import { Button } from "@trans/ui/components/button";
 import {
@@ -68,7 +66,7 @@ export function AppShell({
   onSignOut: () => void;
   /** Adds a "Profile" item to the account menu. */
   profileHref?: string;
-  /** e.g. breadcrumb or branch switcher. */
+  /** e.g. a branch switcher. Shown on phones too, so keep it narrow there (it gets the space between logo and account). */
   topbarStart?: ReactNode;
   /** e.g. notifications button. */
   topbarEnd?: ReactNode;
@@ -132,7 +130,8 @@ export function AppShell({
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-gray-alpha-400 bg-background-100 px-3 md:px-4">
-          <div className="md:hidden">{brand}</div>
+          {/* Phones: just the mark when there's a topbarStart (e.g. the branch filter), so it fits beside it. */}
+          <div className={cn("md:hidden", topbarStart && "max-sm:[&_[data-wordmark]]:hidden")}>{brand}</div>
           <Button
             variant="tertiary"
             size="sm"
@@ -144,7 +143,8 @@ export function AppShell({
           >
             <PanelLeft className="rtl:-scale-x-100" aria-hidden="true" />
           </Button>
-          {topbarStart && <div className="hidden min-w-0 items-center gap-2 md:flex">{topbarStart}</div>}
+          {/* On phones it takes the room left between the logo and the account button. */}
+          {topbarStart && <div className="flex min-w-0 flex-1 items-center gap-2 md:flex-none">{topbarStart}</div>}
           <div className="ms-auto flex items-center gap-1.5">
             {topbarEnd}
             <div className="md:hidden">
@@ -172,7 +172,6 @@ function SidebarLink({ item, collapsed }: { item: NavItem; collapsed: boolean })
     <NavLink
       to={item.to}
       end={item.end}
-      aria-label={collapsed ? item.label : undefined}
       className={({ isActive }) =>
         cn(
           "focus-ring group relative flex h-9 items-center gap-2.5 rounded-md text-label-14 text-gray-900",
@@ -193,8 +192,17 @@ function SidebarLink({ item, collapsed }: { item: NavItem; collapsed: boolean })
             )}
           />
           <Icon className="size-4 shrink-0" aria-hidden="true" />
-          {!collapsed && <span className="truncate">{item.label}</span>}
-          {!collapsed && item.badge != null && <span className="ms-auto">{item.badge}</span>}
+          {/* Collapsed: label and count stay in the link's name for screen readers; a dot shows the count is there. */}
+          <span className={collapsed ? "sr-only" : "truncate"}>{item.label}</span>
+          {item.badge != null &&
+            (collapsed ? (
+              <>
+                <span className="sr-only">{item.badge}</span>
+                <span aria-hidden="true" className="absolute end-2 top-1.5 size-2 rounded-full bg-orange-700" />
+              </>
+            ) : (
+              <span className="ms-auto">{item.badge}</span>
+            ))}
         </>
       )}
     </NavLink>
@@ -204,7 +212,10 @@ function SidebarLink({ item, collapsed }: { item: NavItem; collapsed: boolean })
   return (
     <Tooltip>
       <TooltipTrigger asChild>{link}</TooltipTrigger>
-      <TooltipContent side={dir === "rtl" ? "left" : "right"}>{item.label}</TooltipContent>
+      <TooltipContent side={dir === "rtl" ? "left" : "right"} className="flex items-center gap-2">
+        {item.label}
+        {item.badge}
+      </TooltipContent>
     </Tooltip>
   );
 }
@@ -260,15 +271,6 @@ function AccountMenu({
             <DropdownMenuSeparator />
           </>
         )}
-        <div className="flex items-center justify-between gap-2 px-2 py-1.5">
-          <span className="text-label-14 text-gray-900">{t("theme.label")}</span>
-          <ThemeSwitcher />
-        </div>
-        <div className="flex items-center justify-between gap-2 px-2 py-1.5">
-          <span className="text-label-14 text-gray-900">{t("language.label")}</span>
-          <LanguageSwitcher />
-        </div>
-        <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={onSignOut}>
           <LogOut className="rtl:-scale-x-100" aria-hidden="true" />
           {t("nav.signOut")}
@@ -302,11 +304,17 @@ function MobileNavBar({ items }: { items: NavItem[] }) {
         className="grid rounded-2xl border border-gray-alpha-400 bg-background-100 p-1 shadow-lg"
         style={{ gridTemplateColumns: `repeat(${primary.length + (overflow ? 1 : 0)}, minmax(0, 1fr))` }}
       >
-        {primary.map(({ to, label, icon: Icon, end }) => (
+        {primary.map(({ to, label, icon: Icon, end, badge }) => (
           <NavLink key={to} to={to} end={end} className={({ isActive }) => mobileItemClasses(isActive)}>
             {({ isActive }) => (
               <>
-                <Icon className="size-5" aria-hidden="true" />
+                <span className="relative">
+                  <Icon className="size-5" aria-hidden="true" />
+                  {/* Opaque backing, so a translucent badge doesn't let the icon show through. */}
+                  {badge != null && (
+                    <span className="absolute -top-2 start-3 rounded-full bg-background-100">{badge}</span>
+                  )}
+                </span>
                 <span className="max-w-full truncate px-1">{label}</span>
                 {isActive && (
                   <span aria-hidden="true" className="absolute top-1 size-1 rounded-full bg-orange-700" />
@@ -318,7 +326,13 @@ function MobileNavBar({ items }: { items: NavItem[] }) {
         {overflow && (
           <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
             <SheetTrigger className={mobileItemClasses(false)}>
-              <Ellipsis className="size-5" aria-hidden="true" />
+              <span className="relative">
+                <Ellipsis className="size-5" aria-hidden="true" />
+                {/* A badge hidden in the sheet still shows that something's waiting. */}
+                {rest.some((item) => item.badge != null) && (
+                  <span aria-hidden="true" className="absolute -top-0.5 -end-1 size-2 rounded-full bg-orange-700" />
+                )}
+              </span>
               <span>{t("nav.more")}</span>
             </SheetTrigger>
             <SheetContent side="bottom">
@@ -327,7 +341,7 @@ function MobileNavBar({ items }: { items: NavItem[] }) {
                 <SheetDescription className="sr-only">{t("nav.main")}</SheetDescription>
               </SheetHeader>
               <div className="flex flex-col gap-0.5 px-2 pb-4">
-                {rest.map(({ to, label, icon: Icon, end }) => (
+                {rest.map(({ to, label, icon: Icon, end, badge }) => (
                   <NavLink
                     key={to}
                     to={to}
@@ -342,6 +356,7 @@ function MobileNavBar({ items }: { items: NavItem[] }) {
                   >
                     <Icon className="size-5" aria-hidden="true" />
                     {label}
+                    {badge != null && <span className="ms-auto">{badge}</span>}
                   </NavLink>
                 ))}
               </div>

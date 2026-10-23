@@ -7,6 +7,7 @@ import { ACCESS_CONTROL_KEYS } from '../../common/decorators/access-control.deco
 import {
   InsufficientPermissionsException,
   InternalUserInactiveException,
+  NotCustomerException,
   NotInternalUserException,
 } from '../exceptions';
 
@@ -18,6 +19,7 @@ interface AccessControlMetadata {
   anyRole?: string[];
   anyOf?: string[];
   staff?: boolean;
+  customer?: boolean;
   skip?: boolean;
 }
 
@@ -43,6 +45,14 @@ export class AccessControlGuard implements CanActivate {
     }
 
     const user = this.authContext.requireUser();
+
+    if (metadata.customer) {
+      if (user.accountType !== AccountType.CUSTOMER) {
+        throw new NotCustomerException();
+      }
+      return true;
+    }
+
     if (user.accountType !== AccountType.STAFF) {
       throw new NotInternalUserException();
     }
@@ -81,6 +91,7 @@ export class AccessControlGuard implements CanActivate {
       anyRole: get<string[]>(ACCESS_CONTROL_KEYS.ANY_ROLE),
       anyOf: get<string[]>(ACCESS_CONTROL_KEYS.ANY_OF),
       staff: get<boolean>(ACCESS_CONTROL_KEYS.STAFF),
+      customer: get<boolean>(ACCESS_CONTROL_KEYS.CUSTOMER),
       skip: get<boolean>(ACCESS_CONTROL_KEYS.SKIP),
     };
   }
@@ -92,6 +103,7 @@ export class AccessControlGuard implements CanActivate {
       !metadata.allPermissions &&
       !metadata.role &&
       !metadata.anyRole &&
+      !metadata.customer &&
       !metadata.anyOf &&
       !metadata.staff
     );

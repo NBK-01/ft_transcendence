@@ -41,6 +41,26 @@ export const signUpSchema = z
   });
 export type SignUpValues = z.infer<typeof signUpSchema>;
 
+/**
+ * Change password (staff and customers). `newPassword` follows the same rule as
+ * new accounts, a little stricter than the backend's 8-character minimum.
+ */
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, { error: "validation.required" }),
+    newPassword: strongPassword,
+    confirmPassword: z.string().min(1, { error: "validation.required" }),
+  })
+  .refine((values) => values.newPassword === values.confirmPassword, {
+    error: "validation.passwordMatch",
+    path: ["confirmPassword"],
+  })
+  .refine((values) => values.newPassword !== values.currentPassword, {
+    error: "validation.passwordSame",
+    path: ["newPassword"],
+  });
+export type ChangePasswordValues = z.infer<typeof changePasswordSchema>;
+
 export const otpSchema = z.object({
   code: z.string().regex(/^\d{6}$/, { error: "validation.otp" }),
 });

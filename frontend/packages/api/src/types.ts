@@ -46,6 +46,7 @@ export type User = {
   email: string;
   name: string;
   isVerified: boolean;
+  avatarUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -55,8 +56,156 @@ export type TokenPair = {
   refreshToken: string;
 };
 
-/** Returned by POST /auth/login and POST /auth/verify-otp. */
-export type AuthResponse = TokenPair & { user: User };
+/**
+ * Returned by POST /auth/login and POST /auth/verify-otp. `user` is a short
+ * summary, not the full `User`: read that from GET /auth/me.
+ */
+export type AuthResponse = TokenPair & { user: Pick<User, "id" | "email" | "name"> };
+
+/**
+ * The signed-in staff member, as POST /staff-auth/login returns it. There's no
+ * staff /me yet, so this is stored with the session and only updates on the next sign-in.
+ */
+export type StaffUser = {
+  id: string;
+  email: string;
+  name: string;
+  /** "admin" | "dispatcher" | "driver" | "support", or null if unassigned. */
+  roleName: string | null;
+};
+
+/** POST /staff-auth/login body. */
+export type StaffLoginInput = { email: string; password: string };
+
+/** POST /staff-auth/change-password body. A wrong `currentPassword` is 401 with code 8003. */
+export type StaffChangePasswordInput = { currentPassword: string; newPassword: string };
+
+/** Returned by POST /staff-auth/login. */
+export type StaffAuthResponse = TokenPair & { user: StaffUser };
+
+/** A contact's state (backend ContactStatus). A rejected request is deleted, not kept. */
+export type ContactStatus = "pending" | "accepted" | "blocked";
+
+/**
+ * A connection between two staff members (backend ContactDto). Staff can only
+ * message their accepted contacts. The block doesn't record who blocked.
+ */
+export type Contact = {
+  id: string;
+  requesterId: string;
+  requesterName: string;
+  requesterEmail: string;
+  addresseeId: string;
+  addresseeName: string;
+  addresseeEmail: string;
+  status: ContactStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** Who's on the other end of a chat event (backend AccountType). */
+export type AccountType = "staff" | "customer";
+
+/** Staff-to-staff, or a customer's support conversation (backend ConversationType). */
+export type ConversationType = "staff_dm" | "support";
+
+/**
+ * A conversation (backend ConversationDto). A staff DM has `participantAId` and
+ * `participantBId` (staff ids, sorted); a support conversation has `customerId`.
+ * There are no names, last message or unread count yet: the app fills in what it can.
+ */
+export type Conversation = {
+  id: string;
+  type: ConversationType;
+  customerId?: string | null;
+  participantAId?: string | null;
+  participantBId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** A chat message (backend MessageDto). GET /chat/conversations/:id/messages pages them newest first. */
+export type ChatMessage = {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  senderType: AccountType;
+  content: string;
+  createdAt: string;
+};
+
+/** Socket event `support.message.new`, sent to everyone with support access. */
+export type SupportMessageEvent = { conversationId: string; preview: string };
+
+/** Socket event `presence.changed`. */
+export type PresenceEvent = { accountId: string; accountType: AccountType; online: boolean };
 
 /** Returned by endpoints that only confirm an action. */
 export type MessageResponse = { message: string };
+
+/** A staff account (backend InternalUserDto). GET /internal-users is admin-only. */
+export type InternalUser = {
+  id: string;
+  email: string;
+  name: string;
+  /** Deactivated accounts can't sign in; there is no hard delete. */
+  isActive: boolean;
+  /** "admin" | "dispatcher" | "driver" | "support", or null if unassigned. */
+  roleName: string | null;
+  /** The branch (organization) the account belongs to, if any. */
+  organizationId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** POST /internal-users body (backend CreateInternalUserDto). */
+export type CreateInternalUserInput = {
+  email: string;
+  password: string;
+  name: string;
+  roleName: string;
+  organizationId?: string;
+};
+
+/** PATCH /internal-users/:id body (backend UpdateInternalUserDto). Email and password can't change here. */
+export type UpdateInternalUserInput = Partial<{
+  name: string;
+  roleName: string;
+  organizationId: string | null;
+  isActive: boolean;
+}>;
+
+/** GET /access-control/roles */
+export type Role = {
+  id: string;
+  name: string;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** A branch (backend OrganizationDto). GET /organizations */
+export type Organization = {
+  id: string;
+  name: string;
+  description: string | null;
+  contactEmail: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** POST /organizations body (backend CreateOrganizationDto). Names are unique (409, code 4002). */
+export type CreateOrganizationInput = {
+  name: string;
+  description?: string;
+  contactEmail?: string;
+};
+
+/** PATCH /organizations/:id body (backend UpdateOrganizationDto). null clears a field. */
+export type UpdateOrganizationInput = Partial<{
+  name: string;
+  description: string | null;
+  contactEmail: string | null;
+  isActive: boolean;
+}>;
