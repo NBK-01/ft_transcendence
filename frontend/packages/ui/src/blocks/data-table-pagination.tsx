@@ -33,21 +33,24 @@ export function DataTablePagination<TData extends RowData>({
       </p>
 
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-        <div className="flex items-center gap-2">
-          <span id={labelId}>{t("table.rowsPerPage")}</span>
-          <Select value={String(pageSize)} onValueChange={(value) => table.setPageSize(Number(value))}>
-            <SelectTrigger size="sm" aria-labelledby={labelId} className="w-18 tabular-nums">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {pageSizeOptions.map((option) => (
-                <SelectItem key={option} value={String(option)} className="tabular-nums">
-                  {option}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {/* A fixed page size (one option) has nothing to pick. */}
+        {pageSizeOptions.length > 1 && (
+          <div className="flex items-center gap-2">
+            <span id={labelId}>{t("table.rowsPerPage")}</span>
+            <Select value={String(pageSize)} onValueChange={(value) => table.setPageSize(Number(value))}>
+              <SelectTrigger size="sm" aria-labelledby={labelId} className="w-18 tabular-nums">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {pageSizeOptions.map((option) => (
+                  <SelectItem key={option} value={String(option)} className="tabular-nums">
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <div className="flex items-center gap-2">
           <span className="tabular-nums">

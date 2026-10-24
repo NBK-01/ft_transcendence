@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Package, Plus, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 
-import { createDataTableColumnHelper, DataTable } from "@trans/ui/blocks/data-table";
+import { createDataTableColumnHelper, DataTable, type DataTableServerState } from "@trans/ui/blocks/data-table";
 import { DataTableColumnHeader } from "@trans/ui/blocks/data-table-column-header";
 import { EmptyState } from "@trans/ui/blocks/empty-state";
 import { SHIPMENT_STATUSES, StatusBadge, StatusDot, type ShipmentStatus } from "@trans/ui/blocks/status";
@@ -150,5 +151,49 @@ export const WithSelection: Story = {
         </Button>
       </>
     ),
+  },
+};
+
+/** Stands in for the API: searches, filters and pages the sample shipments, newest first. */
+function fetchPage({ pagination, columnFilters }: DataTableServerState) {
+  const search = String(columnFilters.find((filter) => filter.id === "trackingId")?.value ?? "")
+    .trim()
+    .toUpperCase();
+  const status = (columnFilters.find((filter) => filter.id === "status")?.value as string[] | undefined)?.[0];
+  const matches = shipments.filter((row) => row.trackingId.includes(search) && (!status || row.status === status));
+  const start = pagination.pageIndex * pagination.pageSize;
+  return { rows: matches.slice(start, start + pagination.pageSize), total: matches.length };
+}
+
+/**
+ * Server mode: the API searches, filters and pages, and the page owns that
+ * state (in the app, the URL). Each answer here takes 800 ms: the search waits
+ * for a pause in typing, and the rows stay, dimmed, until the next page
+ * arrives. No sorting (the API has none), no counts in the filter menu (the
+ * browser only has one page), and the status filter takes one value.
+ */
+export const ServerSide: Story = {
+  render: function Render() {
+    const [state, setState] = useState<DataTableServerState>({
+      pagination: { pageIndex: 0, pageSize: 10 },
+      columnFilters: [],
+    });
+    const [answer, setAnswer] = useState<{ for: DataTableServerState; rows: Shipment[]; total: number }>();
+    useEffect(() => {
+      const timer = setTimeout(() => setAnswer({ for: state, ...fetchPage(state) }), 800);
+      return () => clearTimeout(timer);
+    }, [state]);
+
+    return (
+      <DataTable
+        columns={columns}
+        data={answer?.rows}
+        getRowId={(row) => row.id}
+        isLoading={!answer}
+        search={{ column: "trackingId", placeholder: "Search tracking ID…", maxLength: 50 }}
+        filters={[{ ...statusFilter, single: true }]}
+        server={{ state, onStateChange: setState, rowCount: answer?.total, isFetching: answer?.for !== state }}
+      />
+    );
   },
 };

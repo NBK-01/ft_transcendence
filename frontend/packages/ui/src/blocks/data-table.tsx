@@ -7,6 +7,7 @@ import {
   createFilteredRowModel,
   createPaginatedRowModel,
   createSortedRowModel,
+  functionalUpdate,
   metaHelper,
   rowPaginationFeature,
   rowSelectionFeature,
@@ -17,10 +18,13 @@ import {
   tableFeatures,
   useTable,
   type ColumnDef,
+  type ColumnFiltersState,
   type FilterFn,
+  type PaginationState,
   type Row,
   type RowData,
   type Table as CoreTable,
+  type Updater,
 } from "@tanstack/react-table";
 import { CircleAlert, Lock } from "lucide-react";
 import { useMemo, type MouseEvent, type ReactNode } from "react";
@@ -130,6 +134,47 @@ const isRangeEvent = (event: unknown) => Boolean((event as { shiftKey?: boolean 
 
 const SKELETON_ROWS = 5;
 
+/** What the API is asked for in server mode: the page, and the search and filter values by column id. */
+export type DataTableServerState = {
+  pagination: PaginationState;
+  /** E.g. `[{ id: "trackingId", value: "TRK" }, { id: "status", value: ["delivered"] }]`. */
+  columnFilters: ColumnFiltersState;
+};
+
+/** Server mode: `data` is one page, already searched, filtered and ordered by the API. */
+export type DataTableServer = {
+  /** Owned by the caller, e.g. read from the URL. */
+  state: DataTableServerState;
+  /** One call per change, so the caller writes it in one go. A new search or filter comes back on the first page. */
+  onStateChange: (state: DataTableServerState) => void;
+  /** Rows across every page (the API's `meta.totalItems`). */
+  rowCount: number | undefined;
+  /** Another page is loading: the current rows stay, dimmed. */
+  isFetching?: boolean;
+};
+
+/**
+ * TanStack's manual mode: nothing is filtered, sorted or paged in the browser.
+ * The API has no sort, so the headers stay plain labels.
+ */
+function serverOptions({ state, onStateChange, rowCount }: DataTableServer) {
+  return {
+    manualPagination: true,
+    manualFiltering: true,
+    manualSorting: true,
+    enableSorting: false,
+    rowCount,
+    state,
+    onPaginationChange: (updater: Updater<PaginationState>) =>
+      onStateChange({ ...state, pagination: functionalUpdate(updater, state.pagination) }),
+    onColumnFiltersChange: (updater: Updater<ColumnFiltersState>) =>
+      onStateChange({
+        pagination: { ...state.pagination, pageIndex: 0 },
+        columnFilters: functionalUpdate(updater, state.columnFilters),
+      }),
+  };
+}
+
 export type DataTableProps<TData extends RowData> = {
   /** Define these outside the component (or memoize them); a new array resets the table. */
   columns: DataTableColumnDef<TData>[];
@@ -150,12 +195,14 @@ export type DataTableProps<TData extends RowData> = {
   enableRowSelection?: boolean;
   /** Bulk actions, shown in the toolbar while rows are selected. */
   selectionActions?: DataTableSelectionActions<TData>;
+  /** The API pages, searches and filters instead of the browser. */
+  server?: DataTableServer;
   className?: string;
 };
 
 /**
  * Sortable, filterable, paginated table on TanStack Table v9. Rows are
- * processed in the browser; switch to the `manual*` options once the API paginates.
+ * processed in the browser, or by the API in server mode (`server`).
  */
 export function DataTable<TData extends RowData>({
   columns,
@@ -171,6 +218,7 @@ export function DataTable<TData extends RowData>({
   filters,
   enableRowSelection = false,
   selectionActions,
+  server,
   className,
 }: DataTableProps<TData>) {
   const { t } = useTranslation("common");
@@ -189,6 +237,7 @@ export function DataTable<TData extends RowData>({
     enableRowSelection,
     isRowRangeSelectionEvent: isRangeEvent,
     initialState: { pagination: { pageIndex: 0, pageSize: initialPageSize } },
+    ...(server && serverOptions(server)),
   });
 
   const showToolbar = Boolean(search || filters?.length || selectionActions);
@@ -198,7 +247,12 @@ export function DataTable<TData extends RowData>({
   const hasError = Boolean(error) && !isLoading;
   // Retrying won't help: the account's role doesn't include this list.
   const forbidden = hasError && (error as { status?: unknown }).status === 403;
-  const isEmpty = !isLoading && !hasError && (data?.length ?? 0) === 0;
+  // In server mode `data` is one page: the list is only empty when nothing is searched or filtered.
+  const isEmpty =
+    !isLoading &&
+    !hasError &&
+    (server ? server.rowCount === 0 && server.state.columnFilters.length === 0 : (data?.length ?? 0) === 0);
+  const isFetching = Boolean(server?.isFetching) && !isLoading;
 
   if (isEmpty && emptyState) return <div className={className}>{emptyState}</div>;
 
@@ -207,8 +261,8 @@ export function DataTable<TData extends RowData>({
       {showToolbar && (
         <DataTableToolbar table={table} search={search} filters={filters} selectionActions={selectionActions} />
       )}
-      <Table aria-busy={isLoading || undefined}>
-        {isLoading && <TableCaption className="sr-only">{t("table.loading")}</TableCaption>}
+      <Table aria-busy={isLoading || isFetching || undefined}>
+        {(isLoading || isFetching) && <TableCaption className="sr-only">{t("table.loading")}</TableCaption>}
         <TableHeader>
           {table.getHeaderGroups().map((group) => (
             <TableRow key={group.id} className="hover:bg-transparent">
@@ -237,7 +291,8 @@ export function DataTable<TData extends RowData>({
             </TableRow>
           ))}
         </TableHeader>
-        <TableBody>
+        {/* Dims only after 200 ms, so a fast answer doesn't flicker; it clears at once. */}
+        <TableBody className={cn("transition-opacity", isFetching && "opacity-60 delay-200")}>
           {isLoading ? (
             Array.from({ length: Math.min(initialPageSize, SKELETON_ROWS) }, (_, index) => (
               <TableRow key={index} className="hover:bg-transparent">
