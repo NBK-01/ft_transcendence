@@ -21,6 +21,8 @@ export class UsersService {
     const hashedPassword = await this.cryptoService.hashPassword(dto.password);
     const user = this.userRepository.create({
       ...dto,
+      // Stored the way findByEmail() searches, or a mixed-case email could never sign in.
+      email: dto.email.toLowerCase().trim(),
       password: hashedPassword,
     });
     return this.userRepository.save(user);
@@ -29,7 +31,7 @@ export class UsersService {
   /** Google's email is pre-verified — skip the OTP flow, no password to set. */
   async createOAuthUser(data: { email: string; name: string }): Promise<User> {
     const user = this.userRepository.create({
-      email: data.email,
+      email: data.email.toLowerCase().trim(),
       name: data.name,
       password: null,
       isVerified: true,

@@ -285,24 +285,38 @@ describe('register → verify → session', () => {
     );
   });
 
-  // KNOWN BUG — remove `.failing` once fixed. UsersService.create saves the
-  // email as typed, but findByEmail lowercases before searching (Postgres
-  // compares case-sensitively), so this account can never verify or log in.
-  it.failing(
-    'an email with capital letters can verify and log in',
-    async () => {
-      const harness = setup();
+  // Regression: the email used to be stored as typed while every lookup
+  // lowercases it, so a capital letter made the account unusable.
+  it('an email with capital letters is stored lowercased, and can verify and log in', async () => {
+    const harness = setup();
 
-      await verifiedAccount(harness, 'Maria.Test@Example.com');
+    await verifiedAccount(harness, ' Maria.Test@Example.com ');
 
-      await expect(
-        harness.auth.login({
-          email: 'Maria.Test@Example.com',
-          password: PASSWORD,
-        }),
-      ).resolves.toHaveProperty('accessToken');
-    },
-  );
+    expect(harness.users.rows[0].email).toBe('maria.test@example.com');
+    await expect(
+      harness.auth.login({
+        email: 'Maria.Test@Example.com',
+        password: PASSWORD,
+      }),
+    ).resolves.toHaveProperty('accessToken');
+  });
+
+  it('registering again with different capitals finds the same account', async () => {
+    const { auth, users } = setup();
+    await auth.register({
+      email: 'Maria.Test@Example.com',
+      password: PASSWORD,
+      name: 'Maria',
+    });
+
+    await auth.register({
+      email: 'maria.test@example.com',
+      password: PASSWORD,
+      name: 'Maria',
+    });
+
+    expect(users.rows).toHaveLength(1);
+  });
 });
 
 describe('verification codes', () => {
