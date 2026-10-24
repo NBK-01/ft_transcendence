@@ -159,6 +159,7 @@ const fr: CommonResources = {
   },
   stat: {
     vsPrevious: "par rapport à la période précédente",
+    error: "Chargement impossible",
   },
   notFound: {
     title: "Page introuvable",

@@ -1,6 +1,13 @@
 import { useTranslation } from "react-i18next";
 
-import { SHIPMENT_STATUSES, StatusBadge, StatusDot, type ShipmentStatus } from "@trans/ui/blocks/status";
+import {
+  SHIPMENT_STATUSES,
+  StatusBadge,
+  StatusDot,
+  statusDotClass,
+  toneDotClass,
+  type ShipmentStatus,
+} from "@trans/ui/blocks/status";
 import { Badge } from "@trans/ui/components/badge";
 import { cn } from "@trans/ui/lib/utils";
 
@@ -44,10 +51,16 @@ const STAGE_BADGE: Record<OrderStage, "outline" | "blue"> = {
   pending_payment_confirmation: "outline",
 };
 
+/** The dot fill (a `bg-` class) for any state: its tracking tone, or gray/blue for a stage. Also for bars and legends. */
+export function shipmentStateDotClass(status: ShipmentState) {
+  if (!isOrderStage(status)) return statusDotClass(status);
+  return toneDotClass(STAGE_BADGE[status] === "blue" ? "blue" : "gray");
+}
+
 /** Dot for any state: the tracking StatusDot, or a stage dot that pulses on the client's turn. */
 export function ShipmentStateDot({ status, className }: { status: ShipmentState; className?: string }) {
   if (!isOrderStage(status)) return <StatusDot status={status} className={className} />;
-  const color = STAGE_BADGE[status] === "blue" ? "bg-blue-700" : "bg-gray-700";
+  const color = shipmentStateDotClass(status);
   return (
     <span aria-hidden="true" className={cn("relative inline-flex size-2 shrink-0", className)}>
       {CLIENT_ACTION.has(status) && (

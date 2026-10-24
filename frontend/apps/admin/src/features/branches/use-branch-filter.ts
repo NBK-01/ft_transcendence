@@ -35,9 +35,13 @@ export function useBranchFilter() {
     [setParams],
   );
 
-  /** Adds the current filter to a nav link, so it stays on when switching pages. */
+  /**
+   * Adds the current filter to a nav link, so it stays on when switching pages.
+   * A link with its own query (`/shipments?status=delivered`) keeps it.
+   */
   const withBranch = useCallback(
-    (to: string) => (branchId ? `${to}?${new URLSearchParams({ [PARAM]: branchId }).toString()}` : to),
+    (to: string) =>
+      branchId ? `${to}${to.includes("?") ? "&" : "?"}${new URLSearchParams({ [PARAM]: branchId }).toString()}` : to,
     [branchId],
   );
 

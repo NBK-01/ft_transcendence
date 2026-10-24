@@ -49,7 +49,17 @@ export const Formats: Story = {
 
 export const WithoutChange: Story = { args: { change: undefined } };
 
+/** A line under the number saying what it covers, instead of (or as well as) a change. */
+export const WithDescription: Story = {
+  args: { label: "Active staff", value: 14, change: undefined, description: "In Amman Central", icon: Users },
+};
+
 export const Loading: Story = { args: { isLoading: true } };
+
+/** The number couldn't load: the card says so, with a retry button when `onRetry` is set. */
+export const Error: Story = {
+  args: { change: undefined, description: "In Amman Central", error: new globalThis.Error("Network error"), onRetry: () => {} },
+};
 
 /** The Overview page's top row: four cards that wrap on smaller screens. */
 export const OverviewRow: Story = {

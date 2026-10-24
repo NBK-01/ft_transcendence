@@ -13,7 +13,7 @@ export const SHIPMENT_STATUSES = [
 ] as const;
 export type ShipmentStatus = (typeof SHIPMENT_STATUSES)[number];
 
-type Tone = "gray" | "blue" | "amber" | "green" | "red";
+export type Tone = "gray" | "blue" | "amber" | "green" | "red";
 
 /** Status colours never use the brand orange. */
 const TONE: Record<ShipmentStatus, Tone> = {
@@ -32,6 +32,12 @@ const DOT: Record<Tone, string> = {
   green: "bg-green-700",
   red: "bg-red-700",
 };
+
+/** A tone's dot fill (a `bg-` class), for anything else drawn in the status colours. */
+export const toneDotClass = (tone: Tone) => DOT[tone];
+
+/** A tracking status's dot fill: what StatusDot shows. */
+export const statusDotClass = (status: ShipmentStatus) => DOT[TONE[status]];
 
 /** "Live" states get a soft ping so moving shipments stand out in a list. */
 const LIVE: ReadonlySet<ShipmentStatus> = new Set(["in_transit", "out_for_delivery"]);

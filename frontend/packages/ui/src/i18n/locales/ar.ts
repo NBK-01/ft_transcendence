@@ -157,6 +157,7 @@ const ar: CommonResources = {
   },
   stat: {
     vsPrevious: "مقارنة بالفترة السابقة",
+    error: "تعذّر التحميل",
   },
   notFound: {
     title: "الصفحة غير موجودة",
