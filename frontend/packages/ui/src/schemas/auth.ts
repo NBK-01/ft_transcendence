@@ -26,6 +26,9 @@ export const signInSchema = z.object({
 });
 export type SignInValues = z.infer<typeof signInSchema>;
 
+export const forgotPasswordSchema = z.object({ email });
+export type ForgotPasswordValues = z.infer<typeof forgotPasswordSchema>;
+
 export const signUpSchema = z
   .object({
     firstName: name,
@@ -65,3 +68,15 @@ export const otpSchema = z.object({
   code: z.string().regex(/^\d{6}$/, { error: "validation.otp" }),
 });
 export type OtpValues = z.infer<typeof otpSchema>;
+
+/** Reset password from an emailed link: no current password to check, unlike changePasswordSchema. */
+export const resetPasswordSchema = z
+  .object({
+    newPassword: strongPassword,
+    confirmPassword: z.string().min(1, { error: "validation.required" }),
+  })
+  .refine((values) => values.newPassword === values.confirmPassword, {
+    error: "validation.passwordMatch",
+    path: ["confirmPassword"],
+  });
+export type ResetPasswordValues = z.infer<typeof resetPasswordSchema>;

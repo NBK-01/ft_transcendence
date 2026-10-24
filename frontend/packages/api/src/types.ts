@@ -62,6 +62,27 @@ export type TokenPair = {
  */
 export type AuthResponse = TokenPair & { user: Pick<User, "id" | "email" | "name"> };
 
+/** POST /auth/register body. No session starts from this: the account is unverified until the OTP step. */
+export type RegisterInput = { email: string; password: string; name: string };
+
+/** POST /auth/verify-otp body. Completes registration and returns an AuthResponse. */
+export type VerifyOtpInput = { email: string; otp: string };
+
+/** POST /auth/resend-otp body. */
+export type ResendOtpInput = { email: string };
+
+/** POST /auth/forgot-password body. Always succeeds, whether or not the email exists. */
+export type ForgotPasswordInput = { email: string };
+
+/** POST /auth/reset-password body. The token comes from the emailed link, single use, 15 min TTL. */
+export type ResetPasswordInput = { token: string; newPassword: string };
+
+/** POST /auth/oauth/exchange body. `code` is the one-time code from the /auth/oauth-callback redirect. */
+export type OAuthExchangeInput = { code: string };
+
+/** POST /auth/login body. */
+export type LoginInput = { email: string; password: string };
+
 /**
  * The signed-in staff member, as POST /staff-auth/login returns it. There's no
  * staff /me yet, so this is stored with the session and only updates on the next sign-in.
