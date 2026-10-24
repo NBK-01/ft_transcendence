@@ -17,6 +17,7 @@ import { UsersService } from './users.service';
 import { FileStorageService } from '../file-storage/file-storage.service';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequestUser } from '../common/context/auth-context.types';
+import { RequireRole } from '../common/decorators/access-control.decorator';
 
 @ApiTags('Users')
 @ApiBearerAuth()
@@ -69,13 +70,16 @@ export class UsersController {
     return { avatarUrl: url };
   }
 
+  /** Every customer's email and name — admins only, like GET /internal-users. */
   @Get()
-  @ApiOperation({ summary: 'List all users' })
+  @RequireRole('admin')
+  @ApiOperation({ summary: 'List all users (admin only)' })
   @ApiResponse({
     status: 200,
     description: 'List of users retrieved successfully',
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Not an admin' })
   async findAll() {
     return this.usersService.findAll();
   }

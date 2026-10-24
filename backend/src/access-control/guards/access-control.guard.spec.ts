@@ -380,11 +380,6 @@ const OPEN_ROUTES: Record<string, string> = {
   'POST /shipments/:trackingId/offer/accept': 'own guard: CustomerOnlyGuard',
   'POST /shipments/:trackingId/offer/reject': 'own guard: CustomerOnlyGuard',
   'POST /shipments/:trackingId/payment': 'own guard: CustomerOnlyGuard',
-
-  // KNOWN ISSUE: lists every customer's email and name to any signed-in
-  // user, customers included. Should be @RequireStaff() (or a permission);
-  // once it is, delete this line.
-  'GET /users': 'any signed-in user',
 };
 
 describe('routes that are open today', () => {
