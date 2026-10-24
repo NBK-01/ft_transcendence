@@ -1,3 +1,5 @@
+import type { AdminShipmentFilters } from "./types";
+
 /**
  * Query keys, in one place so invalidation can't drift out of sync.
  *
@@ -34,5 +36,14 @@ export const keys = {
     list: () => [...keys.organizations.all, "list"] as const,
     detail: (id: string) => [...keys.organizations.all, "detail", id] as const,
     staff: (id: string) => [...keys.organizations.all, "staff", id] as const,
+  },
+  adminShipments: {
+    all: ["admin-shipments"] as const,
+    lists: () => [...keys.adminShipments.all, "list"] as const,
+    list: (filters: AdminShipmentFilters) => [...keys.adminShipments.lists(), filters] as const,
+    // Events and files sit under their shipment, so invalidating it refreshes all three.
+    detail: (trackingId: string) => [...keys.adminShipments.all, "detail", trackingId] as const,
+    events: (trackingId: string) => [...keys.adminShipments.detail(trackingId), "events"] as const,
+    files: (trackingId: string) => [...keys.adminShipments.detail(trackingId), "files"] as const,
   },
 };

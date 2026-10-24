@@ -62,6 +62,16 @@ export const staffCaller = (request: Request) => {
   return { caller };
 };
 
+/** Whether a role may make this request, per the rules on requireStaffAccess. */
+function roleAllows(roleName: string | null, method: string, pathname: string) {
+  if (/\/api\/(internal-users|access-control)(\/|$)/.test(pathname)) return roleName === "admin";
+  if (/\/api\/organizations(\/|$)/.test(pathname)) return method === "GET" || roleCan(roleName, "organizations:manage");
+  if (/\/api\/admin\/shipments(\/|$)/.test(pathname)) {
+    return roleCan(roleName, method === "GET" ? "shipments:read:all" : "shipments:update:org");
+  }
+  return true;
+}
+
 /**
  * Runs before the staff-only handlers, in the same order as the backend's
  * guards: no staff token → 401; a deactivated account → 401 (7003); a role
@@ -71,20 +81,18 @@ export const staffCaller = (request: Request) => {
  *  - Staff accounts and roles (@RequireRole("admin")): admins only.
  *  - Branches: any staff member may read; changes need "organizations:manage".
  *  - Contacts: any staff member.
+ *  - Shipments (/admin/shipments): reading needs "shipments:read:all" (admin,
+ *    support), every change "shipments:update:org" (admin, dispatcher).
  */
 export const requireStaffAccess = http.all(
-  /\/api\/(internal-users|organizations|access-control|contacts)(\/|$|\?)/,
+  /\/api\/(internal-users|organizations|access-control|contacts|admin\/shipments)(\/|$|\?)/,
   ({ request }) => {
     const { caller, response } = staffCaller(request);
     if (!caller) return response;
 
-    const { pathname } = new URL(request.url);
-    const adminOnly = /\/api\/(internal-users|access-control)(\/|$)/.test(pathname);
-    const branches = /\/api\/organizations(\/|$)/.test(pathname);
-    const allowed = adminOnly
-      ? caller.roleName === "admin"
-      : !branches || request.method === "GET" || roleCan(caller.roleName, "organizations:manage");
-    if (!allowed) return error(403, ["You do not have permission to perform this action"], INSUFFICIENT_PERMISSIONS);
+    if (!roleAllows(caller.roleName, request.method, new URL(request.url).pathname)) {
+      return error(403, ["You do not have permission to perform this action"], INSUFFICIENT_PERMISSIONS);
+    }
   },
 );
 
