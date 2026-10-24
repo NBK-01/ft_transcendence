@@ -1,10 +1,10 @@
-import { KeyRound, LayoutGrid, Package } from "lucide-react";
+import { KeyRound } from "lucide-react";
 import { Suspense } from "react";
 import { createBrowserRouter } from "react-router";
 
 import { NotFoundPage } from "@trans/ui/blocks/not-found-page";
 
-import { RequireAdmin } from "./features/auth/require-admin";
+import { RequireAdmin, RequirePermission } from "./features/auth/require-admin";
 import { RequireStaff } from "./features/auth/require-staff";
 import { AdminLayout } from "./layouts/admin-layout";
 import {
@@ -13,7 +13,10 @@ import {
   ContactsPage,
   LegalPage,
   MessagesPage,
+  OverviewPage,
   ProfilePage,
+  ShipmentDetailPage,
+  ShipmentsPage,
   UsersPage,
 } from "./routes/lazy-pages";
 import { LoginPage } from "./routes/login";
@@ -47,8 +50,23 @@ export const router = createBrowserRouter(
         </RequireStaff>
       ),
       children: [
-        { index: true, element: <Stub page="dashboard" icon={LayoutGrid} /> },
-        { path: "shipments", element: <Stub page="shipments" icon={Package} /> },
+        { index: true, element: <OverviewPage /> },
+        {
+          path: "shipments",
+          element: (
+            <RequirePermission permission="shipments:read:all">
+              <ShipmentsPage />
+            </RequirePermission>
+          ),
+        },
+        {
+          path: "shipments/:trackingId",
+          element: (
+            <RequirePermission permission="shipments:read:all">
+              <ShipmentDetailPage />
+            </RequirePermission>
+          ),
+        },
         { path: "messages", element: <MessagesPage /> },
         { path: "messages/:id", element: <MessagesPage /> },
         { path: "contacts", element: <ContactsPage /> },

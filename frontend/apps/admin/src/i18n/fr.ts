@@ -16,6 +16,7 @@ const fr: AdminResources = {
     apiKeys: "Clés permettant aux systèmes partenaires d'utiliser l'API publique.",
     profile: "Les informations de votre compte.",
   },
+  overview: {},
   noAccess: {
     title: "Vous n'avez pas accès à cette page",
     body: "Votre rôle ne l'inclut pas. Demandez à un administrateur si vous en avez besoin.",
@@ -27,6 +28,7 @@ const fr: AdminResources = {
     error: "Connexion impossible. Réessayez.",
     expired: "Votre session a pris fin. Reconnectez-vous.",
   },
+  shipments: {},
   contacts: {
     add: "Ajouter un contact",
     rowActions: "Actions pour {{name}}",
@@ -147,6 +149,7 @@ const fr: AdminResources = {
       supportEmptyBody: "Les conversations des clients apparaissent ici dès qu'un client écrit.",
     },
   },
+  shipment: {},
   profile: {
     accountTitle: "Compte",
     accountDescription: "Demandez à un administrateur de modifier votre nom, votre rôle ou votre agence.",
@@ -272,6 +275,10 @@ const fr: AdminResources = {
       updated: "{{name}} a été mise à jour",
       error: "Échec de l'enregistrement. Réessayez.",
     },
+  },
+  route: {
+    label: "{{origin}} vers {{destination}}",
+    unknown: "Trajet pas encore défini",
   },
 };
 

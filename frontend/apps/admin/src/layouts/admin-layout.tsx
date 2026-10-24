@@ -52,7 +52,7 @@ export function AdminLayout() {
   const { t } = useTranslation(["common", "app"]);
   const { withBranch } = useBranchFilter();
   const { user } = useStaffSession();
-  const { isAdmin } = useStaffAccess();
+  const { isAdmin, can } = useStaffAccess();
   const signOut = useStaffLogout();
   // Requests waiting for an answer, as a count on the Contacts nav item.
   const contacts = useContacts();
@@ -61,9 +61,10 @@ export function AdminLayout() {
   const nav: NavGroup[] = [
     {
       label: t("app:groups.operations"),
+      // Shipments need "shipments:read:all" (admin, support); everything else here is for every role.
       items: [
         { to: withBranch("/"), label: t("nav.dashboard"), icon: LayoutGrid, end: true },
-        { to: withBranch("/shipments"), label: t("nav.shipments"), icon: Package },
+        ...(can("shipments:read:all") ? [{ to: withBranch("/shipments"), label: t("nav.shipments"), icon: Package }] : []),
         { to: withBranch("/messages"), label: t("nav.chat"), icon: MessageSquare },
         {
           to: withBranch("/contacts"),

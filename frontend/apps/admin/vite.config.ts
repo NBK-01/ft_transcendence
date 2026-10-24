@@ -28,5 +28,16 @@ export default defineConfig(({ mode }) => {
       },
     },
     preview: { port: 4174, strictPort: true },
+    build: {
+      rolldownOptions: {
+        output: {
+          // React and the router in a chunk of their own: they change less often than the app, and the
+          // main file stays under Vite's 500 kB warning (Rolldown's own grouping put it just over).
+          codeSplitting: {
+            groups: [{ name: "react", test: /[\\/]node_modules[\\/](react|react-dom|react-router|scheduler)[\\/]/ }],
+          },
+        },
+      },
+    },
   };
 });

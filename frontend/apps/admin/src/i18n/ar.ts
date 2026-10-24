@@ -16,6 +16,7 @@ const ar: AdminResources = {
     apiKeys: "مفاتيح تتيح للأنظمة الشريكة استخدام الواجهة البرمجية العامة.",
     profile: "بيانات حسابك.",
   },
+  overview: {},
   noAccess: {
     title: "ليس لديك صلاحية الوصول إلى هذه الصفحة",
     body: "دورك لا يشملها. اطلب ذلك من أحد المسؤولين إذا كنت بحاجة إليها.",
@@ -27,6 +28,7 @@ const ar: AdminResources = {
     error: "تعذّر تسجيل الدخول. حاول مرة أخرى.",
     expired: "انتهت جلستك. سجّل الدخول مرة أخرى.",
   },
+  shipments: {},
   contacts: {
     add: "إضافة جهة اتصال",
     rowActions: "إجراءات {{name}}",
@@ -147,6 +149,7 @@ const ar: AdminResources = {
       supportEmptyBody: "تظهر محادثات العملاء هنا بمجرد أن يكتب أحدهم.",
     },
   },
+  shipment: {},
   profile: {
     accountTitle: "الحساب",
     accountDescription: "اطلب من أحد المسؤولين تغيير اسمك أو دورك أو فرعك.",
@@ -272,6 +275,10 @@ const ar: AdminResources = {
       updated: "تم تحديث {{name}}",
       error: "تعذّر الحفظ. حاول مرة أخرى.",
     },
+  },
+  route: {
+    label: "من {{origin}} إلى {{destination}}",
+    unknown: "لم يُحدَّد المسار بعد",
   },
 };
 

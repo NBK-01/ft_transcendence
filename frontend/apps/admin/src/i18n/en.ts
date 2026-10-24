@@ -15,6 +15,7 @@ const en = {
     apiKeys: "Keys that let partner systems use the public API.",
     profile: "Your account details.",
   },
+  overview: {},
   noAccess: {
     title: "You don't have access to this page",
     body: "Your role doesn't include it. Ask an administrator if you need it.",
@@ -26,6 +27,7 @@ const en = {
     error: "Couldn't sign in. Try again.",
     expired: "Your session has ended. Sign in again.",
   },
+  shipments: {},
   contacts: {
     add: "Add contact",
     rowActions: "Actions for {{name}}",
@@ -146,6 +148,7 @@ const en = {
       supportEmptyBody: "Customer conversations appear here as soon as a customer writes.",
     },
   },
+  shipment: {},
   profile: {
     accountTitle: "Account",
     accountDescription: "Ask an administrator to change your name, role or branch.",
@@ -271,6 +274,10 @@ const en = {
       updated: "{{name}} was updated",
       error: "Couldn't save. Try again.",
     },
+  },
+  route: {
+    label: "{{origin}} to {{destination}}",
+    unknown: "Route not set yet",
   },
 };
 
