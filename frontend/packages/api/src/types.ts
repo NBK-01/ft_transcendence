@@ -230,3 +230,188 @@ export type UpdateOrganizationInput = Partial<{
   contactEmail: string | null;
   isActive: boolean;
 }>;
+
+/**
+ * Everything a shipment's `status` can be (backend ShipmentState): four order
+ * stages, then the tracking statuses. Nothing sets "requested" today; it's kept
+ * for parity. Same strings as ShipmentState in packages/ui/src/blocks/shipment-state.tsx,
+ * written out again because packages/api doesn't depend on packages/ui. Keep the three in sync.
+ */
+export type ShipmentState =
+  | "pending_sourcing"
+  | "pending_client_decision"
+  | "pending_payment"
+  | "pending_payment_confirmation"
+  | "requested"
+  | "confirmed"
+  | "in_transit"
+  | "out_for_delivery"
+  | "delivered"
+  | "cancelled";
+
+/** An amount of money (backend MoneyDto). */
+export type Money = {
+  amount: number;
+  /** ISO 4217, e.g. "EUR". */
+  currency: string;
+};
+
+/** A stored image (backend ImageRefDto). `url` is signed and expires after an hour: refetch rather than keep it. */
+export type ImageRef = {
+  id: string;
+  url: string;
+  name: string;
+};
+
+/** A sender or recipient (backend AddressDto): in the shipment detail, and in the payment confirmation body. */
+export type Address = {
+  name: string;
+  street: string;
+  city: string;
+  postalCode?: string;
+  /** ISO 3166-1 alpha-2, e.g. "FR". */
+  country: string;
+  phone?: string;
+};
+
+/** A row of a shipments list (backend ShipmentDto). */
+export type Shipment = {
+  /** e.g. "TRK-4A6F90". Always upper case; the API matches it case-insensitively. */
+  trackingId: string;
+  /** Origin and destination cities: null until the payment is confirmed and the route set. */
+  origin: string | null;
+  destination: string | null;
+  status: ShipmentState;
+  updatedAt: string;
+};
+
+/** What the client asked for: a product link or photos, never both (backend ShipmentRequestDto). */
+export type ShipmentRequest = {
+  productUrl: string | null;
+  images: ImageRef[];
+};
+
+/** The supplier offer the client decides on (backend SupplierOfferDto). Rejected offers aren't returned. */
+export type SupplierOffer = {
+  supplierName: string;
+  /** Price of one unit. */
+  unitPrice: Money;
+  images: ImageRef[];
+  note: string | null;
+  offeredAt: string;
+};
+
+/** What the client paid at checkout (backend PaymentSummaryDto). Never more of the card than its last 4 digits. */
+export type PaymentSummary = {
+  quantity: number;
+  total: Money;
+  cardLast4: string;
+  submittedAt: string;
+};
+
+/** One shipment with everything its page shows (backend ShipmentDetailDto). */
+export type ShipmentDetail = Shipment & {
+  request: ShipmentRequest;
+  /** The newest offer not rejected: present from pending_client_decision on. */
+  offer: SupplierOffer | null;
+  /** Present from pending_payment_confirmation on. */
+  payment: PaymentSummary | null;
+  /** Sender, recipient and weight are set when the payment is confirmed; null until then. */
+  sender: Address | null;
+  recipient: Address | null;
+  weightKg: number | null;
+  /** The payment's total, once the order is live (LIVE_STATES, cancelled included); otherwise null. */
+  declaredValue: Money | null;
+};
+
+/** The client who ordered a shipment (backend ShipmentClientDto). */
+export type ShipmentClient = {
+  id: string;
+  name: string;
+  email: string;
+};
+
+/** A row of GET /admin/shipments (backend AdminShipmentDto): who ordered it and when. */
+export type AdminShipment = Shipment & {
+  client: ShipmentClient;
+  createdAt: string;
+};
+
+/** GET /admin/shipments/:trackingId (backend AdminShipmentDetailDto); also what every admin status change returns. */
+export type AdminShipmentDetail = ShipmentDetail & {
+  client: ShipmentClient;
+  createdAt: string;
+};
+
+/** One step of a shipment's timeline (backend ShipmentEventDto). The API lists them newest first. */
+export type ShipmentEvent = {
+  status: ShipmentState;
+  /** Where it happened, or a short note, e.g. "Lyon hub" or "Offer approved". */
+  location: string;
+  occurredAt: string;
+};
+
+/** What a Files-tab attachment is (backend AttachmentKind). Request and offer photos come as ImageRefs instead. */
+export type AttachmentKind = "package_photo" | "proof_of_delivery" | "other";
+
+/** A Files-tab attachment (backend ShipmentFileDto). The API lists them newest first. */
+export type ShipmentFile = {
+  id: string;
+  /** The original file name. */
+  name: string;
+  kind: AttachmentKind;
+  mimeType: string;
+  sizeBytes: number;
+  uploadedAt: string;
+  /** Signed, valid for an hour. */
+  url: string;
+};
+
+/** GET /admin/shipments query (backend ListShipmentsQueryDto). */
+export type AdminShipmentFilters = {
+  /** Part of a tracking ID, any case (up to 50 characters). */
+  q?: string;
+  status?: ShipmentState;
+  page?: number;
+  /** 1–100, 20 by default. */
+  limit?: number;
+};
+
+/** POST /admin/shipments/:trackingId/offer, sent as multipart (backend CreateOfferDto). */
+export type CreateShipmentOfferInput = {
+  supplierName: string;
+  /** Price of one unit, up to 2 decimals. */
+  unitPrice: number;
+  /** ISO 4217, e.g. "USD". */
+  currency: string;
+  note?: string;
+  /** Up to 5 supplier photos (JPEG, PNG, WebP or GIF, 10 MB each). */
+  images?: File[];
+};
+
+/** POST /admin/shipments/:trackingId/payment/confirm body (backend ConfirmPaymentDto): the route the order goes live with. */
+export type ConfirmShipmentPaymentInput = {
+  /** Usually the supplier. */
+  sender: Address;
+  /** Usually the client. */
+  recipient: Address;
+  /** 0.01–100,000, up to 2 decimals. */
+  weightKg: number;
+};
+
+/** The statuses a tracking event can move a shipment to (backend CreateEventDto). */
+export type TrackingEventStatus = "in_transit" | "out_for_delivery" | "delivered" | "cancelled";
+
+/** POST /admin/shipments/:trackingId/events body: a tracking update, or a cancellation. */
+export type AddShipmentEventInput = {
+  status: TrackingEventStatus;
+  /** Where it happened, or why (up to 200 characters), e.g. "Lyon hub". */
+  location: string;
+};
+
+/** POST /admin/shipments/:trackingId/files, sent as multipart (backend UploadFileDto + the `file` part). */
+export type UploadShipmentFileInput = {
+  kind: AttachmentKind;
+  /** An image or a PDF, up to 10 MB. */
+  file: File;
+};

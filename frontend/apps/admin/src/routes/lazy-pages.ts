@@ -7,6 +7,9 @@ import { lazy } from "react";
  * current one stays up (navigations are transitions); on a first visit
  * AdminLayout shows a skeleton.
  */
+export const OverviewPage = lazy(() => import("./overview").then((m) => ({ default: m.OverviewPage })));
+export const ShipmentsPage = lazy(() => import("./shipments").then((m) => ({ default: m.ShipmentsPage })));
+export const ShipmentDetailPage = lazy(() => import("./shipment-detail").then((m) => ({ default: m.ShipmentDetailPage })));
 export const UsersPage = lazy(() => import("./users").then((m) => ({ default: m.UsersPage })));
 export const BranchesPage = lazy(() => import("./branches").then((m) => ({ default: m.BranchesPage })));
 export const BranchDetailPage = lazy(() => import("./branch-detail").then((m) => ({ default: m.BranchDetailPage })));

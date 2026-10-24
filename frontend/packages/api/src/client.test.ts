@@ -49,6 +49,10 @@ function countRefreshes() {
   return () => count;
 }
 
+/** A fresh customer session. The mock revokes a refresh token once used, so no test can count on another's. */
+const customerSession = () =>
+  api.post<AuthResponse>("/auth/login", { email: "amina@example.com", password: "secret" }, { auth: false });
+
 describe("api client", () => {
   it("sends the Bearer token and Accept-Language", async () => {
     let seen: Headers | undefined;
@@ -67,7 +71,8 @@ describe("api client", () => {
   });
 
   it("after a reload (no access token), refreshes first instead of sending a doomed request", async () => {
-    localStorage.setItem("trans-refresh-token", "mock-refresh-1");
+    const { refreshToken } = await customerSession();
+    localStorage.setItem("trans-refresh-token", refreshToken);
     const refreshes = countRefreshes();
 
     const me = await api.get<User>("/auth/me");
@@ -77,7 +82,8 @@ describe("api client", () => {
   });
 
   it("on concurrent 401s, refreshes once and retries every request", async () => {
-    tokens.set({ accessToken: "stale-token", refreshToken: "mock-refresh-1" });
+    const { refreshToken } = await customerSession();
+    tokens.set({ accessToken: "stale-token", refreshToken });
     const refreshes = countRefreshes();
 
     const results = await Promise.all([api.get<User>("/auth/me"), api.get<User>("/auth/me"), api.get<User>("/auth/me")]);

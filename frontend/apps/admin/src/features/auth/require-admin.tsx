@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 
-import { useStaffAccess } from "@trans/api";
+import { useStaffAccess, type Permission } from "@trans/api";
 import { EmptyState } from "@trans/ui/blocks/empty-state";
 import { Button } from "@trans/ui/components/button";
 
@@ -17,6 +17,16 @@ import { useBranchFilter } from "../branches/use-branch-filter";
 export function RequireAdmin({ children }: { children: ReactNode }) {
   const { isAdmin } = useStaffAccess();
   return isAdmin ? children : <NoAccess />;
+}
+
+/**
+ * For pages whose endpoints need one permission, e.g. the shipments pages
+ * ("shipments:read:all": admin and support). Other roles see "no access", as
+ * with RequireAdmin.
+ */
+export function RequirePermission({ permission, children }: { permission: Permission; children: ReactNode }) {
+  const { can } = useStaffAccess();
+  return can(permission) ? children : <NoAccess />;
 }
 
 /** In place of a page the signed-in role can't use. */

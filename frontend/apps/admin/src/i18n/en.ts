@@ -7,7 +7,7 @@ const en = {
   },
   pages: {
     dashboard: "Live view of shipments, branches and staff.",
-    shipments: "Every shipment across the branches you can access.",
+    shipments: "Every customer's shipments, most recently updated first.",
     messages: "Conversations between staff and customers.",
     users: "Staff accounts: roles, branches and who can sign in.",
     branches: "Your branches, who works in each and how to reach them.",
@@ -15,6 +15,7 @@ const en = {
     apiKeys: "Keys that let partner systems use the public API.",
     profile: "Your account details.",
   },
+  overview: {},
   noAccess: {
     title: "You don't have access to this page",
     body: "Your role doesn't include it. Ask an administrator if you need it.",
@@ -25,6 +26,22 @@ const en = {
     inactive: "This account is deactivated. Ask an administrator to reactivate it.",
     error: "Couldn't sign in. Try again.",
     expired: "Your session has ended. Sign in again.",
+  },
+  shipments: {
+    list: {
+      columns: {
+        trackingId: "Tracking ID",
+        customer: "Customer",
+        route: "Route",
+        status: "Status",
+        created: "Created",
+        updatedAt: "Last update",
+      },
+      search: "Search tracking ID…",
+      allBranches: "Shipments aren't linked to a branch yet, so this list shows every branch's shipments.",
+      emptyTitle: "No shipments yet",
+      emptyBody: "Customers' orders appear here as soon as they're placed.",
+    },
   },
   contacts: {
     add: "Add contact",
@@ -146,6 +163,7 @@ const en = {
       supportEmptyBody: "Customer conversations appear here as soon as a customer writes.",
     },
   },
+  shipment: {},
   profile: {
     accountTitle: "Account",
     accountDescription: "Ask an administrator to change your name, role or branch.",
@@ -271,6 +289,10 @@ const en = {
       updated: "{{name}} was updated",
       error: "Couldn't save. Try again.",
     },
+  },
+  route: {
+    label: "{{origin}} to {{destination}}",
+    unknown: "Route not set yet",
   },
 };
 

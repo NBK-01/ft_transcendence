@@ -2,6 +2,7 @@ import { authHandlers } from "./auth";
 import { chatHandlers } from "./chat";
 import { contactHandlers } from "./contacts";
 import { organizationHandlers } from "./organizations";
+import { shipmentHandlers } from "./shipments";
 import { staffHandlers } from "./staff";
 import { requireStaffAccess, staffAuthHandlers } from "./staff-auth";
 
@@ -24,4 +25,5 @@ export const handlers = [
   ...organizationHandlers,
   ...contactHandlers,
   ...chatHandlers,
+  ...shipmentHandlers,
 ];

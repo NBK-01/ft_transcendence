@@ -8,7 +8,7 @@ const fr: AdminResources = {
   },
   pages: {
     dashboard: "Vue en direct des expéditions, agences et équipes.",
-    shipments: "Toutes les expéditions des agences auxquelles vous avez accès.",
+    shipments: "Les expéditions de tous les clients, les plus récemment mises à jour en premier.",
     messages: "Conversations entre le personnel et les clients.",
     users: "Comptes du personnel : rôles, agences et accès.",
     branches: "Vos agences, qui y travaille et comment les joindre.",
@@ -16,6 +16,7 @@ const fr: AdminResources = {
     apiKeys: "Clés permettant aux systèmes partenaires d'utiliser l'API publique.",
     profile: "Les informations de votre compte.",
   },
+  overview: {},
   noAccess: {
     title: "Vous n'avez pas accès à cette page",
     body: "Votre rôle ne l'inclut pas. Demandez à un administrateur si vous en avez besoin.",
@@ -26,6 +27,22 @@ const fr: AdminResources = {
     inactive: "Ce compte est désactivé. Demandez à un administrateur de le réactiver.",
     error: "Connexion impossible. Réessayez.",
     expired: "Votre session a pris fin. Reconnectez-vous.",
+  },
+  shipments: {
+    list: {
+      columns: {
+        trackingId: "N° de suivi",
+        customer: "Client",
+        route: "Trajet",
+        status: "Statut",
+        created: "Créée le",
+        updatedAt: "Dernière mise à jour",
+      },
+      search: "Rechercher un n° de suivi…",
+      allBranches: "Les expéditions ne sont pas encore rattachées à une agence : cette liste montre celles de toutes les agences.",
+      emptyTitle: "Aucune expédition pour l'instant",
+      emptyBody: "Les commandes des clients apparaissent ici dès qu'elles sont passées.",
+    },
   },
   contacts: {
     add: "Ajouter un contact",
@@ -147,6 +164,7 @@ const fr: AdminResources = {
       supportEmptyBody: "Les conversations des clients apparaissent ici dès qu'un client écrit.",
     },
   },
+  shipment: {},
   profile: {
     accountTitle: "Compte",
     accountDescription: "Demandez à un administrateur de modifier votre nom, votre rôle ou votre agence.",
@@ -272,6 +290,10 @@ const fr: AdminResources = {
       updated: "{{name}} a été mise à jour",
       error: "Échec de l'enregistrement. Réessayez.",
     },
+  },
+  route: {
+    label: "{{origin}} vers {{destination}}",
+    unknown: "Trajet pas encore défini",
   },
 };
 

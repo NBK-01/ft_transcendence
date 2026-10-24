@@ -6,8 +6,6 @@ import { PlaceholderPage } from "@trans/ui/blocks/placeholder-page";
 import { useBranchFilter } from "../features/branches/use-branch-filter";
 
 const TITLE_KEY = {
-  dashboard: "nav.dashboard",
-  shipments: "nav.shipments",
   apiKeys: "nav.apiKeys",
 } as const;
 
