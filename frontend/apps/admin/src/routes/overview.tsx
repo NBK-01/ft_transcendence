@@ -1,20 +1,33 @@
-import { LayoutGrid } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { PlaceholderPage } from "@trans/ui/blocks/placeholder-page";
+import { useStaffSession } from "@trans/api";
+import { PageHeader } from "@trans/ui/blocks/page-header";
 
-import { useBranchFilter } from "../features/branches/use-branch-filter";
+import { TeamCards } from "../features/overview/team-cards";
 
-/** /: the overview, for every role. A placeholder until the page is built. */
+/**
+ * /: the overview, the home page for every role. Each section and card shows
+ * only for the roles that can load it. The shipments section (admin and
+ * support) goes above the team row.
+ */
 export function OverviewPage() {
   const { t } = useTranslation(["common", "app"]);
-  const { withBranch } = useBranchFilter();
+  const { user } = useStaffSession();
+
   return (
-    <PlaceholderPage
-      title={t("nav.dashboard")}
-      description={t("app:pages.dashboard")}
-      icon={LayoutGrid}
-      homeHref={withBranch("/")}
-    />
+    <div className="flex flex-col gap-8">
+      <title>{`${t("nav.dashboard")} · ${t("brand.name")}`}</title>
+      <PageHeader
+        title={user ? t(`app:overview.greeting.${partOfDay(new Date())}`, { name: user.name }) : t("nav.dashboard")}
+        description={t("app:overview.description")}
+      />
+      <TeamCards />
+    </div>
   );
+}
+
+/** By the browser's clock; after midnight still counts as evening. */
+function partOfDay(now: Date) {
+  const hour = now.getHours();
+  return hour >= 5 && hour < 12 ? "morning" : hour >= 12 && hour < 18 ? "afternoon" : "evening";
 }

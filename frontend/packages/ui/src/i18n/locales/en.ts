@@ -160,6 +160,7 @@ const en = {
   },
   stat: {
     vsPrevious: "vs previous period",
+    error: "Couldn't load",
   },
   notFound: {
     title: "Page not found",

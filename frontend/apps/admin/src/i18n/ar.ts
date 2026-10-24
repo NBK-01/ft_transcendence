@@ -16,7 +16,27 @@ const ar: AdminResources = {
     apiKeys: "مفاتيح تتيح للأنظمة الشريكة استخدام الواجهة البرمجية العامة.",
     profile: "بيانات حسابك.",
   },
-  overview: {},
+  overview: {
+    greeting: {
+      morning: "صباح الخير، {{name}}",
+      afternoon: "مساء الخير، {{name}}",
+      evening: "مساء الخير، {{name}}",
+    },
+    description: "ما ينتظرك، وأين وصلت الأمور.",
+    allBranches: "في كل الفروع",
+    inBranch: "في {{branch}}",
+    team: {
+      title: "الفريق والرسائل",
+      staff: "الموظفون النشطون",
+      branches: "الفروع النشطة",
+      deactivated: "المعطّلة: {{count}}",
+      noneDeactivated: "لا يوجد فرع معطّل",
+      requests: "طلبات التواصل",
+      requestsWaiting: "بانتظار ردّك",
+      requestsNone: "لا شيء بانتظارك",
+      support: "محادثات الدعم",
+    },
+  },
   noAccess: {
     title: "ليس لديك صلاحية الوصول إلى هذه الصفحة",
     body: "دورك لا يشملها. اطلب ذلك من أحد المسؤولين إذا كنت بحاجة إليها.",

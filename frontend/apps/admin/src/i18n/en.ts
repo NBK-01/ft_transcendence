@@ -15,7 +15,27 @@ const en = {
     apiKeys: "Keys that let partner systems use the public API.",
     profile: "Your account details.",
   },
-  overview: {},
+  overview: {
+    greeting: {
+      morning: "Good morning, {{name}}",
+      afternoon: "Good afternoon, {{name}}",
+      evening: "Good evening, {{name}}",
+    },
+    description: "What's waiting for you, and where things stand.",
+    allBranches: "Across all branches",
+    inBranch: "In {{branch}}",
+    team: {
+      title: "Team and inbox",
+      staff: "Active staff",
+      branches: "Active branches",
+      deactivated: "Deactivated: {{count}}",
+      noneDeactivated: "None deactivated",
+      requests: "Contact requests",
+      requestsWaiting: "Waiting for your answer",
+      requestsNone: "Nothing waiting",
+      support: "Support conversations",
+    },
+  },
   noAccess: {
     title: "You don't have access to this page",
     body: "Your role doesn't include it. Ask an administrator if you need it.",

@@ -1,7 +1,9 @@
-import { Minus, TrendingDown, TrendingUp, type LucideIcon } from "lucide-react";
+import { CircleAlert, Minus, TrendingDown, TrendingUp, type LucideIcon } from "lucide-react";
+import { useId, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Badge } from "@trans/ui/components/badge";
+import { Button } from "@trans/ui/components/button";
 import { Card } from "@trans/ui/components/card";
 import { Skeleton } from "@trans/ui/components/skeleton";
 import { cn } from "@trans/ui/lib/utils";
@@ -22,12 +24,17 @@ export type StatCardProps = {
   changeLabel?: string;
   /** Set to false when an increase is bad (e.g. cancellations), so it shows red. */
   positiveIsGood?: boolean;
+  /** A short line under the number: what it covers (e.g. "In Amman Central") or a breakdown. */
+  description?: ReactNode;
   icon?: LucideIcon;
   isLoading?: boolean;
+  /** Set when the number couldn't load: the card says so, with a retry button if `onRetry` is given. */
+  error?: unknown;
+  onRetry?: () => void;
   className?: string;
 };
 
-/** A label, one big number in tabular figures, and the change since last period. */
+/** A label, one big number in tabular figures, then the change since last period and/or a short description. */
 export function StatCard({
   label,
   value,
@@ -35,19 +42,25 @@ export function StatCard({
   change,
   changeLabel,
   positiveIsGood = true,
+  description,
   icon: Icon,
   isLoading = false,
+  error,
+  onRetry,
   className,
 }: StatCardProps) {
   const { t, i18n } = useTranslation("common");
   const locale = numberLocale(i18n.resolvedLanguage ?? "en");
+  const labelId = useId();
 
   const formatted = typeof value === "number" ? new Intl.NumberFormat(locale, format).format(value) : value;
 
   return (
     <Card className={cn("gap-3 p-5", className)} aria-busy={isLoading || undefined}>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-label-14 text-gray-900">{label}</p>
+        <p id={labelId} className="text-label-14 text-gray-900">
+          {label}
+        </p>
         {Icon && <Icon className="size-4 shrink-0 text-gray-700" aria-hidden="true" />}
       </div>
 
@@ -55,7 +68,21 @@ export function StatCard({
         <>
           <Skeleton className="h-10 w-28" />
           {change !== undefined && <Skeleton className="h-5 w-36" />}
+          {description && <Skeleton className="h-5 w-32" />}
         </>
+      ) : error ? (
+        <div role="alert" className="flex min-h-10 flex-wrap items-center gap-x-3 gap-y-2">
+          <p className="flex items-center gap-1.5 text-copy-14 text-gray-900">
+            <CircleAlert className="size-4 shrink-0 text-red-700" aria-hidden="true" />
+            {t("stat.error")}
+          </p>
+          {onRetry && (
+            // Several cards can fail at once: the label says which one this retries.
+            <Button variant="secondary" size="sm" aria-describedby={labelId} onClick={onRetry}>
+              {t("table.retry")}
+            </Button>
+          )}
+        </div>
       ) : (
         <>
           <p className="text-heading-32 tabular-nums">{formatted ?? "—"}</p>
@@ -67,6 +94,7 @@ export function StatCard({
               label={changeLabel ?? t("stat.vsPrevious")}
             />
           )}
+          {description && <div className="text-copy-13 text-gray-900">{description}</div>}
         </>
       )}
     </Card>

@@ -16,7 +16,27 @@ const fr: AdminResources = {
     apiKeys: "Clés permettant aux systèmes partenaires d'utiliser l'API publique.",
     profile: "Les informations de votre compte.",
   },
-  overview: {},
+  overview: {
+    greeting: {
+      morning: "Bonjour, {{name}}",
+      afternoon: "Bon après-midi, {{name}}",
+      evening: "Bonsoir, {{name}}",
+    },
+    description: "Ce qui vous attend, et où en sont les choses.",
+    allBranches: "Toutes agences confondues",
+    inBranch: "Agence : {{branch}}",
+    team: {
+      title: "Équipe et messagerie",
+      staff: "Personnel actif",
+      branches: "Agences actives",
+      deactivated: "Désactivées : {{count}}",
+      noneDeactivated: "Aucune désactivée",
+      requests: "Demandes de contact",
+      requestsWaiting: "En attente de votre réponse",
+      requestsNone: "Rien en attente",
+      support: "Conversations de support",
+    },
+  },
   noAccess: {
     title: "Vous n'avez pas accès à cette page",
     body: "Votre rôle ne l'inclut pas. Demandez à un administrateur si vous en avez besoin.",
