@@ -1,52 +1,74 @@
-import { BadgeCheck, CreditCard, Hourglass, Search, Truck, type LucideIcon } from "lucide-react";
+import {
+  BadgeCheck,
+  CreditCard,
+  Hourglass,
+  PackageCheck,
+  PackageX,
+  Search,
+  Truck,
+  type LucideIcon,
+} from "lucide-react";
 import { useMemo, useRef, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useStaffAccess, type AdminShipmentDetail, type ShipmentState } from "@trans/api";
+import { trackingMovesFrom, useStaffAccess, type AdminShipmentDetail, type ShipmentState } from "@trans/api";
+import { WAITING_ON_ADMIN } from "@trans/ui/blocks/shipment-state";
 import { Button } from "@trans/ui/components/button";
 import { Card } from "@trans/ui/components/card";
 import { useReturnFocus } from "@trans/ui/hooks/use-return-focus";
 import { cn } from "@trans/ui/lib/utils";
 
+import { CancelShipmentDialog } from "./cancel-shipment-dialog";
 import { ConfirmPaymentDialog } from "./confirm-payment-dialog";
 import { SendOfferDialog } from "./send-offer-dialog";
+import { TrackingUpdateDialog } from "./tracking-update-dialog";
 
-type Action = "offer" | "payment";
+/** The step's own move. Cancelling is offered on top, in every status that isn't final. */
+type StepAction = "offer" | "payment" | "tracking";
+type OpenDialog = StepAction | "cancel";
 
 type Step = {
   icon: LucideIcon;
   /** Key under app:shipment.next. */
   key: string;
   /** What the staff member does here, if their role may; otherwise who it's waiting on. */
-  action?: Action;
+  action?: StepAction;
 };
 
-/** What happens next, per status. Delivered and cancelled shipments have nothing next. */
+const ACTION_LABEL: Record<StepAction, string> = {
+  offer: "shipment.next.sendOffer",
+  payment: "shipment.next.confirmPayment",
+  tracking: "shipment.next.addUpdate",
+};
+
+/** What happens next, per status. Delivered and cancelled say there's nothing left. */
 const STEPS: Partial<Record<ShipmentState, Step>> = {
   pending_sourcing: { icon: Search, key: "sourcing", action: "offer" },
   pending_client_decision: { icon: Hourglass, key: "decision" },
   pending_payment: { icon: CreditCard, key: "payment" },
   pending_payment_confirmation: { icon: BadgeCheck, key: "confirm", action: "payment" },
-  confirmed: { icon: Truck, key: "live" },
-  in_transit: { icon: Truck, key: "live" },
-  out_for_delivery: { icon: Truck, key: "live" },
+  confirmed: { icon: Truck, key: "live", action: "tracking" },
+  in_transit: { icon: Truck, key: "live", action: "tracking" },
+  out_for_delivery: { icon: Truck, key: "live", action: "tracking" },
+  delivered: { icon: PackageCheck, key: "delivered" },
+  cancelled: { icon: PackageX, key: "cancelled" },
 };
 
 /**
- * Under the header: where the shipment stands and the one thing to do now.
- * Only roles with "shipments:update:org" get the action (of the roles that can
- * open this page, the admin); support reads who it's waiting on instead.
+ * Under the header: where the shipment stands and what to do now. Only roles
+ * with "shipments:update:org" get the actions (of the roles that can open this
+ * page, the admin); support reads who it's waiting on instead.
  */
 export function NextStep({ shipment }: { shipment: AdminShipmentDetail }) {
   const { t } = useTranslation("app");
   const canAct = useStaffAccess().can("shipments:update:org");
-  const [dialog, setDialog] = useState<Action | null>(null);
+  const [dialog, setDialog] = useState<OpenDialog | null>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const { ref: openerRef, remember: rememberOpener } = useReturnFocus();
 
   // Focus goes back to the button that opened the dialog. After a change went
-  // through, the status has moved on and that button is gone: focus goes to
-  // this step's title instead, which now says what's next.
+  // through, the status may have moved on and that button be gone: focus goes
+  // to this step's title instead, which now says what's next.
   const returnFocusTo = useMemo<RefObject<HTMLElement | null>>(
     () => ({
       get current() {
@@ -62,6 +84,7 @@ export function NextStep({ shipment }: { shipment: AdminShipmentDetail }) {
 
   const step = STEPS[shipment.status];
   const action = canAct ? step?.action : undefined;
+  const canCancel = canAct && trackingMovesFrom(shipment.status).includes("cancelled");
 
   return (
     <>
@@ -69,8 +92,8 @@ export function NextStep({ shipment }: { shipment: AdminShipmentDetail }) {
         <Card
           className={cn(
             "flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between",
-            // The staff member's turn: tinted, like the client app's panel on the customer's turn.
-            action && "border-blue-700/40 bg-blue-100/40",
+            // Waiting on staff, and this one can act: tinted, like the client's panel on their turn.
+            canAct && WAITING_ON_ADMIN.has(shipment.status) && "border-blue-700/40 bg-blue-100/40",
           )}
         >
           <div className="flex min-w-0 items-start gap-3">
@@ -88,10 +111,19 @@ export function NextStep({ shipment }: { shipment: AdminShipmentDetail }) {
               </p>
             </div>
           </div>
-          {action && (
-            <Button className="w-fit shrink-0" onFocus={rememberOpener} onClick={() => setDialog(action)}>
-              {t(action === "offer" ? "shipment.next.sendOffer" : "shipment.next.confirmPayment")}
-            </Button>
+          {(action || canCancel) && (
+            <div className="flex shrink-0 flex-wrap gap-2">
+              {action && (
+                <Button onFocus={rememberOpener} onClick={() => setDialog(action)}>
+                  {t(ACTION_LABEL[action])}
+                </Button>
+              )}
+              {canCancel && (
+                <Button variant="secondary" onFocus={rememberOpener} onClick={() => setDialog("cancel")}>
+                  {t("shipment.next.cancel")}
+                </Button>
+              )}
+            </div>
           )}
         </Card>
       )}
@@ -109,6 +141,18 @@ export function NextStep({ shipment }: { shipment: AdminShipmentDetail }) {
           />
           <ConfirmPaymentDialog
             open={dialog === "payment"}
+            onOpenChange={onOpenChange}
+            shipment={shipment}
+            returnFocusTo={returnFocusTo}
+          />
+          <TrackingUpdateDialog
+            open={dialog === "tracking"}
+            onOpenChange={onOpenChange}
+            shipment={shipment}
+            returnFocusTo={returnFocusTo}
+          />
+          <CancelShipmentDialog
+            open={dialog === "cancel"}
             onOpenChange={onOpenChange}
             shipment={shipment}
             returnFocusTo={returnFocusTo}

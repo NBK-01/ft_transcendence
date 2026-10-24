@@ -1,10 +1,14 @@
-import { FileCheck2, FileImage, FileText, type LucideIcon } from "lucide-react";
+import { FileCheck2, FileImage, FileText, Upload, type LucideIcon } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useAdminShipmentFiles, type AttachmentKind } from "@trans/api";
+import { useAdminShipmentFiles, useStaffAccess, type AttachmentKind } from "@trans/api";
+import { Button } from "@trans/ui/components/button";
 import { Skeleton } from "@trans/ui/components/skeleton";
+import { useReturnFocus } from "@trans/ui/hooks/use-return-focus";
 
 import { DetailSection, NewTabLink, SectionError } from "./detail-parts";
+import { UploadFileDialog } from "./upload-file-dialog";
 import { useDetailFormat } from "./use-detail-format";
 
 const ICON: Record<AttachmentKind, LucideIcon> = {
@@ -16,15 +20,34 @@ const ICON: Record<AttachmentKind, LucideIcon> = {
 /**
  * Package photos, proof of delivery and other attachments, newest first, each
  * opened in a new tab. Request and offer photos aren't here: the API lists
- * them with the request and the offer.
+ * them with the request and the offer. Roles with "shipments:update:org" can
+ * add one, in any status.
  */
 export function FilesSection({ trackingId }: { trackingId: string }) {
   const { t } = useTranslation("app");
   const format = useDetailFormat();
   const files = useAdminShipmentFiles(trackingId);
+  const canUpload = useStaffAccess().can("shipments:update:org");
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const { ref: returnFocusRef, remember: rememberOpener } = useReturnFocus();
 
   return (
-    <DetailSection title={t("shipment.files.title")}>
+    <DetailSection
+      title={t("shipment.files.title")}
+      action={
+        canUpload && (
+          <Button
+            variant="secondary"
+            size="sm"
+            prefix={<Upload />}
+            onFocus={rememberOpener}
+            onClick={() => setUploadOpen(true)}
+          >
+            {t("shipment.files.upload")}
+          </Button>
+        )
+      }
+    >
       {files.isPending ? (
         <FilesSkeleton />
       ) : files.isError ? (
@@ -57,6 +80,14 @@ export function FilesSection({ trackingId }: { trackingId: string }) {
             );
           })}
         </ul>
+      )}
+      {canUpload && (
+        <UploadFileDialog
+          open={uploadOpen}
+          onOpenChange={setUploadOpen}
+          trackingId={trackingId}
+          returnFocusTo={returnFocusRef}
+        />
       )}
     </DetailSection>
   );

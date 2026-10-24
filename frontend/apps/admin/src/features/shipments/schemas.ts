@@ -1,11 +1,18 @@
 import { z } from "zod";
 
-import { MAX_OFFER_IMAGES, MAX_SHIPMENT_FILE_BYTES, SHIPMENT_IMAGE_TYPES } from "@trans/api";
+import {
+  ATTACHMENT_KINDS,
+  MAX_OFFER_IMAGES,
+  MAX_SHIPMENT_FILE_BYTES,
+  SHIPMENT_FILE_TYPES,
+  SHIPMENT_IMAGE_TYPES,
+  type TrackingEventStatus,
+} from "@trans/api";
 
 /**
  * The forms on the shipment page. Error messages are i18n keys, rendered by
  * <Field>. Limits copy the backend DTOs (CreateOfferDto, ConfirmPaymentDto,
- * AddressDto), which check them again. The inputs also carry `maxLength`, so
+ * AddressDto, CreateEventDto, UploadFileDto), which check them again. The inputs also carry `maxLength`, so
  * "too long" only shows for pasted text that gets past it.
  */
 
@@ -78,3 +85,42 @@ export const paymentSchema = z.object({
 });
 export type PaymentInput = z.input<typeof paymentSchema>;
 export type PaymentValues = z.output<typeof paymentSchema>;
+
+/** The moves a tracking update offers. Cancelling goes through its own dialog. */
+const TRACKING_MOVES = ["in_transit", "out_for_delivery", "delivered"] as const satisfies readonly TrackingEventStatus[];
+export type TrackingMove = (typeof TRACKING_MOVES)[number];
+
+/** POST /admin/shipments/:trackingId/events: a tracking update. `status` is "" until one is picked. */
+export const trackingSchema = z.object({
+  status: z.string().pipe(z.enum(TRACKING_MOVES, { error: "app:shipment.trackingForm.chooseMove" })),
+  location: text(200),
+});
+export type TrackingInput = z.input<typeof trackingSchema>;
+export type TrackingValues = z.output<typeof trackingSchema>;
+
+/**
+ * The same endpoint with status "cancelled". The backend has no reason field:
+ * the reason goes in the event's `location`, which the timeline shows.
+ */
+export const cancelSchema = z.object({ reason: text(200) });
+export type CancelValues = z.output<typeof cancelSchema>;
+
+const isAttachment = (file: File) => (SHIPMENT_FILE_TYPES as readonly string[]).includes(file.type);
+
+/**
+ * POST /admin/shipments/:trackingId/files. `kind` is "" and `file` null until
+ * picked; the file picker already leaves out a file these checks would refuse.
+ */
+export const uploadSchema = z.object({
+  kind: z.string().pipe(z.enum(ATTACHMENT_KINDS, { error: "app:shipment.uploadForm.chooseKind" })),
+  file: z
+    .custom<File | null>((value) => value instanceof File, { error: "app:shipment.uploadForm.chooseFile" })
+    .pipe(
+      z
+        .instanceof(File)
+        .refine(isAttachment, { error: "app:shipment.uploadForm.fileType" })
+        .refine((file) => file.size <= MAX_SHIPMENT_FILE_BYTES, { error: "app:shipment.uploadForm.fileSize" }),
+    ),
+});
+export type UploadInput = z.input<typeof uploadSchema>;
+export type UploadValues = z.output<typeof uploadSchema>;

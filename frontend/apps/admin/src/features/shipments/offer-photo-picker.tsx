@@ -76,7 +76,7 @@ export function OfferPhotoPicker({
         accept={SHIPMENT_IMAGE_TYPES.join(",")}
         multiple
         disabled={full}
-        className="sr-only"
+        className="peer sr-only"
         onChange={(event) => {
           add(event.target.files);
           // Picking the same file again after removing it still fires a change.
@@ -97,8 +97,8 @@ export function OfferPhotoPicker({
           className={cn(
             "flex cursor-pointer flex-col items-center gap-1.5 rounded-lg border border-dashed border-gray-alpha-500",
             "px-4 py-5 text-center transition-colors duration-150 hover:bg-gray-alpha-100",
-            // The input is visually hidden, so its focus ring shows here (same ring as `focus-ring`).
-            "has-[:focus-visible]:shadow-[0_0_0_2px_var(--background-100),0_0_0_4px_var(--orange-800)]",
+            // The input just before (its `peer`) is visually hidden: its focus ring shows here, like `focus-ring`.
+            "peer-focus-visible:shadow-[0_0_0_2px_var(--background-100),0_0_0_4px_var(--orange-800)]",
             dragging && "border-gray-alpha-600 bg-gray-alpha-100",
           )}
         >
