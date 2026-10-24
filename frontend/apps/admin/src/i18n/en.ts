@@ -7,7 +7,7 @@ const en = {
   },
   pages: {
     dashboard: "Live view of shipments, branches and staff.",
-    shipments: "Every shipment across the branches you can access.",
+    shipments: "Every customer's shipments, most recently updated first.",
     messages: "Conversations between staff and customers.",
     users: "Staff accounts: roles, branches and who can sign in.",
     branches: "Your branches, who works in each and how to reach them.",
@@ -27,7 +27,22 @@ const en = {
     error: "Couldn't sign in. Try again.",
     expired: "Your session has ended. Sign in again.",
   },
-  shipments: {},
+  shipments: {
+    list: {
+      columns: {
+        trackingId: "Tracking ID",
+        customer: "Customer",
+        route: "Route",
+        status: "Status",
+        created: "Created",
+        updatedAt: "Last update",
+      },
+      search: "Search tracking ID…",
+      allBranches: "Shipments aren't linked to a branch yet, so this list shows every branch's shipments.",
+      emptyTitle: "No shipments yet",
+      emptyBody: "Customers' orders appear here as soon as they're placed.",
+    },
+  },
   contacts: {
     add: "Add contact",
     rowActions: "Actions for {{name}}",

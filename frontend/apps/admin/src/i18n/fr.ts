@@ -8,7 +8,7 @@ const fr: AdminResources = {
   },
   pages: {
     dashboard: "Vue en direct des expéditions, agences et équipes.",
-    shipments: "Toutes les expéditions des agences auxquelles vous avez accès.",
+    shipments: "Les expéditions de tous les clients, les plus récemment mises à jour en premier.",
     messages: "Conversations entre le personnel et les clients.",
     users: "Comptes du personnel : rôles, agences et accès.",
     branches: "Vos agences, qui y travaille et comment les joindre.",
@@ -28,7 +28,22 @@ const fr: AdminResources = {
     error: "Connexion impossible. Réessayez.",
     expired: "Votre session a pris fin. Reconnectez-vous.",
   },
-  shipments: {},
+  shipments: {
+    list: {
+      columns: {
+        trackingId: "N° de suivi",
+        customer: "Client",
+        route: "Trajet",
+        status: "Statut",
+        created: "Créée le",
+        updatedAt: "Dernière mise à jour",
+      },
+      search: "Rechercher un n° de suivi…",
+      allBranches: "Les expéditions ne sont pas encore rattachées à une agence : cette liste montre celles de toutes les agences.",
+      emptyTitle: "Aucune expédition pour l'instant",
+      emptyBody: "Les commandes des clients apparaissent ici dès qu'elles sont passées.",
+    },
+  },
   contacts: {
     add: "Ajouter un contact",
     rowActions: "Actions pour {{name}}",
