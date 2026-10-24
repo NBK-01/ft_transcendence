@@ -1,18 +1,20 @@
 import { useTranslation } from "react-i18next";
 
-import { useStaffSession } from "@trans/api";
+import { useStaffAccess, useStaffSession } from "@trans/api";
 import { PageHeader } from "@trans/ui/blocks/page-header";
 
+import { ShipmentsSection } from "../features/overview/shipments-section";
 import { TeamCards } from "../features/overview/team-cards";
 
 /**
  * /: the overview, the home page for every role. Each section and card shows
- * only for the roles that can load it. The shipments section (admin and
- * support) goes above the team row.
+ * only for the roles that can load it: shipments for "shipments:read:all"
+ * (admin, support), then the team row.
  */
 export function OverviewPage() {
   const { t } = useTranslation(["common", "app"]);
   const { user } = useStaffSession();
+  const canReadShipments = useStaffAccess().can("shipments:read:all");
 
   return (
     <div className="flex flex-col gap-8">
@@ -21,6 +23,7 @@ export function OverviewPage() {
         title={user ? t(`app:overview.greeting.${partOfDay(new Date())}`, { name: user.name }) : t("nav.dashboard")}
         description={t("app:overview.description")}
       />
+      {canReadShipments && <ShipmentsSection />}
       <TeamCards />
     </div>
   );
