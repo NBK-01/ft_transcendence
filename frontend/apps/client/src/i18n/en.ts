@@ -1,5 +1,43 @@
 /** Client-only strings (namespace "app"). Shared strings live in @trans/ui (namespace "common"). */
 const en = {
+  login: {
+    invalidCredentials: "Wrong email or password.",
+    wrongProvider: "This account uses Google sign-in. Continue with Google instead.",
+    error: "Couldn't sign in. Try again.",
+    expired: "Your session has ended. Sign in again.",
+    continueWithGoogle: "Continue with Google",
+  },
+  register: {
+    emailTaken: "An account with this email already exists.",
+    error: "Couldn't create your account. Try again.",
+  },
+  otp: {
+    subtitle: "Enter the 6-digit code we sent to {{email}}.",
+    error: "That code didn't work. Try again.",
+    resendError: "Couldn't resend the code. Try again.",
+  },
+  forgotPassword: {
+    title: "Reset your password",
+    subtitle: "Enter your email and we'll send you a link to reset it.",
+    checkEmail: "If that email has an account, we've sent a link to reset the password.",
+    submit: "Send reset link",
+  },
+  resetPassword: {
+    title: "Choose a new password",
+    subtitle: "This ends every other session signed in to your account.",
+    newPassword: "New password",
+    submit: "Reset password",
+    invalidToken: "This link has expired or was already used.",
+    requestNewLink: "Request a new link",
+    error: "Couldn't reset your password. Try again.",
+  },
+  oauthCallback: {
+    title: "Signing you in…",
+    loading: "Finishing sign-in with Google…",
+    missingCode: "Something went wrong with Google sign-in. Try again.",
+    expired: "This sign-in link expired. Try again.",
+    error: "Couldn't sign in with Google. Try again.",
+  },
   profile: {
     edit: "Edit profile",
     saved: "Profile saved",

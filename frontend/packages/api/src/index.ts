@@ -23,7 +23,30 @@ export { ApiError, isApiError, isForbidden } from "./errors";
 export { tokens } from "./session";
 export { keys } from "./keys";
 export { ApiProvider, createQueryClient } from "./query";
-export { useMe, useSession, useSessionActions, type SessionState } from "./auth";
+export {
+  ACCOUNT_NOT_VERIFIED,
+  EMAIL_ALREADY_REGISTERED,
+  GOOGLE_EMAIL_NOT_VERIFIED,
+  INVALID_CREDENTIALS,
+  INVALID_RESET_TOKEN,
+  OAUTH_ACCOUNT_CONFLICT,
+  OAUTH_CODE_INVALID,
+  OTP_INVALID,
+  WRONG_AUTH_PROVIDER,
+  useForgotPassword,
+  useLogin,
+  useLogout,
+  useLogoutEverywhere,
+  useMe,
+  useOAuthExchange,
+  useRegister,
+  useResendOtp,
+  useResetPassword,
+  useSession,
+  useSessionActions,
+  useVerifyOtp,
+  type SessionState,
+} from "./auth";
 export {
   STAFF_ACCOUNT_INACTIVE,
   STAFF_INVALID_CREDENTIALS,

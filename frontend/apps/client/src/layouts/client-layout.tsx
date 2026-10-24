@@ -1,18 +1,17 @@
 import { Bell, MessageSquare, Package, UserRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Link, Outlet, useNavigate } from "react-router";
+import { Link, Outlet } from "react-router";
 
+import { useLogout, useSession } from "@trans/api";
 import { AppShell, type NavGroup } from "@trans/ui/blocks/app-shell";
 import { Logo } from "@trans/ui/blocks/logo";
 import { Button } from "@trans/ui/components/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@trans/ui/components/tooltip";
 
-// Preview user until auth is wired to the backend.
-const MOCK_USER = { name: "Amina El Idrissi", email: "amina@example.com" };
-
 export function ClientLayout() {
   const { t } = useTranslation("common");
-  const navigate = useNavigate();
+  const session = useSession();
+  const signOut = useLogout();
 
   const nav: NavGroup[] = [
     {
@@ -33,9 +32,14 @@ export function ClientLayout() {
         </Link>
       }
       nav={nav}
-      user={MOCK_USER}
+      user={{
+        name: session.user?.name ?? "",
+        email: session.user?.email ?? "",
+        avatarUrl: session.user?.avatarUrl,
+      }}
       profileHref="/app/profile"
-      onSignOut={() => navigate("/login")}
+      // RequireCustomer takes it from here: it shows /login once the session is gone.
+      onSignOut={signOut}
       topbarEnd={
         <Tooltip>
           <TooltipTrigger asChild>

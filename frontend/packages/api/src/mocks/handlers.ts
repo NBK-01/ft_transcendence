@@ -1,11 +1,7 @@
-import { http } from "msw/http";
-
-import type { AuthResponse, TokenPair, User } from "../types";
-import { MOCK_USER } from "./data";
+import { authHandlers } from "./auth";
 import { chatHandlers } from "./chat";
 import { contactHandlers } from "./contacts";
 import { organizationHandlers } from "./organizations";
-import { error, ok } from "./respond";
 import { staffHandlers } from "./staff";
 import { requireStaffAccess, staffAuthHandlers } from "./staff-auth";
 
@@ -19,39 +15,8 @@ export { error, ok, paginated } from "./respond";
  * When the real endpoint ships: delete its handler here. Nothing else changes.
  * Requests with no handler pass through to the real backend (Vite proxy).
  */
-
-let counter = 0;
-const issueTokens = (): TokenPair => {
-  counter += 1;
-  return { accessToken: `mock-access-${counter}`, refreshToken: `mock-refresh-${counter}` };
-};
-
-const isAuthorized = (request: Request) =>
-  request.headers.get("Authorization")?.startsWith("Bearer mock-access-") ?? false;
-
 export const handlers = [
-  http.post("*/api/auth/login", async ({ request }) => {
-    const body = (await request.json()) as { email?: string; password?: string };
-    if (!body.email || !body.password) return error(400, ["email must be an email"]);
-    if (body.password === "wrong") return error(401, ["Invalid email or password."], 2002);
-    // Like the real AuthService.login: only id, email and name.
-    const { id, name } = MOCK_USER;
-    return ok<AuthResponse>({ ...issueTokens(), user: { id, email: body.email, name } });
-  }),
-
-  http.post("*/api/auth/refresh", async ({ request }) => {
-    const body = (await request.json()) as { refreshToken?: string };
-    if (!body.refreshToken?.startsWith("mock-refresh-")) {
-      return error(401, ["Invalid or expired refresh token."], 2003);
-    }
-    return ok<TokenPair>(issueTokens());
-  }),
-
-  http.get("*/api/auth/me", ({ request }) => {
-    if (!isAuthorized(request)) return error(401, ["Unauthorized"]);
-    return ok<User>(MOCK_USER);
-  }),
-
+  ...authHandlers,
   ...staffAuthHandlers,
   // Before the staff-only handlers: 401 without a staff token, 403 for a role without access.
   requireStaffAccess,

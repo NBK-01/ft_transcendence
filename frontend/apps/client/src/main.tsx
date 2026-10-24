@@ -6,7 +6,8 @@ import "./styles.css";
 
 import { ApiProvider, configureApi } from "@trans/api";
 import { AppProviders } from "@trans/ui/blocks/app-providers";
-import { initI18n } from "@trans/ui/i18n";
+import { toast } from "@trans/ui/components/toaster";
+import { i18next, initI18n } from "@trans/ui/i18n";
 
 import ar from "./i18n/ar";
 import en from "./i18n/en";
@@ -17,7 +18,8 @@ initI18n({ en, fr, ar });
 
 configureApi({
   baseUrl: import.meta.env.VITE_API_URL || "/api",
-  onSessionExpired: () => void router.navigate("/login"),
+  // The tokens are already cleared, so RequireCustomer sends you to /login; say why.
+  onSessionExpired: () => toast(i18next.t("app:login.expired")),
 });
 
 // Mock backend (dev only). Dynamic import keeps MSW out of production bundles.

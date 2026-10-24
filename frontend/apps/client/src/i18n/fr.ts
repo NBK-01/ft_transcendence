@@ -1,6 +1,44 @@
 import type { ClientResources } from "./en";
 
 const fr: ClientResources = {
+  login: {
+    invalidCredentials: "E-mail ou mot de passe incorrect.",
+    wrongProvider: "Ce compte utilise la connexion Google. Continuez avec Google à la place.",
+    error: "Impossible de se connecter. Réessayez.",
+    expired: "Votre session a expiré. Reconnectez-vous.",
+    continueWithGoogle: "Continuer avec Google",
+  },
+  register: {
+    emailTaken: "Un compte avec cet e-mail existe déjà.",
+    error: "Impossible de créer votre compte. Réessayez.",
+  },
+  otp: {
+    subtitle: "Saisissez le code à 6 chiffres envoyé à {{email}}.",
+    error: "Ce code n'a pas fonctionné. Réessayez.",
+    resendError: "Impossible de renvoyer le code. Réessayez.",
+  },
+  forgotPassword: {
+    title: "Réinitialiser votre mot de passe",
+    subtitle: "Indiquez votre e-mail et nous vous enverrons un lien pour le réinitialiser.",
+    checkEmail: "Si un compte existe avec cet e-mail, un lien de réinitialisation vient de lui être envoyé.",
+    submit: "Envoyer le lien",
+  },
+  resetPassword: {
+    title: "Choisissez un nouveau mot de passe",
+    subtitle: "Cela met fin à toutes les autres sessions connectées à votre compte.",
+    newPassword: "Nouveau mot de passe",
+    submit: "Réinitialiser le mot de passe",
+    invalidToken: "Ce lien a expiré ou a déjà été utilisé.",
+    requestNewLink: "Demander un nouveau lien",
+    error: "Impossible de réinitialiser votre mot de passe. Réessayez.",
+  },
+  oauthCallback: {
+    title: "Connexion en cours…",
+    loading: "Finalisation de la connexion avec Google…",
+    missingCode: "Un problème est survenu avec la connexion Google. Réessayez.",
+    expired: "Ce lien de connexion a expiré. Réessayez.",
+    error: "Impossible de se connecter avec Google. Réessayez.",
+  },
   profile: {
     edit: "Modifier le profil",
     saved: "Profil enregistré",
