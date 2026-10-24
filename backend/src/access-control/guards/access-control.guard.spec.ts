@@ -370,16 +370,6 @@ const OPEN_ROUTES: Record<string, string> = {
   'GET /chat/conversations/:id/messages': 'any signed-in user',
   'POST /chat/conversations/:id/messages': 'any signed-in user',
   'PATCH /chat/conversations/:id/read': 'any signed-in user',
-
-  // Customers only, enforced by the shipments module's own guard.
-  'GET /shipments': 'own guard: CustomerOnlyGuard',
-  'POST /shipments': 'own guard: CustomerOnlyGuard',
-  'GET /shipments/:trackingId': 'own guard: CustomerOnlyGuard',
-  'GET /shipments/:trackingId/events': 'own guard: CustomerOnlyGuard',
-  'GET /shipments/:trackingId/files': 'own guard: CustomerOnlyGuard',
-  'POST /shipments/:trackingId/offer/accept': 'own guard: CustomerOnlyGuard',
-  'POST /shipments/:trackingId/offer/reject': 'own guard: CustomerOnlyGuard',
-  'POST /shipments/:trackingId/payment': 'own guard: CustomerOnlyGuard',
 };
 
 describe('routes that are open today', () => {

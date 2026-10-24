@@ -8,7 +8,6 @@ import {
   Post,
   Query,
   UploadedFiles,
-  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
@@ -21,9 +20,9 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RequireCustomer } from '../common/decorators/access-control.decorator';
 import { RequestUser } from '../common/context/auth-context.types';
 import { ShipmentsService } from './shipments.service';
-import { CustomerOnlyGuard } from './guards/customer-only.guard';
 import { CreateShipmentDto } from './dto/create-shipment.dto';
 import { ListShipmentsQueryDto } from './dto/list-shipments-query.dto';
 import { SubmitPaymentDto } from './dto/submit-payment.dto';
@@ -44,7 +43,7 @@ export const MAX_UPLOAD_FILES = 10;
 /** The client's own shipments. Customer tokens only — staff use /admin/shipments. */
 @ApiTags('Shipments')
 @ApiBearerAuth()
-@UseGuards(CustomerOnlyGuard)
+@RequireCustomer()
 @Controller('shipments')
 export class ShipmentsController {
   constructor(private readonly shipmentsService: ShipmentsService) {}
