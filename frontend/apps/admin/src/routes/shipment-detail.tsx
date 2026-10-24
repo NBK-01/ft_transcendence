@@ -19,6 +19,7 @@ import { NoAccess } from "../features/auth/require-admin";
 import { useBranchFilter } from "../features/branches/use-branch-filter";
 import { DeliverySection } from "../features/shipments/delivery-details";
 import { FilesSection } from "../features/shipments/files-section";
+import { NextStep } from "../features/shipments/next-step";
 import { OfferSection, PaymentSection, RequestSection } from "../features/shipments/order-details";
 import { ShipmentHeader } from "../features/shipments/shipment-header";
 import { TimelineSection } from "../features/shipments/timeline-section";
@@ -48,8 +49,9 @@ export function ShipmentDetailPage() {
 }
 
 /**
- * Order details on the main side, in the order they're filled in; the history
- * and files on the end side. One column below xl, where the side would be too narrow.
+ * What to do next under the header, then the order details on the main side,
+ * in the order they're filled in, and the history and files on the end side.
+ * One column below xl, where the side would be too narrow.
  */
 function ShipmentDetail({ shipment }: { shipment: AdminShipmentDetail }) {
   const { t } = useTranslation("common");
@@ -60,6 +62,7 @@ function ShipmentDetail({ shipment }: { shipment: AdminShipmentDetail }) {
         <ShipmentBreadcrumb trackingId={shipment.trackingId} />
         <ShipmentHeader shipment={shipment} />
       </div>
+      <NextStep shipment={shipment} />
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_26rem]">
         <div className="flex min-w-0 flex-col gap-6">
           <RequestSection request={shipment.request} />
@@ -134,7 +137,7 @@ function LoadProblem({
   );
 }
 
-/** The page's shape: breadcrumb, header, then the two columns. */
+/** The page's shape: breadcrumb, header, next step, then the two columns. */
 function DetailSkeleton() {
   const { t } = useTranslation("common");
   return (
@@ -154,6 +157,7 @@ function DetailSkeleton() {
           </div>
         </div>
       </div>
+      <Skeleton className="h-20 w-full rounded-xl" />
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_26rem]">
         <div className="flex flex-col gap-6">
           <Skeleton className="h-40 w-full rounded-xl" />
