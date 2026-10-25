@@ -1,4 +1,5 @@
 import { HttpStatus } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { QueryFailedError, Repository } from 'typeorm';
 import { ACCESS_CONTROL_KEYS } from '../common/decorators/access-control.decorator';
 import { CryptoService } from '../common/services/crypto.service';
@@ -98,10 +99,13 @@ function setup() {
     internalUserRepository as unknown as Repository<InternalUser>,
     {} as Repository<Role>,
     {} as CryptoService,
+    // Nothing listens in these tests: the notification signals it sends go nowhere.
+    new EventEmitter2(),
   );
   const service = new OrganizationsService(
     organizationRepository as unknown as Repository<Organization>,
     internalUsers,
+    new EventEmitter2(),
   );
 
   const addStaff = (id: string, organizationId: string | null = null) => {

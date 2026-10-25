@@ -31,6 +31,7 @@ import type {
   TrackingEventStatus,
 } from "../types";
 import { MOCK_USER } from "./data";
+import { notifyAction, notifyShipmentEvent } from "./notification-store";
 import { error, ok, paginated } from "./respond";
 
 /**
@@ -416,6 +417,29 @@ function build(seed: Seed, index: number): Row {
 
 const shipments: Row[] = SEEDS.map(build);
 
+// The notifications the backend's jobs would have left for the last week of
+// these timelines and attachments (notification-store.ts); anything older
+// than a day has been read.
+for (const row of shipments) {
+  for (const event of row.events.toReversed()) {
+    const at = Date.parse(event.occurredAt);
+    if (at < ago(7 * DAY)) continue;
+    notifyShipmentEvent(
+      { trackingId: row.trackingId, clientId: row.client.id, status: event.status, occurredAt: event.occurredAt },
+      { read: at < ago(DAY) },
+    );
+  }
+  for (const file of row.files) {
+    const at = Date.parse(file.uploadedAt);
+    if (at < ago(7 * DAY)) continue;
+    notifyAction(
+      { type: "SHIPMENT_FILE_ADDED", trackingId: row.trackingId, clientId: row.client.id, kind: file.kind, fileName: file.name },
+      null,
+      { at: file.uploadedAt, read: at < ago(DAY) },
+    );
+  }
+}
+
 /* ---------------------------------------------------------------------------
  * What the API returns (ShipmentFactory)
  * ------------------------------------------------------------------------ */
@@ -530,12 +554,16 @@ const wrongState = (status: ShipmentState) =>
 /** ShipmentsService.findOne: any case, ignoring stray spaces. */
 const find = (trackingId: unknown) => shipments.find((row) => row.trackingId === String(trackingId).trim().toUpperCase());
 
-/** ShipmentsService.transition, once the caller has checked where it may move from. */
+/**
+ * ShipmentsService.transition, once the caller has checked where it may move
+ * from. The new event notifies whoever didn't cause it, here the customer.
+ */
 function moveTo(row: Row, status: ShipmentState, location: string) {
   const now = new Date().toISOString();
   row.status = status;
   row.updatedAt = now;
   row.events.unshift({ status, location, occurredAt: now });
+  notifyShipmentEvent({ trackingId: row.trackingId, clientId: row.client.id, status, occurredAt: now });
 }
 
 const json = async (request: Request) => {
@@ -683,6 +711,11 @@ export const shipmentHandlers = [
       url: URL.createObjectURL(file),
     };
     row.files.unshift(saved);
+    // The customer hears about it (the backend's ACTION_NOTIFICATION job); the staff member who uploaded it doesn't.
+    notifyAction(
+      { type: "SHIPMENT_FILE_ADDED", trackingId: row.trackingId, clientId: row.client.id, kind: saved.kind, fileName: saved.name },
+      null,
+    );
     return ok(saved, 201);
   }),
 ];

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
 import { Organization } from './organization.entity';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
@@ -7,6 +8,7 @@ import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { OrganizationDto } from './dto/organization.dto';
 import { OrganizationFactory } from './factories/organization.factory';
 import { InternalUsersService } from '../internal-users/internal-users.service';
+import { ActionSignals } from '../notifications/action-signals';
 import {
   OrganizationNotFoundException,
   OrganizationAlreadyExistsException,
@@ -18,6 +20,7 @@ export class OrganizationsService {
     @InjectRepository(Organization)
     private readonly organizationRepository: Repository<Organization>,
     private readonly internalUsersService: InternalUsersService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async create(dto: CreateOrganizationDto): Promise<Organization> {
@@ -69,6 +72,9 @@ export class OrganizationsService {
   async deactivate(id: string): Promise<void> {
     await this.findById(id);
     await this.organizationRepository.update(id, { isActive: false });
+    this.eventEmitter.emit(ActionSignals.ORGANIZATION_DEACTIVATED, {
+      organizationId: id,
+    });
   }
 
   async assignStaff(
@@ -80,10 +86,21 @@ export class OrganizationsService {
       internalUserId,
       organizationId,
     );
+    this.eventEmitter.emit(ActionSignals.ORGANIZATION_STAFF_ADDED, {
+      organizationId,
+      internalUserId,
+    });
   }
 
   async removeStaff(internalUserId: string): Promise<void> {
+    const staff = await this.internalUsersService.findById(internalUserId);
     await this.internalUsersService.setOrganization(internalUserId, null);
+    if (staff?.organizationId) {
+      this.eventEmitter.emit(ActionSignals.ORGANIZATION_STAFF_REMOVED, {
+        organizationId: staff.organizationId,
+        internalUserId,
+      });
+    }
   }
 
   async listStaff(organizationId: string) {

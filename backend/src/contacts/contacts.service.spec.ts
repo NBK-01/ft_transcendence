@@ -1,4 +1,5 @@
 import { HttpStatus } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { QueryFailedError, Repository } from 'typeorm';
 import { AccessControlService } from '../access-control/access-control.service';
 import { RolePermission } from '../access-control/entities/role-permission.entity';
@@ -154,6 +155,8 @@ function setup() {
     staff.userRepository as unknown as Repository<InternalUser>,
     {} as Repository<Role>,
     {} as CryptoService,
+    // Nothing listens in these tests: the notification signals it sends go nowhere.
+    new EventEmitter2(),
   );
   const accessControl = new AccessControlService(
     staff.userRepository as unknown as Repository<InternalUser>,

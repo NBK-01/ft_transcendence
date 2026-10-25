@@ -6,6 +6,7 @@ import { tokens } from "../session";
 import type { AccountType, ChatMessage, Conversation, MessageResponse } from "../types";
 import { areConnected } from "./contacts";
 import { internalUsers, MOCK_USER } from "./data";
+import { notifyAction } from "./notification-store";
 import { error, ok, paginated } from "./respond";
 import { staffForToken } from "./staff-auth";
 
@@ -90,6 +91,18 @@ function addMessage(conversation: Conversation, senderId: string, senderType: Ac
 
   const other = addSupport(customer2, "2026-10-21T11:05:00.000Z");
   addMessage(other, customer2, "customer", "Can I change the delivery address of my order?", "2026-10-21T11:05:00.000Z");
+
+  // What the backend's job told the support staff when these started (read since).
+  for (const [conversation, customerName] of [
+    [amina, MOCK_USER.name],
+    [other, "Rania Khalil"],
+  ] as const) {
+    notifyAction(
+      { type: "SUPPORT_CONVERSATION_STARTED", conversationId: conversation.id, customerName },
+      { id: conversation.customerId!, accountType: "customer" },
+      { at: conversation.createdAt, read: true },
+    );
+  }
 }
 
 type Caller = { id: string; type: AccountType; supportAccess: boolean };
@@ -180,7 +193,14 @@ export const chatHandlers = [
     if (!caller) return error(401, ["Authentication failed"]);
     if (caller.type !== "customer") return error(403, ["This action is restricted to customer accounts"], NOT_CUSTOMER);
     const existing = conversations.find((conversation) => conversation.type === "support" && conversation.customerId === caller.id);
-    return ok(existing ?? addSupport(caller.id, new Date().toISOString()), 201);
+    if (existing) return ok(existing, 201);
+    // Only a new one tells the support staff.
+    const started = addSupport(caller.id, new Date().toISOString());
+    notifyAction(
+      { type: "SUPPORT_CONVERSATION_STARTED", conversationId: started.id, customerName: MOCK_USER.name },
+      { id: caller.id, accountType: "customer" },
+    );
+    return ok(started, 201);
   }),
 
   // Saves the message but, like the backend, tells no one live: the socket's sendMessage does that.

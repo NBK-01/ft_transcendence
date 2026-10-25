@@ -2,6 +2,7 @@ import { http } from "msw/http";
 
 import type { AuthResponse, MessageResponse, TokenPair, User } from "../types";
 import { MOCK_USER } from "./data";
+import { notifyAction } from "./notification-store";
 import { error, ok } from "./respond";
 
 /**
@@ -50,6 +51,9 @@ const isValidAccess = (token: string | null | undefined) =>
   !!token?.startsWith(ACCESS_PREFIX) && issuedAt(token, ACCESS_PREFIX) > signedOutUpTo;
 
 const bearer = (request: Request) => request.headers.get("Authorization")?.replace(/^Bearer /, "");
+
+/** The customer an access token belongs to (always MOCK_USER), for mocks that serve customers and staff alike. */
+export const customerForToken = (token: string | null | undefined) => (isValidAccess(token) ? MOCK_USER : undefined);
 
 /** Registered but not yet verified: email -> what they signed up with. */
 const pending = new Map<string, { password: string; name: string }>();
@@ -133,6 +137,8 @@ export const authHandlers = [
   http.post("*/api/auth/reset-password", async ({ request }) => {
     const body = (await request.json()) as { token?: string };
     if (body.token !== RESET_TOKEN) return error(400, ["Invalid or expired reset token"], INVALID_RESET_TOKEN);
+    // A security notice to the owner; nobody is signed in during a reset.
+    notifyAction({ type: "PASSWORD_CHANGED", account: { id: MOCK_USER.id, accountType: "customer" } }, null);
     return ok<MessageResponse>({ message: "Password reset successfully" });
   }),
 

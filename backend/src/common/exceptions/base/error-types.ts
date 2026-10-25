@@ -15,6 +15,8 @@ import { HttpException, HttpStatus } from '@nestjs/common';
  *   9000-9999  File Storage
  *   10000-10999  Contacts
  *   11000-11999  Chat
+ *   12000-12999  Notifications
+ *   13000-13999  Queues
  */
 
 export interface ErrorMessageData {

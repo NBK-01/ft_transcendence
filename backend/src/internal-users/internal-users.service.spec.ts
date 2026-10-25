@@ -1,5 +1,6 @@
 import { ExecutionContext, HttpStatus } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { QueryFailedError, Repository } from 'typeorm';
 import { AccessControlService } from '../access-control/access-control.service';
 import { Permission } from '../access-control/entities/permission.entity';
@@ -132,6 +133,7 @@ function setup() {
     userRepository as unknown as Repository<InternalUser>,
     roleRepository as unknown as Repository<Role>,
     crypto,
+    new EventEmitter2(),
   );
   const accessControl = new AccessControlService(
     userRepository as unknown as Repository<InternalUser>,

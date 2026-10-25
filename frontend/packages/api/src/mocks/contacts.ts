@@ -2,6 +2,7 @@ import { http } from "msw/http";
 
 import type { Contact, ContactStatus, InternalUser, MessageResponse } from "../types";
 import { internalUsers, isUuid } from "./data";
+import { notifyAction } from "./notification-store";
 import { error, ok } from "./respond";
 import { staffCaller } from "./staff-auth";
 
@@ -46,6 +47,29 @@ const contacts: Row[] = SEED.map(([requester, addressee, status, created], index
   createdAt: `${created}T09:00:00.000Z`,
   updatedAt: `${created}T09:00:00.000Z`,
 }));
+
+const userOf = (id: string) => internalUsers.find((user) => user.id === id)!;
+const staffWho = (id: string) => ({ id, accountType: "staff" as const });
+
+/**
+ * What the backend's job says about a request (the addressee hears) and an
+ * acceptance (the requester hears). Declining, blocking and removing say
+ * nothing, by design.
+ */
+function notifyContact(type: "CONTACT_REQUEST_RECEIVED" | "CONTACT_REQUEST_ACCEPTED", row: Row, actorId: string, when = {}) {
+  notifyAction(
+    { type, contactId: row.id, requester: userOf(row.requesterId), addressee: userOf(row.addresseeId) },
+    staffWho(actorId),
+    when,
+  );
+}
+
+// The seeded requests and acceptances, as their notifications (all over a day old: read).
+for (const row of contacts) {
+  const when = { at: row.updatedAt, read: Date.parse(row.updatedAt) < Date.now() - 86_400_000 };
+  if (row.status === "pending") notifyContact("CONTACT_REQUEST_RECEIVED", row, row.requesterId, when);
+  if (row.status === "accepted") notifyContact("CONTACT_REQUEST_ACCEPTED", row, row.addresseeId, when);
+}
 
 /** Like ContactFactory: both people's names and emails, as they are now. */
 const toDto = (row: Row): Contact => {
@@ -126,6 +150,7 @@ export const contactHandlers = [
       updatedAt: now,
     };
     contacts.push(row);
+    notifyContact("CONTACT_REQUEST_RECEIVED", row, caller.id);
     return ok(toDto(row), 201);
   }),
 
@@ -135,6 +160,7 @@ export const contactHandlers = [
     const found = pendingForAddressee(params.id, caller.id);
     if (!found.row) return found.response;
     Object.assign(found.row, { status: "accepted", updatedAt: new Date().toISOString() });
+    notifyContact("CONTACT_REQUEST_ACCEPTED", found.row, caller.id);
     return ok(toDto(found.row));
   }),
 

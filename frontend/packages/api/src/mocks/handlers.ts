@@ -1,6 +1,7 @@
 import { authHandlers } from "./auth";
 import { chatHandlers } from "./chat";
 import { contactHandlers } from "./contacts";
+import { notificationHandlers } from "./notifications";
 import { organizationHandlers } from "./organizations";
 import { shipmentHandlers } from "./shipments";
 import { staffHandlers } from "./staff";
@@ -19,6 +20,9 @@ export { error, ok, paginated } from "./respond";
 export const handlers = [
   ...authHandlers,
   ...staffAuthHandlers,
+  // Customers and staff alike, so before the staff-only guard (whose pattern
+  // doesn't cover /notifications anyway): a customer token must get through.
+  ...notificationHandlers,
   // Before the staff-only handlers: 401 without a staff token, 403 for a role without access.
   requireStaffAccess,
   ...staffHandlers,

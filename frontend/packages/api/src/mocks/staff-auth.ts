@@ -3,6 +3,7 @@ import { http } from "msw/http";
 import { INSUFFICIENT_PERMISSIONS, roleCan } from "../permissions";
 import type { MessageResponse, StaffAuthResponse, TokenPair } from "../types";
 import { internalUsers, staffPasswords } from "./data";
+import { notifyAction } from "./notification-store";
 import { error, ok } from "./respond";
 
 /**
@@ -159,6 +160,9 @@ export const staffAuthHandlers = [
       return error(401, ["Invalid email or password"], INVALID_CREDENTIALS);
     }
     staffPasswords.set(caller.id, body.newPassword!);
+    // A security notice: the owner hears about it even though they did it.
+    const owner = { id: caller.id, accountType: "staff" as const };
+    notifyAction({ type: "PASSWORD_CHANGED", account: owner }, owner);
     return ok<MessageResponse>({ message: "Password changed successfully" });
   }),
 ];
