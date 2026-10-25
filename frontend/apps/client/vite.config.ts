@@ -21,7 +21,11 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       strictPort: true,
       // Same-origin /api in dev, like nginx in prod — no CORS setup needed.
-      proxy: { "/api": { target: env.API_PROXY_TARGET || "http://localhost:3000", changeOrigin: true, ws: true } },
+      proxy: {
+        "/api": { target: env.API_PROXY_TARGET || "http://localhost:3000", changeOrigin: true, ws: true },
+        // Chat's Socket.IO lives outside /api.
+        "/socket.io": { target: env.API_PROXY_TARGET || "http://localhost:3000", changeOrigin: true, ws: true },
+      },
     },
     preview: { port: 4173, strictPort: true },
   };

@@ -10,8 +10,11 @@ import { Skeleton } from "@trans/ui/components/skeleton";
 
 import { useProfile } from "../features/profile/api";
 import { AvatarSection } from "../features/profile/avatar-section";
+import { ChangePasswordCard } from "../features/profile/change-password-card";
+import { DeleteAccountCard } from "../features/profile/delete-account-card";
 import { ProfileDetails } from "../features/profile/profile-details";
 import { ProfileForm } from "../features/profile/profile-form";
+import { SignOutEverywhereCard } from "../features/profile/sign-out-everywhere-card";
 
 /** /app/profile — photo and personal details; "Edit profile" switches the details to a form. */
 export function ProfilePage() {
@@ -50,16 +53,21 @@ export function ProfilePage() {
           }
         />
       ) : (
-        <Card className="max-w-3xl gap-8 px-6 py-6">
-          <AvatarSection name={profile.name} avatarUrl={profile.avatarUrl} />
-          <div className="border-t border-gray-alpha-400 pt-6">
-            {editing ? (
-              <ProfileForm profile={profile} onDone={() => setEditing(false)} />
-            ) : (
-              <ProfileDetails profile={profile} />
-            )}
-          </div>
-        </Card>
+        <div className="flex max-w-3xl flex-col gap-6">
+          <Card className="gap-8 px-6 py-6">
+            <AvatarSection name={profile.name} avatarUrl={profile.avatarUrl} />
+            <div className="border-t border-gray-alpha-400 pt-6">
+              {editing ? (
+                <ProfileForm profile={profile} onDone={() => setEditing(false)} />
+              ) : (
+                <ProfileDetails profile={profile} />
+              )}
+            </div>
+          </Card>
+          <ChangePasswordCard email={profile.email} />
+          <SignOutEverywhereCard />
+          <DeleteAccountCard email={profile.email} />
+        </div>
       )}
     </div>
   );

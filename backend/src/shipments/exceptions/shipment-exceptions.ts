@@ -8,7 +8,6 @@ export enum ShipmentErrorCodes {
   LinkOrPhotosRequired = 3003,
   TooManyImages = 3004,
   CardExpired = 3005,
-  CustomersOnly = 3006,
 }
 
 export enum ShipmentErrorMessages {
@@ -17,7 +16,6 @@ export enum ShipmentErrorMessages {
   LinkOrPhotosRequired = 'errors.SHIPMENT_LINK_OR_PHOTOS',
   TooManyImages = 'errors.SHIPMENT_TOO_MANY_IMAGES',
   CardExpired = 'errors.CARD_EXPIRED',
-  CustomersOnly = 'errors.SHIPMENT_CUSTOMERS_ONLY',
 }
 
 /** Also thrown when the shipment exists but belongs to another client — never reveal that it exists. */
@@ -69,17 +67,6 @@ export class CardExpiredException extends DomainException {
       { key: ShipmentErrorMessages.CardExpired },
       HttpStatus.BAD_REQUEST,
       ShipmentErrorCodes.CardExpired,
-    );
-  }
-}
-
-/** Client shipment routes take customer tokens only — staff use /admin/shipments. */
-export class CustomersOnlyException extends DomainException {
-  constructor() {
-    super(
-      { key: ShipmentErrorMessages.CustomersOnly },
-      HttpStatus.FORBIDDEN,
-      ShipmentErrorCodes.CustomersOnly,
     );
   }
 }

@@ -71,6 +71,30 @@ export function useOpenStaffConversation() {
   });
 }
 
+/**
+ * POST /chat/support: a customer's one support conversation, found or created
+ * (idempotent on the backend, race-safe via a unique constraint on
+ * customerId). Modeled as a query, not a mutation — it's safe to call
+ * repeatedly and worth caching — so a page can just read this instead of
+ * juggling a mutation-in-an-effect. On success the conversation is seeded
+ * straight into the conversations list cache, so useLiveChat (which joins
+ * whatever useConversations() returns) picks it up and joins its socket room
+ * immediately, without waiting for a second GET /chat/conversations.
+ */
+export function useSupportConversation() {
+  const queryClient = useQueryClient();
+  return useQuery({
+    queryKey: keys.chat.support(),
+    queryFn: async () => {
+      const conversation = await api.post<Conversation>("/chat/support");
+      queryClient.setQueryData<Conversation[]>(keys.chat.conversations(), (conversations) =>
+        conversations?.some((existing) => existing.id === conversation.id) ? conversations : [...(conversations ?? []), conversation],
+      );
+      return conversation;
+    },
+  });
+}
+
 /** PATCH /chat/conversations/:id/read. Fire and forget: a failure only leaves it unread on the server. */
 export function useMarkConversationRead() {
   return useMutation({
