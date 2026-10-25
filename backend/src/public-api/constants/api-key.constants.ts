@@ -26,6 +26,27 @@ export const API_KEY_HMAC_SECRET_MIN_LENGTH = 32;
 /** lastUsedAt is written at most this often per key. */
 export const LAST_USED_WRITE_INTERVAL_MS = 60_000;
 
+/** Where a partner sends its key. Not Authorization: that header carries login tokens. */
+export const API_KEY_HEADER = 'x-api-key';
+
+/**
+ * Optional, on top of a valid key: one of our own services calling, if it
+ * matches INTERNAL_CALLER_KEY (see ApiKeyGuard).
+ */
+export const INTERNAL_KEY_HEADER = 'x-internal-key';
+
+/** Swagger's name for the API key scheme (config/swagger.config.ts). */
+export const API_KEY_SECURITY = 'api-key';
+
+/** Requests per key per window, unless PUBLIC_API_RATE_LIMIT says otherwise. */
+export const DEFAULT_RATE_LIMIT = 60;
+
+/** The rate limit's fixed window. */
+export const RATE_LIMIT_WINDOW_MS = 60_000;
+
+/** Where ApiKeyGuard puts the calling partner in the CLS store, for code below the controller. */
+export const PARTNER_CONTEXT_KEY = 'partner';
+
 /**
  * Why a key was refused. INVALID is the only answer for a key that isn't
  * real; the others are only given once bcrypt has confirmed the key, so

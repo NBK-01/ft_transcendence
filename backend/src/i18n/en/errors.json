@@ -73,5 +73,10 @@
   "NOTIFICATION_NOT_FOUND": "Notification {id} not found",
   "UNKNOWN_JOB_TYPE": "No handler for job type {name}",
   "API_KEY_NOT_FOUND": "API key {id} not found",
-  "API_KEY_BRANCH_INACTIVE": "Branch {name} is inactive. Reactivate it before creating an API key"
+  "API_KEY_BRANCH_INACTIVE": "Branch {name} is inactive. Reactivate it before creating an API key",
+  "API_KEY_MISSING": "Send your API key in the X-API-Key header",
+  "API_KEY_INVALID": "This API key is not valid",
+  "API_KEY_REVOKED": "This API key was revoked. Ask for a new one",
+  "API_KEY_BRANCH_DEACTIVATED": "This API key's branch is deactivated",
+  "API_KEY_RATE_LIMITED": "Too many requests: this key may make {limit} a minute. Try again in {retryAfter} seconds"
 }
