@@ -415,3 +415,52 @@ export type UploadShipmentFileInput = {
   /** An image or a PDF, up to 10 MB. */
   file: File;
 };
+
+/**
+ * Where a notification stands (backend NotificationStatus): PENDING when it's
+ * created, SENT once it's in the feed (FAILED if delivery gave up), READ once
+ * read, from any of them.
+ */
+export type NotificationStatus = "PENDING" | "SENT" | "FAILED" | "READ";
+
+/** What a notification is about (backend NotificationType). */
+export type NotificationType = "SHIPMENT_UPDATE";
+
+/** SHIPMENT_UPDATE: a new step on a shipment's timeline. Link to the shipment, and word it from its status. */
+export type ShipmentUpdatePayload = { trackingId: string; status: ShipmentState };
+
+/** What each notification type carries in `payload`. */
+export type NotificationPayloads = { SHIPMENT_UPDATE: ShipmentUpdatePayload };
+
+/**
+ * A notification (backend NotificationDto), narrowed by `type` so `payload`
+ * has the right shape. `title` and `message` are English only: the apps word
+ * it in the reader's language from `type` + `payload`, and can fall back to
+ * them. Named AppNotification so it doesn't hide the browser's Notification.
+ */
+export type AppNotification = {
+  [T in NotificationType]: {
+    id: string;
+    type: T;
+    status: NotificationStatus;
+    title: string;
+    message: string;
+    payload: NotificationPayloads[T];
+    createdAt: string;
+    /** Null until read. */
+    readAt: string | null;
+  };
+}[NotificationType];
+
+/** GET /notifications query (backend ListNotificationsQueryDto). */
+export type NotificationFilters = {
+  /** true: only the ones not read yet. */
+  unreadOnly?: boolean;
+  type?: NotificationType;
+  page?: number;
+  /** 1–100, 20 by default. */
+  limit?: number;
+};
+
+/** GET /notifications/unread-count, and PATCH /notifications/read-all (how many it marked). */
+export type NotificationCount = { count: number };

@@ -1,0 +1,376 @@
+import { MutationObserver, QueryClient, type InfiniteData, type MutationObserverOptions } from "@tanstack/react-query";
+import { http } from "msw/http";
+import { setupServer } from "msw/node";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { api, configureApi, type Query } from "./client";
+import { keys } from "./keys";
+import { internalUsers, MOCK_STAFF_PASSWORD, MOCK_USER } from "./mocks/data";
+import { handlers } from "./mocks/handlers";
+import { error } from "./mocks/respond";
+import {
+  dismissOptions,
+  markAllReadOptions,
+  markReadOptions,
+  notificationListOptions,
+  notificationsOf,
+  unreadCountOptions,
+} from "./notifications";
+import { tokens } from "./session";
+import type {
+  AdminShipment,
+  AdminShipmentDetail,
+  AppNotification,
+  AuthResponse,
+  MessageResponse,
+  NotificationCount,
+  Page,
+  ShipmentState,
+  StaffAuthResponse,
+} from "./types";
+
+const server = setupServer(...handlers);
+
+const memoryStorage = () => {
+  const store = new Map<string, string>();
+  return {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => void store.set(key, value),
+    removeItem: (key: string) => void store.delete(key),
+    clear: () => store.clear(),
+  };
+};
+
+beforeAll(() => {
+  vi.stubGlobal("localStorage", memoryStorage());
+  configureApi({ baseUrl: "http://api.test/api", getLanguage: () => "en", onSessionExpired: () => {} });
+  server.listen({ onUnhandledFrame: "error" });
+});
+beforeEach(() => tokens.clear());
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+const staffNamed = (name: string) => internalUsers.find((user) => user.name === name)!;
+const nadia = staffNamed("Nadia Haddad"); // admin
+const youssef = staffNamed("Youssef Benali"); // admin
+const maya = staffNamed("Maya Azar"); // support
+const rami = staffNamed("Rami Khoury"); // dispatcher: no shipments:read:all
+const karim = staffNamed("Karim Saade"); // driver: neither
+
+async function signInAs(email: string) {
+  const { user, ...pair } = await api.post<StaffAuthResponse>(
+    "/staff-auth/login",
+    { email, password: MOCK_STAFF_PASSWORD },
+    { auth: false },
+  );
+  tokens.set(pair, user);
+}
+
+/** The client app's customer: any email signs in as Amina. */
+async function signInAsAmina() {
+  tokens.clear();
+  tokens.set(await api.post<AuthResponse>("/auth/login", { email: MOCK_USER.email, password: "x" }, { auth: false }));
+}
+
+const list = (query: Query = {}) => api.getPage<AppNotification>("/notifications", { query });
+const all = async (query: Query = {}) => (await list({ ...query, limit: 100 })).items;
+const unreadCount = async () => (await api.get<NotificationCount>("/notifications/unread-count")).count;
+const markRead = (id: string) => api.patch<AppNotification>(`/notifications/${id}/read`);
+const markAllRead = () => api.patch<NotificationCount>("/notifications/read-all");
+const dismiss = (id: string) => api.delete<MessageResponse>(`/notifications/${id}`);
+
+/** The statuses each side is told about: staff actions reach the customer, customer actions the staff. */
+const CUSTOMER_HEARS: ShipmentState[] = ["pending_client_decision", "confirmed", "in_transit", "out_for_delivery", "delivered", "cancelled"];
+const STAFF_HEAR: ShipmentState[] = ["pending_sourcing", "pending_payment", "pending_payment_confirmation"];
+
+const unauthorized = { status: 401, errorCode: undefined };
+const notFound = { status: 404, errorCode: 12001 };
+/** A ValidationPipe or ParseUUIDPipe 400: messages, no error code. */
+const badRequest = { status: 400, errorCode: undefined, messages: expect.arrayContaining([expect.any(String)]) };
+const UNKNOWN_ID = "00000000-0000-4000-d000-999999999999";
+
+const newestFirst = (items: AppNotification[]) =>
+  items.every((item, index) => index === 0 || items[index - 1]!.createdAt >= item.createdAt);
+
+/** Amina's tracking IDs, read from the admin side of the same mock world. */
+async function aminasTrackingIds() {
+  await signInAs(nadia.email);
+  const { items } = await api.getPage<AdminShipment>("/admin/shipments", { query: { limit: 100 } });
+  return new Set(items.filter((row) => row.client.id === MOCK_USER.id).map((row) => row.trackingId));
+}
+
+describe("notifications: access", () => {
+  it("needs a token: 401 without a code on every route", async () => {
+    await expect(list()).rejects.toMatchObject(unauthorized);
+    await expect(unreadCount()).rejects.toMatchObject(unauthorized);
+    await expect(markAllRead()).rejects.toMatchObject(unauthorized);
+    await expect(markRead(UNKNOWN_ID)).rejects.toMatchObject(unauthorized);
+    await expect(dismiss(UNKNOWN_ID)).rejects.toMatchObject(unauthorized);
+  });
+
+  it("a customer gets her own shipments' staff actions, worded for her", async () => {
+    const hers = await aminasTrackingIds();
+    await signInAsAmina();
+    const items = await all();
+    expect(items.length).toBeGreaterThan(0);
+    for (const item of items) {
+      expect(item.type).toBe("SHIPMENT_UPDATE");
+      expect(hers.has(item.payload.trackingId)).toBe(true);
+      expect(CUSTOMER_HEARS).toContain(item.payload.status);
+      expect(item.message).toContain(item.payload.trackingId);
+    }
+    expect(items.map((item) => item.title)).toContain("Out for delivery");
+  });
+
+  it("admins and support get customer actions, worded for staff; dispatchers and drivers get none", async () => {
+    for (const staff of [nadia, maya]) {
+      await signInAs(staff.email);
+      const items = await all();
+      expect(items.length).toBeGreaterThan(0);
+      expect(items.every((item) => STAFF_HEAR.includes(item.payload.status))).toBe(true);
+      expect(items.map((item) => item.title)).toContain("Needs a supplier");
+    }
+    for (const staff of [rami, karim]) {
+      await signInAs(staff.email);
+      await expect(list()).resolves.toMatchObject({ items: [], meta: { totalItems: 0 } });
+      await expect(unreadCount()).resolves.toBe(0);
+    }
+  });
+
+  it("someone else's notification is a 404 (12001), and stays as it was for them", async () => {
+    await signInAs(youssef.email);
+    const [theirs] = await all({ unreadOnly: true });
+
+    await signInAs(maya.email);
+    await expect(markRead(theirs!.id)).rejects.toMatchObject(notFound);
+    await expect(dismiss(theirs!.id)).rejects.toMatchObject(notFound);
+    await signInAsAmina();
+    await expect(markRead(theirs!.id)).rejects.toMatchObject(notFound);
+
+    await signInAs(youssef.email);
+    expect((await all()).find((item) => item.id === theirs!.id)).toMatchObject({ status: "SENT", readAt: null });
+  });
+});
+
+describe("notifications: the list", () => {
+  beforeEach(() => signInAs(nadia.email));
+
+  it("rows are the backend's NotificationDto", async () => {
+    const [first] = (await list()).items;
+    expect(Object.keys(first!).sort()).toEqual(["createdAt", "id", "message", "payload", "readAt", "status", "title", "type"]);
+    expect(Object.keys(first!.payload).sort()).toEqual(["status", "trackingId"]);
+  });
+
+  it("is newest first, 20 a page by default, pages that don't overlap", async () => {
+    const first = await list();
+    expect(first.meta).toMatchObject({ page: 1, limit: 20 });
+    expect(first.meta.totalItems).toBeGreaterThan(20);
+    const second = await list({ page: 2 });
+    const both = [...first.items, ...second.items];
+    expect(newestFirst(both)).toBe(true);
+    expect(new Set(both.map((item) => item.id)).size).toBe(both.length);
+  });
+
+  it("has read and unread ones, over several days, all delivered", async () => {
+    const items = await all();
+    expect(items.some((item) => item.status === "READ" && item.readAt)).toBe(true);
+    expect(items.some((item) => item.status === "SENT" && item.readAt === null)).toBe(true);
+    const days = new Set(items.map((item) => item.createdAt.slice(0, 10)));
+    expect(days.size).toBeGreaterThan(2);
+  });
+
+  it("unreadOnly=true leaves out read ones; false is no filter; type filters", async () => {
+    const everything = await all();
+    const unread = await all({ unreadOnly: true });
+    expect(unread.length).toBeGreaterThan(0);
+    expect(unread.every((item) => item.status !== "READ")).toBe(true);
+    expect(unread).toHaveLength(everything.filter((item) => item.status !== "READ").length);
+    expect(await all({ unreadOnly: false })).toHaveLength(everything.length);
+    expect(await all({ type: "SHIPMENT_UPDATE" })).toHaveLength(everything.length);
+  });
+
+  it("refuses a bad query with a 400", async () => {
+    for (const query of [{ unreadOnly: "yes" }, { limit: 101 }, { limit: 0 }, { page: 0 }, { page: "two" }, { type: "NOPE" }, { sort: "old" }]) {
+      await expect(list(query)).rejects.toMatchObject(badRequest);
+    }
+  });
+});
+
+describe("notifications: read, read all, dismiss", () => {
+  beforeEach(() => signInAs(maya.email));
+
+  it("read: READ with a readAt, once; the count goes down by one", async () => {
+    const before = await unreadCount();
+    const [target] = await all({ unreadOnly: true });
+
+    const read = await markRead(target!.id);
+    expect(read).toMatchObject({ id: target!.id, status: "READ", readAt: expect.any(String) });
+    expect(await unreadCount()).toBe(before - 1);
+
+    const again = await markRead(target!.id);
+    expect(again.readAt).toBe(read.readAt);
+    expect(await unreadCount()).toBe(before - 1);
+  });
+
+  it("read and dismiss refuse an id that isn't a UUID (400) before looking it up, and an unknown one is 404", async () => {
+    await expect(markRead("not-an-id")).rejects.toMatchObject(badRequest);
+    await expect(dismiss("not-an-id")).rejects.toMatchObject(badRequest);
+    await expect(markRead(UNKNOWN_ID)).rejects.toMatchObject(notFound);
+    await expect(dismiss(UNKNOWN_ID)).rejects.toMatchObject(notFound);
+  });
+
+  it("read all: returns how many it marked, then the count is 0", async () => {
+    await signInAs(youssef.email);
+    const before = await unreadCount();
+    expect(before).toBeGreaterThan(0);
+    await expect(markAllRead()).resolves.toEqual({ count: before });
+    expect(await unreadCount()).toBe(0);
+    expect(await all({ unreadOnly: true })).toEqual([]);
+    await expect(markAllRead()).resolves.toEqual({ count: 0 });
+  });
+
+  it("dismiss: gone from the list and the count; then a 404 for dismiss and read", async () => {
+    const before = await unreadCount();
+    const total = (await list()).meta.totalItems;
+    const [target] = await all({ unreadOnly: true });
+
+    await expect(dismiss(target!.id)).resolves.toEqual({ message: "Notification dismissed" });
+    expect(await unreadCount()).toBe(before - 1);
+    expect((await list()).meta.totalItems).toBe(total - 1);
+    expect((await all()).some((item) => item.id === target!.id)).toBe(false);
+
+    await expect(dismiss(target!.id)).rejects.toMatchObject(notFound);
+    await expect(markRead(target!.id)).rejects.toMatchObject(notFound);
+  });
+});
+
+describe("notifications: admin shipment changes notify the customer", () => {
+  it("an offer and a tracking update each reach Amina; the staff aren't told about their own action", async () => {
+    await signInAs(nadia.email);
+    const staffBefore = await unreadCount();
+    const { items } = await api.getPage<AdminShipment>("/admin/shipments", { query: { limit: 100 } });
+    const aminas = items.filter((row) => row.client.id === MOCK_USER.id);
+    const sourcing = aminas.find((row) => row.status === "pending_sourcing")!.trackingId;
+    const moving = aminas.find((row) => row.status === "in_transit")!.trackingId;
+
+    const form = new FormData();
+    form.set("supplierName", "Shenzhen Gadget Co.");
+    form.set("unitPrice", "24.9");
+    form.set("currency", "USD");
+    await api.post<AdminShipmentDetail>(`/admin/shipments/${sourcing}/offer`, form);
+    await api.post<AdminShipmentDetail>(`/admin/shipments/${moving}/events`, { status: "out_for_delivery", location: "Paris" });
+    expect(await unreadCount()).toBe(staffBefore);
+
+    await signInAsAmina();
+    const [latest, previous] = (await list()).items;
+    expect(latest).toMatchObject({
+      status: "SENT",
+      readAt: null,
+      title: "Out for delivery",
+      message: `${moving} is out for delivery.`,
+      payload: { trackingId: moving, status: "out_for_delivery" },
+    });
+    expect(previous).toMatchObject({
+      title: "Your offer is ready",
+      payload: { trackingId: sourcing, status: "pending_client_decision" },
+    });
+  });
+});
+
+describe("notifications: the hooks' cache", () => {
+  type Feed = InfiniteData<Page<AppNotification>, number>;
+
+  let client: QueryClient;
+  const feed = (unreadOnly = false) =>
+    client.getQueryData<Feed>(notificationListOptions(unreadOnly ? { unreadOnly } : {}).queryKey);
+  const items = (unreadOnly = false) => notificationsOf(feed(unreadOnly));
+  const count = () => client.getQueryData<NotificationCount>(keys.notifications.unreadCount())?.count;
+  const mutate = <TData, TVariables, TContext>(
+    options: MutationObserverOptions<TData, Error, TVariables, TContext>,
+    variables: TVariables,
+  ) => new MutationObserver(client, options).mutate(variables);
+
+  /** Holds the next matching request until `release()`, then lets the mock answer it. */
+  function hold(method: "patch" | "delete", path: string) {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    server.use(http[method](path, () => gate.then(() => undefined), { once: true }));
+    return release;
+  }
+
+  /** A fresh cache with `staff`'s feeds and count. Each test that changes data uses its own person. */
+  async function loadFor(staff: (typeof internalUsers)[number]) {
+    await signInAs(staff.email);
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    await client.fetchInfiniteQuery(notificationListOptions());
+    await client.fetchInfiniteQuery(notificationListOptions({ unreadOnly: true }));
+    await client.fetchQuery(unreadCountOptions(client));
+  }
+
+  it("read: shown read at once (and gone from an unread-only feed), then the server's readAt", async () => {
+    await loadFor(nadia);
+    const target = items(true)[0]!;
+    const before = count()!;
+    const release = hold("patch", "*/api/notifications/:id/read");
+
+    const done = mutate(markReadOptions(client), target.id);
+    await vi.waitFor(() => expect(count()).toBe(before - 1));
+    expect(items().find((item) => item.id === target.id)).toMatchObject({ status: "READ", readAt: expect.any(String) });
+    expect(items(true).some((item) => item.id === target.id)).toBe(false);
+
+    release();
+    const saved = await done;
+    expect(items().find((item) => item.id === target.id)).toEqual(saved);
+  });
+
+  it("read: rolls back when the server refuses", async () => {
+    await loadFor(nadia);
+    const target = items(true)[0]!;
+    const before = count();
+    server.use(http.patch("*/api/notifications/:id/read", () => error(500, ["Something went wrong"]), { once: true }));
+
+    await expect(mutate(markReadOptions(client), target.id)).rejects.toMatchObject({ status: 500 });
+    expect(count()).toBe(before);
+    expect(items().find((item) => item.id === target.id)).toMatchObject({ status: "SENT", readAt: null });
+    expect(items(true).some((item) => item.id === target.id)).toBe(true);
+  });
+
+  it("read all: count 0 and an empty unread-only feed at once", async () => {
+    await loadFor(staffNamed("Zineb Idrissi"));
+    const release = hold("patch", "*/api/notifications/read-all");
+    const done = mutate(markAllReadOptions(client), undefined);
+    await vi.waitFor(() => expect(count()).toBe(0));
+    expect(items(true)).toEqual([]);
+    expect(items().every((item) => item.status === "READ")).toBe(true);
+    release();
+    await expect(done).resolves.toMatchObject({ count: expect.any(Number) });
+  });
+
+  it("dismiss: out of the feeds and the count; a 404 (already gone) doesn't bring it back", async () => {
+    await loadFor(staffNamed("Camille Roux"));
+    const [first, second] = items(true);
+    const before = count()!;
+
+    await mutate(dismissOptions(client), first!.id);
+    expect(items().some((item) => item.id === first!.id)).toBe(false);
+    expect(count()).toBe(before - 1);
+
+    server.use(http.delete("*/api/notifications/:id", () => error(404, ["Notification not found"], 12001), { once: true }));
+    await expect(mutate(dismissOptions(client), second!.id)).rejects.toMatchObject({ errorCode: 12001 });
+    expect(items().some((item) => item.id === second!.id)).toBe(false);
+  });
+
+  it("notificationsOf: newest first, without the duplicates a shifted page brings", async () => {
+    await loadFor(nadia);
+    const at = (id: string, createdAt: string) => ({ ...items()[0]!, id, createdAt });
+    const page = (list: AppNotification[], number: number): Page<AppNotification> => ({
+      items: list,
+      meta: { page: number, limit: 2, totalItems: 3, totalPages: 2 },
+    });
+    const data: Feed = {
+      pages: [page([at("n3", "2026-10-25T10:03"), at("n2", "2026-10-25T10:02")], 1), page([at("n2", "2026-10-25T10:02"), at("n1", "2026-10-25T10:01")], 2)],
+      pageParams: [1, 2],
+    };
+    expect(notificationsOf(data).map((item) => item.id)).toEqual(["n3", "n2", "n1"]);
+  });
+});

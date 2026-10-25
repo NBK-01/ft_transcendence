@@ -42,6 +42,19 @@ export {
   type ChatConnection,
   type ChatEvents,
 } from "./chat-socket";
+export {
+  NOTIFICATION_NOT_FOUND,
+  notificationListOptions,
+  NOTIFICATIONS_PAGE_SIZE,
+  notificationsOf,
+  UNREAD_COUNT_REFETCH_MS,
+  unreadCountOptions,
+  useDismissNotification,
+  useMarkAllNotificationsRead,
+  useMarkNotificationRead,
+  useNotifications,
+  useUnreadNotificationCount,
+} from "./notifications";
 export { ApiError, isApiError, isForbidden } from "./errors";
 export { tokens } from "./session";
 export { keys } from "./keys";

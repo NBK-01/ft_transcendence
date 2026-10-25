@@ -51,6 +51,9 @@ const isValidAccess = (token: string | null | undefined) =>
 
 const bearer = (request: Request) => request.headers.get("Authorization")?.replace(/^Bearer /, "");
 
+/** The customer an access token belongs to (always MOCK_USER), for mocks that serve customers and staff alike. */
+export const customerForToken = (token: string | null | undefined) => (isValidAccess(token) ? MOCK_USER : undefined);
+
 /** Registered but not yet verified: email -> what they signed up with. */
 const pending = new Map<string, { password: string; name: string }>();
 
