@@ -1,15 +1,12 @@
 import { I18nService } from 'nestjs-i18n';
 import { AccountType } from '../../common/context/auth-context.types';
 import { ShipmentState } from '../../shipments/constants/shipment-state';
-import {
-  NotificationStatus,
-  NotificationType,
-} from '../../notifications/constants/notification.constants';
-import { Notification } from '../../notifications/entities/notification.entity';
+import { NotificationType } from '../../notifications/constants/notification.constants';
 import { NotificationRecipient } from '../../notifications/notifications.service';
 import { ShipmentEventSummary } from '../../notifications/shipment-lookup.service';
 import { ShipmentEventNotificationEvent } from '../events/shipment-event-notification.event';
 import { JobHandler, JobServices } from '../interfaces/job-handler.interface';
+import { notifyOnce } from './notify-once';
 
 /**
  * Who to tell about each status: the side that didn't cause it. Today every
@@ -64,19 +61,6 @@ export function shipmentUpdateCopy(
   };
 }
 
-/**
- * Delivery is local-only for now: the row in the recipient's feed is the
- * notification, so once it's saved it's delivered. A socket push or an FCM
- * send goes here later, before markSent; if it throws, BullMQ retries the
- * job and only rows that aren't SENT yet go out again.
- */
-async function deliver(
-  notification: Notification,
-  services: JobServices,
-): Promise<void> {
-  await services.notificationsService.markSent(notification.id);
-}
-
 async function recipientsFor(
   audience: AccountType,
   event: ShipmentEventSummary,
@@ -105,24 +89,14 @@ export const shipmentEventNotificationHandler: JobHandler<ShipmentEventNotificat
       const copy = shipmentUpdateCopy(services.i18n, audience, event);
       let delivered = 0;
       for (const recipient of recipients) {
-        const { notification } = await services.notificationsService.createOnce(
-          {
-            recipient,
-            type: NotificationType.SHIPMENT_UPDATE,
-            payload: { trackingId: event.trackingId, status: event.status },
-            ...copy,
-            dedupeKey: dedupeKey(event.id, recipient),
-          },
-        );
-        // A retry gets back the rows an earlier attempt created: only the
-        // ones that never went out are delivered again.
-        if (
-          notification.status === NotificationStatus.PENDING ||
-          notification.status === NotificationStatus.FAILED
-        ) {
-          await deliver(notification, services);
-          delivered += 1;
-        }
+        const sent = await notifyOnce(services, {
+          recipient,
+          type: NotificationType.SHIPMENT_UPDATE,
+          payload: { trackingId: event.trackingId, status: event.status },
+          ...copy,
+          dedupeKey: dedupeKey(event.id, recipient),
+        });
+        delivered += Number(sent);
       }
       return { recipients: recipients.length, delivered };
     },

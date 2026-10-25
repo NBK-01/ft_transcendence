@@ -1,12 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { AccountType } from '../common/context/auth-context.types';
 import { ShipmentState } from '../shipments/constants/shipment-state';
 import { ShipmentEvent } from '../shipments/entities/shipment-event.entity';
 import { InternalUser } from '../internal-users/internal-user.entity';
-import { RolePermission } from '../access-control/entities/role-permission.entity';
 import { NotificationRecipient } from './notifications.service';
+import { findActiveStaffWithPermission } from './staff-with-permission';
 
 /** The permission behind the admin shipments list (AdminShipmentsController): staff holding it see every shipment. */
 export const SHIPMENTS_READ_ALL_PERMISSION = 'shipments:read:all';
@@ -47,26 +46,11 @@ export class ShipmentLookupService {
     };
   }
 
-  /**
-   * Active staff whose role grants shipments:read:all (admin and support
-   * today). Read from the role → permission table rather than a list of
-   * role names, so a role that gains or loses the permission follows.
-   */
-  async findShipmentStaff(): Promise<NotificationRecipient[]> {
-    const rows = await this.internalUserRepository
-      .createQueryBuilder('staff')
-      .innerJoin(
-        RolePermission,
-        'rolePermission',
-        'rolePermission.roleId = staff.roleId',
-      )
-      .innerJoin('rolePermission.permission', 'permission')
-      .where('staff.isActive = :active', { active: true })
-      .andWhere('permission.name = :permission', {
-        permission: SHIPMENTS_READ_ALL_PERMISSION,
-      })
-      .select('staff.id', 'id')
-      .getRawMany<{ id: string }>();
-    return rows.map(({ id }) => ({ id, accountType: AccountType.STAFF }));
+  /** Active staff whose role grants shipments:read:all (admin and support today). */
+  findShipmentStaff(): Promise<NotificationRecipient[]> {
+    return findActiveStaffWithPermission(
+      this.internalUserRepository,
+      SHIPMENTS_READ_ALL_PERMISSION,
+    );
   }
 }

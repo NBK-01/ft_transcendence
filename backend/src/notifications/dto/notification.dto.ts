@@ -28,8 +28,17 @@ export class NotificationDto {
     type: 'object',
     additionalProperties: true,
     example: { trackingId: 'TRK-4A6F90', status: 'out_for_delivery' },
-    description:
-      'Depends on type. SHIPMENT_UPDATE: { trackingId, status } (status is a shipment status)',
+    description: [
+      'Depends on type (see NotificationPayloads).',
+      'SHIPMENT_UPDATE: { trackingId, status }.',
+      'BRANCH_*: { organizationId, name }.',
+      'STAFF_ACCOUNT_CREATED / _DEACTIVATED: { internalUserId, name };',
+      'STAFF_ACCOUNT_UPDATED adds { changed, roleName, organizationId, organizationName }.',
+      'CONTACT_REQUEST_*: { contactId, internalUserId, name } (the other person).',
+      'SUPPORT_CONVERSATION_STARTED: { conversationId, customerName }.',
+      'SHIPMENT_FILE_ADDED: { trackingId, kind, fileName }.',
+      'PASSWORD_CHANGED: {}.',
+    ].join(' '),
   })
   payload!: NotificationPayload;
 

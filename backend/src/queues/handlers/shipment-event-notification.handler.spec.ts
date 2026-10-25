@@ -19,6 +19,7 @@ import {
   ShipmentEventSummary,
   ShipmentLookupService,
 } from '../../notifications/shipment-lookup.service';
+import { ActionLookupService } from '../../notifications/action-lookup.service';
 import { ShipmentEventNotificationEvent } from '../events/shipment-event-notification.event';
 import { JobServices } from '../interfaces/job-handler.interface';
 import {
@@ -147,6 +148,7 @@ beforeEach(() => {
   services = {
     notificationsService: notifications as unknown as NotificationsService,
     shipmentLookupService: lookup as unknown as ShipmentLookupService,
+    actionLookupService: {} as ActionLookupService,
     i18n,
   };
 });

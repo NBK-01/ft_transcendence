@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
 import { AuthProvider, User } from './user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -8,6 +9,8 @@ import { UserFactory } from './factories/user.factory';
 import { CryptoService } from '../common/services/crypto.service';
 import { FileStorageService } from '../file-storage/file-storage.service';
 import { UserNotFoundException } from './exceptions';
+import { AccountType } from '../common/context/auth-context.types';
+import { ActionSignals } from '../notifications/action-signals';
 
 @Injectable()
 export class UsersService {
@@ -15,6 +18,7 @@ export class UsersService {
     @InjectRepository(User) private readonly userRepository: Repository<User>,
     private readonly cryptoService: CryptoService,
     private readonly fileStorageService: FileStorageService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async create(dto: CreateUserDto): Promise<User> {
@@ -100,6 +104,10 @@ export class UsersService {
     hashedPassword: string,
   ): Promise<void> {
     await this.userRepository.update(userId, { password: hashedPassword });
+    this.eventEmitter.emit(ActionSignals.PASSWORD_CHANGED, {
+      accountType: AccountType.CUSTOMER,
+      accountId: userId,
+    });
   }
 
   async hashPassword(password: string): Promise<string> {

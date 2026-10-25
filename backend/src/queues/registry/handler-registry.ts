@@ -3,10 +3,12 @@ import { JobDataMap } from '../interfaces/job-data.interface';
 import { JobHandler } from '../interfaces/job-handler.interface';
 import { UnknownJobTypeException } from '../exceptions';
 import { shipmentEventNotificationHandler } from '../handlers/shipment-event-notification.handler';
+import { actionNotificationHandler } from '../handlers/action-notification.handler';
 
 /** One handler per job type; a missing one doesn't compile. */
 export const HANDLER_REGISTRY: { [K in JobType]: JobHandler<JobDataMap[K]> } = {
   [JobType.SHIPMENT_EVENT_NOTIFICATION]: shipmentEventNotificationHandler,
+  [JobType.ACTION_NOTIFICATION]: actionNotificationHandler,
 };
 
 export function isJobType(name: string): name is JobType {

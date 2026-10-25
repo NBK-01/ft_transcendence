@@ -2,6 +2,7 @@ import { Job } from 'bullmq';
 import { I18nService } from 'nestjs-i18n';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { ShipmentLookupService } from '../../notifications/shipment-lookup.service';
+import { ActionLookupService } from '../../notifications/action-lookup.service';
 import { JobType } from '../constants/job-type';
 import { UnknownJobTypeException } from '../exceptions';
 import { StandardJobsProcessor } from './standard-jobs.processor';
@@ -11,6 +12,7 @@ describe('JobsProcessor', () => {
   const processor = new StandardJobsProcessor(
     { markPendingFailed } as unknown as NotificationsService,
     {} as ShipmentLookupService,
+    {} as ActionLookupService,
     {} as I18nService,
   );
 

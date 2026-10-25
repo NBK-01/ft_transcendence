@@ -6,4 +6,6 @@
 export enum JobType {
   /** A shipment_event row was committed: notify the side that didn't cause it. */
   SHIPMENT_EVENT_NOTIFICATION = 'SHIPMENT_EVENT_NOTIFICATION',
+  /** Something else was created, changed or deleted: notify whoever it affects. */
+  ACTION_NOTIFICATION = 'ACTION_NOTIFICATION',
 }
