@@ -1,17 +1,9 @@
 import { http } from "msw/http";
 
 import { NOTIFICATION_NOT_FOUND } from "../notifications";
-import { roleCan } from "../permissions";
-import type {
-  AccountType,
-  AppNotification,
-  MessageResponse,
-  NotificationCount,
-  NotificationType,
-  ShipmentState,
-} from "../types";
+import type { AccountType, AppNotification, MessageResponse, NotificationCount, NotificationType } from "../types";
 import { customerForToken } from "./auth";
-import { internalUsers } from "./data";
+import { rows, type Row } from "./notification-store";
 import { error, ok, paginated } from "./respond";
 import { staffForToken } from "./staff-auth";
 
@@ -22,108 +14,28 @@ import { staffForToken } from "./staff-auth";
  * dismissed or unknown one. The backend's order: the token (401), the id
  * (400 if it isn't a UUID), then the notification (404).
  *
- * Rows come from shipments.ts, which calls notifyShipmentEvent like the
- * backend's SHIPMENT_EVENT_NOTIFICATION job: for the last week of its seeded
- * timelines (anything older than a day already read), and for every change
- * made through the admin shipment mocks. In-memory, like the rest.
+ * The rows live in notification-store.ts. The mocks that change things add
+ * them there like the backend's jobs do (shipment events, branches, staff
+ * accounts, contacts, support conversations, shipment files, passwords), and
+ * seed the last days. In-memory, like the rest.
  */
 
-const NOTIFICATION_TYPES: readonly NotificationType[] = ["SHIPMENT_UPDATE"];
-
-type Row = AppNotification & {
-  userId: string;
-  accountType: AccountType;
-  sentAt: string | null;
-  dismissedAt: string | null;
-};
-
-const rows: Row[] = [];
-
-let ids = 0;
-const nextId = () => `00000000-0000-4000-d000-${String(++ids).padStart(12, "0")}`;
-
-/**
- * Who hears about each status: the side that didn't cause it (backend
- * AUDIENCE_BY_STATUS). Customer actions go to staff, staff actions to the customer.
- */
-const AUDIENCE_BY_STATUS: Record<ShipmentState, AccountType | null> = {
-  pending_sourcing: "staff",
-  pending_client_decision: "customer",
-  pending_payment: "staff",
-  pending_payment_confirmation: "staff",
-  requested: null,
-  confirmed: "customer",
-  in_transit: "customer",
-  out_for_delivery: "customer",
-  delivered: "customer",
-  cancelled: "customer",
-};
-
-/** The backend's English copy (backend/src/i18n/en/notifications.json). */
-const COPY: Record<AccountType, Partial<Record<ShipmentState, [title: string, message: string]>>> = {
-  customer: {
-    pending_client_decision: [
-      "Your offer is ready",
-      "We found a supplier for {trackingId}. Review the offer to accept or reject it.",
-    ],
-    confirmed: ["Payment confirmed", "Your payment for {trackingId} is confirmed. We'll let you know when it ships."],
-    in_transit: ["In transit", "{trackingId} is on its way."],
-    out_for_delivery: ["Out for delivery", "{trackingId} is out for delivery."],
-    delivered: ["Delivered", "{trackingId} has been delivered."],
-    cancelled: ["Shipment cancelled", "{trackingId} has been cancelled."],
-  },
-  staff: {
-    pending_sourcing: ["Needs a supplier", "{trackingId} is waiting for a supplier offer."],
-    pending_payment: ["Offer accepted", "The client accepted the offer for {trackingId}. Waiting for their payment."],
-    pending_payment_confirmation: [
-      "Payment to confirm",
-      "The client paid for {trackingId}. Confirm the payment to start the shipment.",
-    ],
-  },
-};
-
-/** Active staff whose role has shipments:read:all (admin and support), as their role is now. */
-const shipmentStaff = () => internalUsers.filter((user) => user.isActive && roleCan(user.roleName, "shipments:read:all"));
-
-export type NotifiedShipmentEvent = {
-  trackingId: string;
-  /** The shipment's customer. */
-  clientId: string;
-  status: ShipmentState;
-  occurredAt: string;
-};
-
-/**
- * What the backend's job does for a committed shipment event: one row per
- * recipient, already delivered (SENT). `read` is for seed data that the
- * recipient has opened since.
- */
-export function notifyShipmentEvent(event: NotifiedShipmentEvent, { read = false }: { read?: boolean } = {}) {
-  const audience = AUDIENCE_BY_STATUS[event.status];
-  const copy = audience && COPY[audience][event.status];
-  if (!audience || !copy) return;
-
-  const recipients =
-    audience === "customer" ? [event.clientId] : shipmentStaff().map((user) => user.id);
-  const [title, message] = copy.map((text) => text.replaceAll("{trackingId}", event.trackingId));
-  const readAt = read ? new Date(Date.parse(event.occurredAt) + 3_600_000).toISOString() : null;
-  for (const userId of recipients) {
-    rows.push({
-      id: nextId(),
-      userId,
-      accountType: audience,
-      type: "SHIPMENT_UPDATE",
-      status: read ? "READ" : "SENT",
-      title: title!,
-      message: message!,
-      payload: { trackingId: event.trackingId, status: event.status },
-      createdAt: event.occurredAt,
-      sentAt: event.occurredAt,
-      readAt,
-      dismissedAt: null,
-    });
-  }
-}
+const NOTIFICATION_TYPES: readonly NotificationType[] = [
+  "SHIPMENT_UPDATE",
+  "BRANCH_CREATED",
+  "BRANCH_UPDATED",
+  "BRANCH_DEACTIVATED",
+  "BRANCH_STAFF_ADDED",
+  "BRANCH_STAFF_REMOVED",
+  "STAFF_ACCOUNT_CREATED",
+  "STAFF_ACCOUNT_UPDATED",
+  "STAFF_ACCOUNT_DEACTIVATED",
+  "CONTACT_REQUEST_RECEIVED",
+  "CONTACT_REQUEST_ACCEPTED",
+  "SUPPORT_CONVERSATION_STARTED",
+  "SHIPMENT_FILE_ADDED",
+  "PASSWORD_CHANGED",
+];
 
 /* ---------------------------------------------------------------------------
  * HTTP
@@ -157,17 +69,9 @@ const isUnread = (row: Row) => row.status !== "READ";
 
 const newestFirst = (a: Row, b: Row) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id);
 
-/** NotificationFactory.toDto: no owner, dedupe key or delivery details. */
-const toDto = ({ id, type, status, title, message, payload, createdAt, readAt }: Row): AppNotification => ({
-  id,
-  type,
-  status,
-  title,
-  message,
-  payload,
-  createdAt,
-  readAt,
-});
+/** NotificationFactory.toDto: no owner, dedupe key or delivery details. Rebuilt field by field, so TypeScript can't pair type and payload again. */
+const toDto = ({ id, type, status, title, message, payload, createdAt, readAt }: Row) =>
+  ({ id, type, status, title, message, payload, createdAt, readAt }) as AppNotification;
 
 /** ListNotificationsQueryDto under the ValidationPipe: every failing field, as a 400 without a code. */
 function queryProblems(params: URLSearchParams) {

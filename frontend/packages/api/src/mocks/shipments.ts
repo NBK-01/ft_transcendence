@@ -31,7 +31,7 @@ import type {
   TrackingEventStatus,
 } from "../types";
 import { MOCK_USER } from "./data";
-import { notifyShipmentEvent } from "./notifications";
+import { notifyAction, notifyShipmentEvent } from "./notification-store";
 import { error, ok, paginated } from "./respond";
 
 /**
@@ -417,8 +417,9 @@ function build(seed: Seed, index: number): Row {
 
 const shipments: Row[] = SEEDS.map(build);
 
-// The notifications the backend's job would have left for the last week of
-// these timelines (notifications.ts); anything older than a day has been read.
+// The notifications the backend's jobs would have left for the last week of
+// these timelines and attachments (notification-store.ts); anything older
+// than a day has been read.
 for (const row of shipments) {
   for (const event of row.events.toReversed()) {
     const at = Date.parse(event.occurredAt);
@@ -426,6 +427,15 @@ for (const row of shipments) {
     notifyShipmentEvent(
       { trackingId: row.trackingId, clientId: row.client.id, status: event.status, occurredAt: event.occurredAt },
       { read: at < ago(DAY) },
+    );
+  }
+  for (const file of row.files) {
+    const at = Date.parse(file.uploadedAt);
+    if (at < ago(7 * DAY)) continue;
+    notifyAction(
+      { type: "SHIPMENT_FILE_ADDED", trackingId: row.trackingId, clientId: row.client.id, kind: file.kind, fileName: file.name },
+      null,
+      { at: file.uploadedAt, read: at < ago(DAY) },
     );
   }
 }
@@ -701,6 +711,11 @@ export const shipmentHandlers = [
       url: URL.createObjectURL(file),
     };
     row.files.unshift(saved);
+    // The customer hears about it (the backend's ACTION_NOTIFICATION job); the staff member who uploaded it doesn't.
+    notifyAction(
+      { type: "SHIPMENT_FILE_ADDED", trackingId: row.trackingId, clientId: row.client.id, kind: saved.kind, fileName: saved.name },
+      null,
+    );
     return ok(saved, 201);
   }),
 ];

@@ -1,8 +1,10 @@
 import { http } from "msw/http";
 
-import type { InternalUser } from "../types";
+import type { InternalUser, StaffChange } from "../types";
 import { internalUsers, isUuid, ROLES, roleExists, staffPasswords } from "./data";
+import { notifyAction, type Who } from "./notification-store";
 import { error, ok } from "./respond";
+import { staffCaller } from "./staff-auth";
 
 /**
  * Staff accounts and roles for the admin app.
@@ -16,6 +18,12 @@ const USER_NOT_FOUND = 8001;
 const USER_ALREADY_EXISTS = 8002;
 /** Backend AccessControlErrorCodes.RoleNotFound. */
 const ROLE_NOT_FOUND = 7004;
+
+/** Who's acting: requireStaffAccess has already checked the token. */
+const actorOf = (request: Request): Who | null => {
+  const { caller } = staffCaller(request);
+  return caller ? { id: caller.id, accountType: "staff" } : null;
+};
 
 const roleNotFound = (name: string) => error(404, [`Role ${name} not found`], ROLE_NOT_FOUND);
 
@@ -56,6 +64,7 @@ export const staffHandlers = [
     };
     internalUsers.push(user);
     staffPasswords.set(user.id, body.password!);
+    notifyAction({ type: "STAFF_ACCOUNT_CREATED", staff: user }, actorOf(request));
     return ok(user, 201);
   }),
 
@@ -67,6 +76,7 @@ export const staffHandlers = [
     if (body.name !== undefined && !body.name.trim()) return error(400, ["name should not be empty"]);
     if (body.roleName !== undefined && !roleExists(body.roleName)) return roleNotFound(body.roleName);
 
+    const before = { ...user };
     Object.assign(user, {
       ...(body.name !== undefined && { name: body.name.trim() }),
       ...(body.roleName !== undefined && { roleName: body.roleName }),
@@ -74,6 +84,22 @@ export const staffHandlers = [
       ...(body.isActive !== undefined && { isActive: body.isActive }),
       updatedAt: new Date().toISOString(),
     });
+    // Like the backend's subscriber: a deactivation (the other admins only), or what changed.
+    if (before.isActive && !user.isActive) {
+      notifyAction({ type: "STAFF_ACCOUNT_DEACTIVATED", staff: user }, actorOf(request));
+    } else {
+      const changed = (
+        [
+          [before.roleName !== user.roleName, "role"],
+          [before.organizationId !== user.organizationId, "branch"],
+          [before.name !== user.name, "name"],
+          [!before.isActive && user.isActive, "reactivated"],
+        ] as const
+      )
+        .filter(([didChange]) => didChange)
+        .map(([, change]): StaffChange => change);
+      if (changed.length > 0) notifyAction({ type: "STAFF_ACCOUNT_UPDATED", staff: user, changed }, actorOf(request));
+    }
     return ok(user);
   }),
 

@@ -423,14 +423,85 @@ export type UploadShipmentFileInput = {
  */
 export type NotificationStatus = "PENDING" | "SENT" | "FAILED" | "READ";
 
-/** What a notification is about (backend NotificationType). */
-export type NotificationType = "SHIPMENT_UPDATE";
+/**
+ * What a notification is about (backend NotificationType). SHIPMENT_UPDATE is
+ * a new step on a shipment's timeline; the others say that something was
+ * created, changed or deleted, and go to whoever it affects, never to whoever
+ * did it (PASSWORD_CHANGED, a security notice, is the exception).
+ */
+export type NotificationType =
+  | "SHIPMENT_UPDATE"
+  /** To the other admins. */
+  | "BRANCH_CREATED"
+  /** Details changed or reactivated. To the other admins and the branch's staff. */
+  | "BRANCH_UPDATED"
+  /** Deactivated (PATCH isActive false, or DELETE). To the other admins and the branch's staff. */
+  | "BRANCH_DEACTIVATED"
+  /** To the staff member added. */
+  | "BRANCH_STAFF_ADDED"
+  /** To the staff member removed. */
+  | "BRANCH_STAFF_REMOVED"
+  /** To the other admins. */
+  | "STAFF_ACCOUNT_CREATED"
+  /** Role, branch or name changed, or reactivated. To that staff member and the other admins. */
+  | "STAFF_ACCOUNT_UPDATED"
+  /** To the other admins. */
+  | "STAFF_ACCOUNT_DEACTIVATED"
+  /** To the addressee. */
+  | "CONTACT_REQUEST_RECEIVED"
+  /** To the requester. */
+  | "CONTACT_REQUEST_ACCEPTED"
+  /** To staff with chat:support:access. */
+  | "SUPPORT_CONVERSATION_STARTED"
+  /** To the shipment's customer. */
+  | "SHIPMENT_FILE_ADDED"
+  /** To the account's owner, even when they did it. */
+  | "PASSWORD_CHANGED";
 
 /** SHIPMENT_UPDATE: a new step on a shipment's timeline. Link to the shipment, and word it from its status. */
 export type ShipmentUpdatePayload = { trackingId: string; status: ShipmentState };
 
-/** What each notification type carries in `payload`. */
-export type NotificationPayloads = { SHIPMENT_UPDATE: ShipmentUpdatePayload };
+/** A branch, by its name when it happened. */
+export type BranchPayload = { organizationId: string; name: string };
+
+/** A staff account. */
+export type StaffAccountPayload = { internalUserId: string; name: string };
+
+/** What a staff account update changed (backend StaffChange). */
+export type StaffChange = "role" | "branch" | "name" | "reactivated";
+
+/** Also the account as it is now, to say e.g. "your role is now Dispatcher". */
+export type StaffAccountUpdatedPayload = StaffAccountPayload & {
+  changed: StaffChange[];
+  roleName: string | null;
+  organizationId: string | null;
+  organizationName: string | null;
+};
+
+/** The other person: who sent the request, or who accepted it. */
+export type ContactNotificationPayload = { contactId: string; internalUserId: string; name: string };
+
+export type SupportConversationPayload = { conversationId: string; customerName: string };
+
+export type ShipmentFilePayload = { trackingId: string; kind: AttachmentKind; fileName: string };
+
+/** What each notification type carries in `payload` (backend NotificationPayloads). */
+export type NotificationPayloads = {
+  SHIPMENT_UPDATE: ShipmentUpdatePayload;
+  BRANCH_CREATED: BranchPayload;
+  BRANCH_UPDATED: BranchPayload;
+  BRANCH_DEACTIVATED: BranchPayload;
+  BRANCH_STAFF_ADDED: BranchPayload;
+  BRANCH_STAFF_REMOVED: BranchPayload;
+  STAFF_ACCOUNT_CREATED: StaffAccountPayload;
+  STAFF_ACCOUNT_UPDATED: StaffAccountUpdatedPayload;
+  STAFF_ACCOUNT_DEACTIVATED: StaffAccountPayload;
+  CONTACT_REQUEST_RECEIVED: ContactNotificationPayload;
+  CONTACT_REQUEST_ACCEPTED: ContactNotificationPayload;
+  SUPPORT_CONVERSATION_STARTED: SupportConversationPayload;
+  SHIPMENT_FILE_ADDED: ShipmentFilePayload;
+  PASSWORD_CHANGED: Record<string, never>;
+};
 
 /**
  * A notification (backend NotificationDto), narrowed by `type` so `payload`
