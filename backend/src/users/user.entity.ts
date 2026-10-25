@@ -46,4 +46,8 @@ export class User extends BaseEntity {
    */
   @Column({ name: 'force_logout_after', type: 'timestamptz', nullable: true })
   forceLogoutAfter!: Date | null;
+
+  /** Set false by self-deactivation (DELETE /users/profile) — blocks login, never a hard delete. */
+  @Column({ name: 'is_active', default: true })
+  isActive!: boolean;
 }

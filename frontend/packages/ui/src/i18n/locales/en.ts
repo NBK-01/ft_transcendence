@@ -54,6 +54,7 @@ const en = {
     more: "More",
     breadcrumb: "Breadcrumb",
     skipToContent: "Skip to content",
+    unread: "New message",
   },
   theme: {
     label: "Theme",

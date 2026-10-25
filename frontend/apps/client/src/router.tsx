@@ -1,4 +1,4 @@
-import { Bell, MessageSquare } from "lucide-react";
+import { Bell } from "lucide-react";
 import { createBrowserRouter, Navigate } from "react-router";
 
 import { LegalPage } from "@trans/ui/blocks/legal-layout";
@@ -9,6 +9,7 @@ import { ClientLayout } from "./layouts/client-layout";
 import { CheckoutPage } from "./routes/checkout";
 import { ForgotPasswordPage } from "./routes/forgot-password";
 import { LoginPage } from "./routes/login";
+import { MessagesPage } from "./routes/messages";
 import { NewShipmentPage } from "./routes/new-shipment";
 import { OAuthCallbackPage } from "./routes/oauth-callback";
 import { ProfilePage } from "./routes/profile";
@@ -42,7 +43,7 @@ export const router = createBrowserRouter([
       { path: "shipments/new", element: <NewShipmentPage /> },
       { path: "shipments/:id", element: <ShipmentDetailPage /> },
       { path: "shipments/:id/checkout", element: <CheckoutPage /> },
-      { path: "messages", element: <Stub page="messages" icon={MessageSquare} /> },
+      { path: "messages", element: <MessagesPage /> },
       { path: "notifications", element: <Stub page="notifications" icon={Bell} /> },
       { path: "profile", element: <ProfilePage /> },
     ],

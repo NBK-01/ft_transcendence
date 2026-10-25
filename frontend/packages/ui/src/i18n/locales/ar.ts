@@ -51,6 +51,7 @@ const ar: CommonResources = {
     more: "المزيد",
     breadcrumb: "مسار التنقل",
     skipToContent: "الانتقال إلى المحتوى",
+    unread: "رسالة جديدة",
   },
   theme: {
     label: "المظهر",

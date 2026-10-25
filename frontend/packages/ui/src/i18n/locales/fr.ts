@@ -51,6 +51,7 @@ const fr: CommonResources = {
     more: "Plus",
     breadcrumb: "Fil d'Ariane",
     skipToContent: "Aller au contenu",
+    unread: "Nouveau message",
   },
   theme: {
     label: "Thème",

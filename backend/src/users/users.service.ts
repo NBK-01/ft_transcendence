@@ -81,6 +81,19 @@ export class UsersService {
     await this.userRepository.update(userId, { isVerified: true });
   }
 
+  /**
+   * Self-deactivation, not a hard delete — matches how Organization/InternalUser
+   * are "removed" elsewhere. forceLogoutAfter is set here so a session someone
+   * forgot to revoke also dies; the caller still separately revokes every
+   * refresh token it has a record of (see AuthService.deactivateAccount).
+   */
+  async deactivate(userId: string): Promise<void> {
+    await this.userRepository.update(userId, {
+      isActive: false,
+      forceLogoutAfter: new Date(),
+    });
+  }
+
   /** Returns the previous avatarKey (if any) so the caller can delete the now-orphaned storage object. */
   async updateAvatar(
     userId: string,

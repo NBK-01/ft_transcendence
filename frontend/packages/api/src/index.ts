@@ -11,6 +11,7 @@ export {
   useMarkConversationRead,
   useMessages,
   useOpenStaffConversation,
+  useSupportConversation,
 } from "./chat";
 export {
   setChatConnectionFactory,
@@ -24,6 +25,7 @@ export { tokens } from "./session";
 export { keys } from "./keys";
 export { ApiProvider, createQueryClient } from "./query";
 export {
+  ACCOUNT_DEACTIVATED,
   ACCOUNT_NOT_VERIFIED,
   EMAIL_ALREADY_REGISTERED,
   GOOGLE_EMAIL_NOT_VERIFIED,
@@ -33,6 +35,7 @@ export {
   OAUTH_CODE_INVALID,
   OTP_INVALID,
   WRONG_AUTH_PROVIDER,
+  useChangePassword,
   useForgotPassword,
   useLogin,
   useLogout,

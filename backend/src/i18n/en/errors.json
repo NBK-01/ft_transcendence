@@ -51,6 +51,7 @@
   "WRONG_AUTH_PROVIDER": "This account uses {provider} sign-in. Please use that to log in",
   "OAUTH_CODE_INVALID": "Invalid or expired authorization code",
   "GOOGLE_EMAIL_NOT_VERIFIED": "Your Google account's email address is not verified",
+  "ACCOUNT_DEACTIVATED": "This account has been deactivated",
   "INVALID_FILE_TYPE": "File type not allowed. Accepted types: {allowed}",
   "FILE_TOO_LARGE": "File exceeds the maximum size of {maxSizeMb}MB",
   "FILE_UPLOAD_FAILED": "File upload failed. Please try again",
