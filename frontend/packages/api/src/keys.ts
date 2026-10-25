@@ -26,6 +26,7 @@ export const keys = {
     all: ["chat"] as const,
     conversations: () => [...keys.chat.all, "conversations"] as const,
     messages: (conversationId: string) => [...keys.chat.all, "messages", conversationId] as const,
+    support: () => [...keys.chat.all, "support"] as const,
   },
   contacts: {
     all: ["contacts"] as const,

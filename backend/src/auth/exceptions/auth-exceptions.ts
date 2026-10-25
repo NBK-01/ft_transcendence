@@ -14,6 +14,7 @@ export enum AuthErrorCodes {
   WrongAuthProvider = 2009,
   OAuthCodeInvalid = 2010,
   GoogleEmailNotVerified = 2011,
+  AccountDeactivated = 2012,
 }
 
 export enum AuthErrorMessages {
@@ -27,6 +28,7 @@ export enum AuthErrorMessages {
   WrongAuthProvider = 'errors.WRONG_AUTH_PROVIDER',
   OAuthCodeInvalid = 'errors.OAUTH_CODE_INVALID',
   GoogleEmailNotVerified = 'errors.GOOGLE_EMAIL_NOT_VERIFIED',
+  AccountDeactivated = 'errors.ACCOUNT_DEACTIVATED',
 }
 
 export class InvalidCredentialsException extends DomainException {
@@ -129,6 +131,17 @@ export class GoogleEmailNotVerifiedException extends DomainException {
       { key: AuthErrorMessages.GoogleEmailNotVerified },
       HttpStatus.UNAUTHORIZED,
       AuthErrorCodes.GoogleEmailNotVerified,
+    );
+  }
+}
+
+/** Thrown at login once a customer has deactivated their own account (DELETE /users/profile). */
+export class AccountDeactivatedException extends DomainException {
+  constructor() {
+    super(
+      { key: AuthErrorMessages.AccountDeactivated },
+      HttpStatus.UNAUTHORIZED,
+      AuthErrorCodes.AccountDeactivated,
     );
   }
 }

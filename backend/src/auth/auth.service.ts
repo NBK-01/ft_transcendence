@@ -34,6 +34,7 @@ import {
   InvalidCredentialsException,
   InvalidResetTokenException,
   AccountNotVerifiedException,
+  AccountDeactivatedException,
   InvalidRefreshTokenException,
   OAuthAccountConflictException,
   OAuthCodeInvalidException,
@@ -152,6 +153,10 @@ export class AuthService {
     );
     if (!isPasswordValid) {
       throw new InvalidCredentialsException();
+    }
+
+    if (!user.isActive) {
+      throw new AccountDeactivatedException();
     }
 
     if (!user.isVerified) {
@@ -290,6 +295,14 @@ export class AuthService {
     );
     await this.usersService.updatePasswordHash(user.id, hashedPassword);
     return { message: 'Password changed successfully' };
+  }
+
+  /** Self-deactivation: blocks future login and kills every existing session. */
+  async deactivateAccount(): Promise<{ message: string }> {
+    const contextUser = this.authContext.requireUser();
+    await this.usersService.deactivate(contextUser.id);
+    await this.refreshTokenService.deleteAllUserTokens(contextUser.id);
+    return { message: 'Account deactivated' };
   }
 
   /**

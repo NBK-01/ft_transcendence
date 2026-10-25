@@ -1,6 +1,7 @@
 import { config } from 'dotenv';
 import { DataSource, DataSourceOptions } from 'typeorm';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
+import { BenignQueryErrorLogger } from './benign-query-error.logger';
 
 config();
 
@@ -17,7 +18,7 @@ export const typeOrmModuleOptions: DataSourceOptions = {
   synchronize: false,
   migrationsRun: false,
   entitySkipConstructor: true,
-  logging: ['error'],
+  logger: new BenignQueryErrorLogger(['error']),
   poolSize: parseInt(process.env.DB_POOL_SIZE || '10', 10),
   maxQueryExecutionTime: 1000,
 };

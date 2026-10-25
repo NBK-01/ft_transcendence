@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Delete,
   Body,
   Get,
   Req,
@@ -200,6 +201,19 @@ export class AuthController {
   async getCurrentUser() {
     const user = this.authContext.requireUser();
     return this.usersService.getProfile(user.id);
+  }
+
+  // Lives here, not on UsersController: deactivating ends every session on the
+  // account (RefreshTokenService), the same session-lifecycle concern as
+  // change-password/logout-all above, and AuthService already holds that
+  // collaborator — UsersModule doesn't import AuthModule, so it can't.
+  @Delete('account')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Deactivate the authenticated user's own account" })
+  @ApiResponse({ status: 200, description: 'Account deactivated' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async deactivateAccount() {
+    return this.authService.deactivateAccount();
   }
 
   private metadataFrom(req: Request): TokenMetadata {

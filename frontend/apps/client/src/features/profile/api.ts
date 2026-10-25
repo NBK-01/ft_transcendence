@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api, keys } from "@trans/api";
+import { api, keys, useSessionActions, type MessageResponse } from "@trans/api";
 
 import type { AvatarUploadResult, Profile, ProfileUpdate } from "./types";
 
@@ -48,5 +48,18 @@ export function useUploadAvatar() {
       queryClient.setQueryData<Profile>(profileKeys.me, (profile) => (profile ? { ...profile, avatarUrl } : profile));
       return queryClient.invalidateQueries({ queryKey: keys.auth.me });
     },
+  });
+}
+
+/**
+ * DELETE /auth/account — self-deactivation, not a hard delete (blocks future
+ * login, ends every session server-side). On success ends the session here
+ * too; the caller navigates to /login.
+ */
+export function useDeleteAccount() {
+  const { endSession } = useSessionActions();
+  return useMutation({
+    mutationFn: () => api.delete<MessageResponse>("/auth/account"),
+    onSuccess: endSession,
   });
 }

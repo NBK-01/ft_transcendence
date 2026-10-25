@@ -83,6 +83,9 @@ export type OAuthExchangeInput = { code: string };
 /** POST /auth/login body. */
 export type LoginInput = { email: string; password: string };
 
+/** POST /auth/change-password body. A wrong currentPassword is 401 with code 2002. */
+export type ChangePasswordInput = { currentPassword: string; newPassword: string };
+
 /**
  * The signed-in staff member, as POST /staff-auth/login returns it. There's no
  * staff /me yet, so this is stored with the session and only updates on the next sign-in.
