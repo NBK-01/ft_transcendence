@@ -24,7 +24,26 @@ function field(row: Notification, key: string): unknown {
   return (row as unknown as Record<string, unknown>)[key];
 }
 
-/** TypeORM's where semantics for what the service uses: equality, IsNull, Not and In. */
+/** Postgres LIKE: % is any run, _ any one character, a backslash escapes the next one. */
+function likePattern(pattern: string): RegExp {
+  let source = '';
+  for (let i = 0; i < pattern.length; i += 1) {
+    const char = pattern[i];
+    if (char === '\\') {
+      i += 1;
+      source += pattern[i].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    } else if (char === '%') {
+      source += '.*';
+    } else if (char === '_') {
+      source += '.';
+    } else {
+      source += char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+  }
+  return new RegExp(`^${source}$`, 's');
+}
+
+/** TypeORM's where semantics for what the service uses: equality, IsNull, Not, In and Like. */
 function matches(row: Notification, where: Where): boolean {
   return Object.entries(where).every(([key, condition]) => {
     const value = field(row, key);
@@ -38,6 +57,8 @@ function matches(row: Notification, where: Where): boolean {
         return value !== condition.value;
       case 'in':
         return (condition.value as unknown[]).includes(value);
+      case 'like':
+        return likePattern(condition.value as string).test(String(value));
       default:
         throw new Error(
           `Fake repository: unsupported operator ${condition.type}`,
@@ -516,5 +537,52 @@ describe('NotificationsService.markSent and markFailed', () => {
     expect(pending.status).toBe(NotificationStatus.FAILED);
     expect(sent.status).toBe(NotificationStatus.SENT);
     expect(read.status).toBe(NotificationStatus.READ);
+  });
+});
+
+describe('NotificationsService.markPendingFailed', () => {
+  it("fails only the job's rows that were never delivered", async () => {
+    const [pending, sent, read, otherEvent] = seed(
+      makeNotification({
+        status: NotificationStatus.PENDING,
+        dedupeKey: 'shipment-event:e1:customer:u1',
+      }),
+      makeNotification({
+        status: NotificationStatus.SENT,
+        dedupeKey: 'shipment-event:e1:staff:s1',
+      }),
+      makeNotification({
+        status: NotificationStatus.READ,
+        dedupeKey: 'shipment-event:e1:staff:s2',
+      }),
+      makeNotification({
+        status: NotificationStatus.PENDING,
+        dedupeKey: 'shipment-event:e10:customer:u1',
+      }),
+    );
+
+    await expect(service.markPendingFailed('shipment-event:e1:')).resolves.toBe(
+      1,
+    );
+
+    expect(pending.status).toBe(NotificationStatus.FAILED);
+    expect(sent.status).toBe(NotificationStatus.SENT);
+    expect(read.status).toBe(NotificationStatus.READ);
+    // "e1:" doesn't match "e10:", thanks to the trailing colon.
+    expect(otherEvent.status).toBe(NotificationStatus.PENDING);
+  });
+
+  it('treats % and _ in the prefix as plain characters', async () => {
+    const [lookalike] = seed(
+      makeNotification({
+        status: NotificationStatus.PENDING,
+        dedupeKey: 'abc:1',
+      }),
+    );
+
+    await expect(service.markPendingFailed('a_c:')).resolves.toBe(0);
+    await expect(service.markPendingFailed('%')).resolves.toBe(0);
+
+    expect(lookalike.status).toBe(NotificationStatus.PENDING);
   });
 });

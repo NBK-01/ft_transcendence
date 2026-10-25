@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, In, IsNull, Not, Repository } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Like, Not, Repository } from 'typeorm';
 import { RequestUser } from '../common/context/auth-context.types';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 import {
@@ -187,6 +187,22 @@ export class NotificationsService {
       { status: NotificationStatus.FAILED },
     );
     return Boolean(result.affected);
+  }
+
+  /**
+   * For a job that gave up: every row it created that was never delivered
+   * becomes FAILED. A job's rows share a dedupe key prefix, e.g.
+   * "shipment-event:<eventId>:". Returns how many were marked.
+   */
+  async markPendingFailed(dedupeKeyPrefix: string): Promise<number> {
+    const result = await this.notificationRepository.update(
+      {
+        dedupeKey: Like(`${dedupeKeyPrefix.replace(/[\\%_]/g, '\\$&')}%`),
+        status: NotificationStatus.PENDING,
+      },
+      { status: NotificationStatus.FAILED },
+    );
+    return result.affected ?? 0;
   }
 
   /* ---------------------------------------------------------------------

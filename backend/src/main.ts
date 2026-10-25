@@ -7,6 +7,9 @@ import { RedisIoAdapter } from './chat/redis-io.adapter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  // On SIGTERM/SIGINT, runs onApplicationShutdown hooks: BullMQ workers finish
+  // their current job and close instead of leaving it stalled.
+  app.enableShutdownHooks();
 
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
 
