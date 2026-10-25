@@ -60,7 +60,6 @@
   "SHIPMENT_LINK_OR_PHOTOS": "Send a product link or photos (not both)",
   "SHIPMENT_TOO_MANY_IMAGES": "Up to {max} photos",
   "CARD_EXPIRED": "The card has expired",
-  "SHIPMENT_CUSTOMERS_ONLY": "This action is for client accounts. Staff use the admin shipment routes",
   "CONTACT_NOT_FOUND": "Contact {id} not found",
   "CONTACT_ALREADY_EXISTS": "A contact request already exists between these two staff members",
   "CONTACT_SCOPE_VIOLATION": "You can only add contacts within your own organization",

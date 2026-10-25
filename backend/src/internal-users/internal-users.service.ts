@@ -38,7 +38,8 @@ export class InternalUsersService {
 
     const hashedPassword = await this.cryptoService.hashPassword(dto.password);
     const user = this.internalUserRepository.create({
-      email: dto.email,
+      // Stored the way findByEmail() searches, or a mixed-case email could never sign in.
+      email: dto.email.toLowerCase().trim(),
       password: hashedPassword,
       name: dto.name,
       roleId: role.id,
