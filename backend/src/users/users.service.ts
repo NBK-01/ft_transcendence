@@ -25,6 +25,8 @@ export class UsersService {
     const hashedPassword = await this.cryptoService.hashPassword(dto.password);
     const user = this.userRepository.create({
       ...dto,
+      // Stored the way findByEmail() searches, or a mixed-case email could never sign in.
+      email: dto.email.toLowerCase().trim(),
       password: hashedPassword,
     });
     return this.userRepository.save(user);
@@ -33,7 +35,7 @@ export class UsersService {
   /** Google's email is pre-verified — skip the OTP flow, no password to set. */
   async createOAuthUser(data: { email: string; name: string }): Promise<User> {
     const user = this.userRepository.create({
-      email: data.email,
+      email: data.email.toLowerCase().trim(),
       name: data.name,
       password: null,
       isVerified: true,
@@ -83,6 +85,19 @@ export class UsersService {
 
   async verifyUser(userId: string): Promise<void> {
     await this.userRepository.update(userId, { isVerified: true });
+  }
+
+  /**
+   * Self-deactivation, not a hard delete — matches how Organization/InternalUser
+   * are "removed" elsewhere. forceLogoutAfter is set here so a session someone
+   * forgot to revoke also dies; the caller still separately revokes every
+   * refresh token it has a record of (see AuthService.deactivateAccount).
+   */
+  async deactivate(userId: string): Promise<void> {
+    await this.userRepository.update(userId, {
+      isActive: false,
+      forceLogoutAfter: new Date(),
+    });
   }
 
   /** Returns the previous avatarKey (if any) so the caller can delete the now-orphaned storage object. */

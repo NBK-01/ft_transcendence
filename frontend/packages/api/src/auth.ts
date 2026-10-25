@@ -6,6 +6,7 @@ import { keys } from "./keys";
 import { tokens } from "./session";
 import type {
   AuthResponse,
+  ChangePasswordInput,
   ForgotPasswordInput,
   LoginInput,
   MessageResponse,
@@ -27,6 +28,7 @@ export const OAUTH_CODE_INVALID = 2010;
 export const GOOGLE_EMAIL_NOT_VERIFIED = 2011;
 export const EMAIL_ALREADY_REGISTERED = 1002;
 export const OTP_INVALID = 4003;
+export const ACCOUNT_DEACTIVATED = 2012;
 
 /** GET /auth/me — the signed-in user. Only runs when there's a session to use. */
 export function useMe() {
@@ -143,6 +145,17 @@ export function useOAuthExchange() {
   return useMutation({
     mutationFn: (input: OAuthExchangeInput) => api.post<AuthResponse>("/auth/oauth/exchange", input, { auth: false }),
     onSuccess: startSession,
+  });
+}
+
+/**
+ * POST /auth/change-password. A wrong current password is an ApiError with
+ * code 2002 and the session stays. Other sessions stay signed in too: offer
+ * useLogoutEverywhere after it.
+ */
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: (input: ChangePasswordInput) => api.post<MessageResponse>("/auth/change-password", input),
   });
 }
 
