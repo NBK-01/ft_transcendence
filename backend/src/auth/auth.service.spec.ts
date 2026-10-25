@@ -3,7 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import Redis from 'ioredis';
 import { Repository } from 'typeorm';
 import { AuthContextService } from '../common/context';
-import { AccountType } from '../common/context/auth-context.types';
+import { AccountType, RequestUser } from '../common/context/auth-context.types';
 import { CryptoService } from '../common/services/crypto.service';
 import { CommunicationService } from '../communication/communication.service';
 import { FileStorageService } from '../file-storage/file-storage.service';
@@ -154,6 +154,7 @@ function setup(env: Record<string, string> = {}) {
   } as unknown as ConfigService;
   const users = new InMemoryTable<User>('user', () => ({
     isVerified: false,
+    isActive: true,
     authProvider: AuthProvider.EMAIL,
     forceLogoutAfter: null,
   }));
@@ -167,6 +168,12 @@ function setup(env: Record<string, string> = {}) {
   const outbox = new Outbox();
   const mail = outbox as unknown as CommunicationService;
   const jwt = new JwtService({ secret: JWT_SECRET });
+  const oauthCodes = new OAuthCodeService(redis);
+  // The signed-in caller, for routes that act on "my own account".
+  const context: { user?: RequestUser } = {};
+  const authContext = {
+    requireUser: () => context.user!,
+  } as unknown as AuthContextService;
 
   const usersService = new UsersService(
     users as unknown as Repository<User>,
@@ -189,12 +196,12 @@ function setup(env: Record<string, string> = {}) {
     new PasswordResetService(redis),
     refreshTokens,
     {} as AuthProviderUserService,
-    {} as OAuthCodeService,
+    oauthCodes,
     mail,
     config,
-    {} as AuthContextService,
+    authContext,
   );
-  return { auth, jwt, users, sessions, outbox };
+  return { auth, jwt, users, sessions, outbox, oauthCodes, context };
 }
 
 type Harness = ReturnType<typeof setup>;
@@ -634,5 +641,67 @@ describe('password reset', () => {
       }),
       AuthErrorCodes.WrongAuthProvider,
     );
+  });
+});
+
+describe('self-deactivation (DELETE /auth/account)', () => {
+  async function deactivated() {
+    const harness = setup();
+    const session = await verifiedAccount(harness);
+    const user = harness.users.rows[0];
+    harness.context.user = {
+      id: user.id,
+      email: user.email,
+      accountType: AccountType.CUSTOMER,
+    };
+    await harness.auth.deactivateAccount();
+    return { harness, session, user };
+  }
+
+  it('marks the account inactive, never deletes it', async () => {
+    const { harness, user } = await deactivated();
+
+    expect(harness.users.rows).toEqual([user]);
+    expect(user.isActive).toBe(false);
+  });
+
+  it('login with the right password is refused (2012)', async () => {
+    const { harness } = await deactivated();
+
+    await expectCode(
+      harness.auth.login({ email: EMAIL, password: PASSWORD }),
+      AuthErrorCodes.AccountDeactivated,
+    );
+  });
+
+  it('a wrong password still gets the generic error (2001), so it does not reveal the account is deactivated', async () => {
+    const { harness } = await deactivated();
+
+    await expectCode(
+      harness.auth.login({ email: EMAIL, password: 'WrongPass123!' }),
+      AuthErrorCodes.InvalidCredentials,
+    );
+  });
+
+  it('every existing session ends: the refresh token stops working', async () => {
+    const { harness, session } = await deactivated();
+
+    const error = await harness.auth.refresh(session.refreshToken).then(
+      () => null,
+      (reason: unknown) => reason,
+    );
+    expect(error).not.toBeNull();
+    expect(harness.sessions.rows).toHaveLength(0);
+  });
+
+  describe('current gaps (pinned, not endorsed)', () => {
+    it('signing in with Google still works for a deactivated account: exchangeOAuthCode never checks isActive', async () => {
+      const { harness, user } = await deactivated();
+      const code = await harness.oauthCodes.generateCode(user.id);
+
+      await expect(
+        harness.auth.exchangeOAuthCode(code),
+      ).resolves.toHaveProperty('accessToken');
+    });
   });
 });

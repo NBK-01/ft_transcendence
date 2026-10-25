@@ -232,6 +232,17 @@ describe('create', () => {
     ).resolves.toBe(true);
   });
 
+  it('stores the email lowercased and trimmed, so login can find it', async () => {
+    const { create, service } = setup();
+
+    const user = await create({ email: '  Jane.Doe@Example.COM ' });
+
+    expect(user.email).toBe('jane.doe@example.com');
+    await expect(service.findByEmail('JANE.DOE@example.com')).resolves.toBe(
+      user,
+    );
+  });
+
   it('refuses an email already in use, whatever its case (409, 8002)', async () => {
     const { create, users } = setup();
     await create({ email: 'jane@example.com' });
@@ -441,19 +452,6 @@ describe('route protection: every route is admin-only', () => {
 });
 
 describe('current gaps (pinned, not endorsed)', () => {
-  // Fixed by 6706f1e on backend_test_suite (not on main yet). Once that is
-  // merged this test fails: replace it with "stores the email lowercased".
-  it('a mixed-case email is stored as typed, but findByEmail lowercases, so that account can never be found to log in', async () => {
-    const { create, service } = setup();
-
-    const user = await create({ email: 'Jane.Doe@Example.com' });
-
-    expect(user.email).toBe('Jane.Doe@Example.com');
-    await expect(
-      service.findByEmail('Jane.Doe@Example.com'),
-    ).resolves.toBeNull();
-  });
-
   it('creating with an organization that does not exist fails as a raw DB error (500), not 404', async () => {
     const { create, users } = setup();
 
