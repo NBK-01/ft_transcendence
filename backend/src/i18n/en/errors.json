@@ -69,5 +69,6 @@
   "CONVERSATION_NOT_FOUND": "Conversation {id} not found",
   "NOT_CONVERSATION_PARTICIPANT": "You do not have access to this conversation",
   "STAFF_NOT_CONNECTED": "You must be connected contacts to message each other",
-  "WS_AUTHENTICATION_FAILED": "WebSocket authentication failed"
+  "WS_AUTHENTICATION_FAILED": "WebSocket authentication failed",
+  "NOTIFICATION_NOT_FOUND": "Notification {id} not found"
 }
