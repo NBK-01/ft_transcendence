@@ -75,7 +75,7 @@ export function useNotifications(filters: NotificationListFilters = {}, { enable
 }
 
 /** The pages as one list, newest first. A notification arriving shifts the backend's offset pages, so duplicates are dropped. */
-export function notificationsOf(data: Feed | undefined): AppNotification[] {
+export function notificationsOf(data: InfiniteData<Page<AppNotification>> | undefined): AppNotification[] {
   const byId = new Map<string, AppNotification>();
   for (const page of data?.pages ?? []) for (const item of page.items) if (!byId.has(item.id)) byId.set(item.id, item);
   return [...byId.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
