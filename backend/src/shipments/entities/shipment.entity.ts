@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { BaseEntity } from '../../common/entities/base.entity';
 import { User } from '../../users/user.entity';
+import { Organization } from '../../organizations/organization.entity';
 import { ShipmentState } from '../constants/shipment-state';
 import { numericTransformer } from './numeric.transformer';
 import { ShipmentOffer } from './shipment-offer.entity';
@@ -44,6 +45,19 @@ export class Shipment extends BaseEntity {
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'client_id' })
   client?: User;
+
+  /**
+   * The branch handling it. Set when a partner creates the shipment through
+   * the public API (it's what scopes that partner's API key); null for a
+   * client's own request, which no branch is assigned to yet.
+   */
+  @Index()
+  @Column({ name: 'organization_id', type: 'uuid', nullable: true })
+  organizationId!: string | null;
+
+  @ManyToOne(() => Organization, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'organization_id' })
+  organization?: Organization | null;
 
   @Column({
     type: 'enum',

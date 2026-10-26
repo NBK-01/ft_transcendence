@@ -78,5 +78,6 @@
   "API_KEY_INVALID": "This API key is not valid",
   "API_KEY_REVOKED": "This API key was revoked. Ask for a new one",
   "API_KEY_BRANCH_DEACTIVATED": "This API key's branch is deactivated",
-  "API_KEY_RATE_LIMITED": "Too many requests: this key may make {limit} a minute. Try again in {retryAfter} seconds"
+  "API_KEY_RATE_LIMITED": "Too many requests: this key may make {limit} a minute. Try again in {retryAfter} seconds",
+  "PARTNER_CUSTOMER_NOT_FOUND": "No customer account with the email {email}"
 }

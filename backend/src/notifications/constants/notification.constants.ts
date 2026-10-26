@@ -55,6 +55,8 @@ export enum NotificationType {
 export interface ShipmentUpdatePayload {
   trackingId: string;
   status: ShipmentState;
+  /** Set on a shipment created straight at `confirmed` (by a partner): "new shipment", not "payment confirmed". */
+  isNew?: true;
 }
 
 export interface BranchPayload {

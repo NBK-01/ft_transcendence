@@ -47,13 +47,24 @@ function dedupeKey(
   return `${dedupeKeyPrefix(shipmentEventId)}${recipient.accountType}:${recipient.id}`;
 }
 
+/**
+ * A shipment created straight at `confirmed` (by a partner, through the
+ * public API): its customer hears about a new shipment, not a payment.
+ */
+export function isNewShipment(
+  event: Pick<ShipmentEventSummary, 'status' | 'isFirstEvent'>,
+): boolean {
+  return event.isFirstEvent && event.status === ShipmentState.CONFIRMED;
+}
+
 /** English copy from i18n/en/notifications.json, worded for the audience. */
 export function shipmentUpdateCopy(
   i18n: I18nService,
   audience: AccountType,
-  event: Pick<ShipmentEventSummary, 'status' | 'trackingId'>,
+  event: Pick<ShipmentEventSummary, 'status' | 'trackingId' | 'isFirstEvent'>,
 ): { title: string; message: string } {
-  const key = `notifications.${NotificationType.SHIPMENT_UPDATE}.${audience}.${event.status}`;
+  const step = isNewShipment(event) ? 'created' : event.status;
+  const key = `notifications.${NotificationType.SHIPMENT_UPDATE}.${audience}.${step}`;
   const options = { lang: 'en', args: { trackingId: event.trackingId } };
   return {
     title: i18n.translate(`${key}.title`, options),
@@ -92,7 +103,11 @@ export const shipmentEventNotificationHandler: JobHandler<ShipmentEventNotificat
         const sent = await notifyOnce(services, {
           recipient,
           type: NotificationType.SHIPMENT_UPDATE,
-          payload: { trackingId: event.trackingId, status: event.status },
+          payload: {
+            trackingId: event.trackingId,
+            status: event.status,
+            ...(isNewShipment(event) && { isNew: true }),
+          },
           ...copy,
           dedupeKey: dedupeKey(event.id, recipient),
         });

@@ -9,6 +9,10 @@
         "title": "Payment confirmed",
         "message": "Your payment for {trackingId} is confirmed. We'll let you know when it ships."
       },
+      "created": {
+        "title": "New shipment",
+        "message": "A shipment, {trackingId}, was created for you. We'll let you know when it ships."
+      },
       "in_transit": {
         "title": "In transit",
         "message": "{trackingId} is on its way."

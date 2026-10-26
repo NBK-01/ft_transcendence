@@ -140,6 +140,7 @@ beforeEach(() => {
     status: ShipmentState.CONFIRMED,
     trackingId: 'TRK-4A6F90',
     clientId: CUSTOMER_ID,
+    isFirstEvent: false,
   };
   lookup = {
     findEvent: jest.fn((_id: string) => Promise.resolve(event)),
@@ -246,6 +247,28 @@ describe('shipmentEventNotificationHandler: wording', () => {
     });
   });
 
+  it("calls a shipment that starts at confirmed (a partner's) a new shipment, not a payment", async () => {
+    event.isFirstEvent = true;
+
+    await run();
+
+    expect(notifications.all()[0]).toMatchObject({
+      title: 'New shipment',
+      message:
+        "A shipment, TRK-4A6F90, was created for you. We'll let you know when it ships.",
+      payload: { trackingId: 'TRK-4A6F90', status: 'confirmed', isNew: true },
+    });
+  });
+
+  it('keeps "Payment confirmed", without isNew, when confirmed comes later', async () => {
+    await run();
+
+    expect(notifications.all()[0]?.payload).toEqual({
+      trackingId: 'TRK-4A6F90',
+      status: 'confirmed',
+    });
+  });
+
   it('words it for the staff', async () => {
     event.status = ShipmentState.PENDING_PAYMENT_CONFIRMATION;
 
@@ -264,6 +287,7 @@ describe('shipmentEventNotificationHandler: wording', () => {
     const copy = shipmentUpdateCopy(i18n, audience!, {
       status: status as ShipmentState,
       trackingId: 'TRK-4A6F90',
+      isFirstEvent: false,
     });
 
     // nestjs-i18n returns the key itself when a translation is missing.

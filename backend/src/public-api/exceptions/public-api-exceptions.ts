@@ -9,6 +9,7 @@ export enum PublicApiErrorCodes {
   ApiKeyRevoked = 14005,
   ApiKeyBranchDeactivated = 14006,
   ApiKeyRateLimited = 14007,
+  PartnerCustomerNotFound = 14008,
 }
 
 export enum PublicApiErrorMessages {
@@ -19,6 +20,7 @@ export enum PublicApiErrorMessages {
   ApiKeyRevoked = 'errors.API_KEY_REVOKED',
   ApiKeyBranchDeactivated = 'errors.API_KEY_BRANCH_DEACTIVATED',
   ApiKeyRateLimited = 'errors.API_KEY_RATE_LIMITED',
+  PartnerCustomerNotFound = 'errors.PARTNER_CUSTOMER_NOT_FOUND',
 }
 
 export class ApiKeyNotFoundException extends DomainException {
@@ -101,6 +103,24 @@ export class ApiKeyRateLimitedException extends DomainException {
       },
       HttpStatus.TOO_MANY_REQUESTS,
       PublicApiErrorCodes.ApiKeyRateLimited,
+    );
+  }
+}
+
+/* -------------------------------------------------------------------------
+ * Partner shipments
+ * ----------------------------------------------------------------------- */
+
+/** No active customer account with that email: a partner can't create accounts. */
+export class PartnerCustomerNotFoundException extends DomainException {
+  constructor(email: string) {
+    super(
+      {
+        key: PublicApiErrorMessages.PartnerCustomerNotFound,
+        params: { email },
+      },
+      HttpStatus.NOT_FOUND,
+      PublicApiErrorCodes.PartnerCustomerNotFound,
     );
   }
 }
