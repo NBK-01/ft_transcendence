@@ -12,5 +12,6 @@ export const NewShipmentPage = lazy(() => import("./new-shipment").then((m) => (
 export const ShipmentDetailPage = lazy(() => import("./shipment-detail").then((m) => ({ default: m.ShipmentDetailPage })));
 export const CheckoutPage = lazy(() => import("./checkout").then((m) => ({ default: m.CheckoutPage })));
 export const MessagesPage = lazy(() => import("./messages").then((m) => ({ default: m.MessagesPage })));
+export const NotificationsPage = lazy(() => import("./notifications").then((m) => ({ default: m.NotificationsPage })));
 export const ProfilePage = lazy(() => import("./profile").then((m) => ({ default: m.ProfilePage })));
 export const LegalPage = lazy(() => import("@trans/ui/blocks/legal-layout").then((m) => ({ default: m.LegalPage })));

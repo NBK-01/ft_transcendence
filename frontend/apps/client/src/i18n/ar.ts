@@ -111,6 +111,47 @@ const ar: ClientResources = {
     connecting: "جارٍ الاتصال…",
     offline: "أنت غير متصل. ستُرسل الرسائل عند عودة الاتصال.",
   },
+  notifications: {
+    bellLabel: "الإشعارات، {{count}} غير مقروءة",
+    markAllRead: "تعليم الكل كمقروء",
+    markAllError: "تعذّر تعليم إشعاراتك كمقروءة. حاول مرة أخرى.",
+    loadMore: "تحميل المزيد",
+    unread: "غير مقروء",
+    dismiss: "تجاهل: {{title}}",
+    dismissError: "تعذّر تجاهل الإشعار. حاول مرة أخرى.",
+    emptyTitle: "لا توجد إشعارات",
+    emptyBody: "تظهر هنا التحديثات المتعلقة بشحناتك وحسابك.",
+    types: {
+      shipment: {
+        title: "الشحنة {{trackingId}}: {{status}}",
+        created: "تم إنشاء شحنتك وهي قيد المعالجة.",
+        confirmed: "تم تأكيد دفعتك. بدأ التتبع الآن.",
+        in_transit: "شحنتك في الطريق.",
+        out_for_delivery: "شحنتك خارجة للتوصيل.",
+        delivered: "تم تسليم شحنتك.",
+        cancelled: "تم إلغاء شحنتك.",
+        other: "انتقلت إلى مرحلة جديدة.",
+      },
+      shipmentFile: {
+        package_photo: {
+          title: "تمت إضافة صورة جديدة",
+          message: "تمت إضافة صورة لطردك إلى الشحنة {{trackingId}} ({{fileName}}).",
+        },
+        proof_of_delivery: {
+          title: "تمت إضافة إثبات التسليم",
+          message: "إثبات تسليم الشحنة {{trackingId}} جاهز ({{fileName}}).",
+        },
+        other: {
+          title: "تمت إضافة ملف جديد",
+          message: "تمت إضافة ملف إلى الشحنة {{trackingId}} ({{fileName}}).",
+        },
+      },
+      passwordChanged: {
+        title: "تم تغيير كلمة المرور",
+        message: "إذا لم تكن أنت من قام بذلك، أعد تعيين كلمة المرور فورًا.",
+      },
+    },
+  },
   shipments: {
     listLabel: "شحناتك",
     columns: { trackingId: "رقم التتبع", route: "المسار", status: "الحالة", updatedAt: "آخر تحديث" },

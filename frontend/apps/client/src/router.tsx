@@ -1,4 +1,3 @@
-import { Bell } from "lucide-react";
 import { Suspense } from "react";
 import { createBrowserRouter, Navigate } from "react-router";
 
@@ -13,6 +12,7 @@ import {
   LegalPage,
   MessagesPage,
   NewShipmentPage,
+  NotificationsPage,
   ProfilePage,
   ShipmentDetailPage,
   ShipmentsPage,
@@ -21,7 +21,6 @@ import { LoginPage } from "./routes/login";
 import { OAuthCallbackPage } from "./routes/oauth-callback";
 import { RegisterPage } from "./routes/register";
 import { ResetPasswordPage } from "./routes/reset-password";
-import { Stub } from "./routes/stub";
 import { VerifyOtpPage } from "./routes/verify-otp";
 
 export const router = createBrowserRouter([
@@ -67,7 +66,7 @@ export const router = createBrowserRouter([
           { path: "shipments/:id", element: <ShipmentDetailPage /> },
           { path: "shipments/:id/checkout", element: <CheckoutPage /> },
           { path: "messages", element: <MessagesPage /> },
-          { path: "notifications", element: <Stub page="notifications" icon={Bell} /> },
+          { path: "notifications", element: <NotificationsPage /> },
           { path: "profile", element: <ProfilePage /> },
         ],
       },
