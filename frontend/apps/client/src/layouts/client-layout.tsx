@@ -3,9 +3,10 @@ import { Suspense, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, Outlet, useLocation } from "react-router";
 
-import { useLiveChat, useLogout, useSession } from "@trans/api";
+import { useLiveChat, useLogout, useSession, useUnreadNotificationCount } from "@trans/api";
 import { AppShell, type NavGroup } from "@trans/ui/blocks/app-shell";
 import { Logo } from "@trans/ui/blocks/logo";
+import { Badge } from "@trans/ui/components/badge";
 import { Button } from "@trans/ui/components/button";
 import { Skeleton } from "@trans/ui/components/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@trans/ui/components/tooltip";
@@ -47,6 +48,7 @@ export function ClientLayout() {
   const session = useSession();
   const signOut = useLogout();
   const unseenSupportMessage = useUnseenSupportMessage();
+  const unreadNotifications = useUnreadNotificationCount().data?.count ?? 0;
 
   const nav: NavGroup[] = [
     {
@@ -61,7 +63,17 @@ export function ClientLayout() {
             <span aria-label={t("nav.unread")} className="size-2 rounded-full bg-orange-700" />
           ) : undefined,
         },
-        { to: "/app/notifications", label: t("nav.notifications"), icon: Bell },
+        {
+          to: "/app/notifications",
+          label: t("nav.notifications"),
+          icon: Bell,
+          badge:
+            unreadNotifications > 0 ? (
+              <Badge size="sm" className="tabular-nums">
+                {unreadNotifications > 9 ? "9+" : unreadNotifications}
+              </Badge>
+            ) : undefined,
+        },
         { to: "/app/profile", label: t("nav.profile"), icon: UserRound },
       ],
     },
@@ -86,9 +98,29 @@ export function ClientLayout() {
       topbarEnd={
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="tertiary" size="sm" shape="square" asChild>
-              <Link to="/app/notifications" aria-label={t("nav.notifications")}>
+            <Button
+              variant="tertiary"
+              size="sm"
+              shape="square"
+              asChild
+              aria-label={
+                unreadNotifications > 0
+                  ? t("app:notifications.bellLabel", { count: unreadNotifications })
+                  : t("nav.notifications")
+              }
+            >
+              <Link to="/app/notifications">
                 <Bell aria-hidden="true" />
+                {unreadNotifications > 0 && (
+                  <Badge
+                    variant="brand"
+                    size="sm"
+                    aria-hidden="true"
+                    className="absolute -end-1 -top-1 h-4 min-w-4 justify-center px-1 ring-2 ring-background-100"
+                  >
+                    {unreadNotifications > 9 ? "9+" : unreadNotifications}
+                  </Badge>
+                )}
               </Link>
             </Button>
           </TooltipTrigger>

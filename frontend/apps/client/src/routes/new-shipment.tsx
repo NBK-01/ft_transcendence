@@ -1,5 +1,7 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, Info } from "lucide-react";
 import { useState, type FormEvent } from "react";
+import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router";
 
@@ -12,18 +14,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@trans/ui/components/t
 import { toast } from "@trans/ui/components/toaster";
 
 import { useCreateShipment } from "../features/shipments/api";
+import { newShipmentLinkSchema, type NewShipmentLinkValues } from "../features/shipments/new-shipment-schema";
 import { PhotoPicker } from "../features/shipments/photo-picker";
 
 type Mode = "link" | "photos";
-
-const isHttpUrl = (value: string) => {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-};
 
 /** /app/shipments/new — ask for a product by link or by photos. Becomes a pending_sourcing order. */
 export function NewShipmentPage() {
@@ -32,32 +26,41 @@ export function NewShipmentPage() {
   const create = useCreateShipment();
 
   const [mode, setMode] = useState<Mode>("link");
-  const [productUrl, setProductUrl] = useState("");
   const [photos, setPhotos] = useState<File[]>([]);
-  const [error, setError] = useState<{ field?: Mode; message: string } | undefined>();
+  // "By photos" has no text input, so it's not worth its own react-hook-form instance:
+  // one state for the picker's own "required" validation, one for a submit-time API error.
+  const [photosFieldError, setPhotosFieldError] = useState<string>();
+  const [photosFormError, setPhotosFormError] = useState<string>();
 
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    setError(undefined);
+  const form = useForm<NewShipmentLinkValues>({
+    resolver: zodResolver(newShipmentLinkSchema),
+    defaultValues: { productUrl: "" },
+  });
+  const { errors } = form.formState;
 
-    if (mode === "link") {
-      const url = productUrl.trim();
-      if (!url) return setError({ field: "link", message: "app:shipments.newForm.urlRequired" });
-      if (!isHttpUrl(url)) return setError({ field: "link", message: "app:shipments.newForm.urlInvalid" });
-    } else if (photos.length === 0) {
-      return setError({ field: "photos", message: "app:shipments.newForm.photosRequired" });
-    }
-
-    create.mutate(mode === "link" ? { productUrl: productUrl.trim() } : { images: photos }, {
-      onSuccess: (shipment) => {
-        toast.success(t("app:shipments.newForm.sent", { id: shipment.trackingId }));
-        void navigate(`/app/shipments/${encodeURIComponent(shipment.trackingId)}`);
-      },
-      onError: (err) =>
-        // The backend's messages are already translated (Accept-Language).
-        setError({ message: isApiError(err) && err.messages[0] ? err.messages[0] : "app:shipments.errorBody" }),
-    });
+  const onSuccess = (shipment: { trackingId: string }) => {
+    toast.success(t("app:shipments.newForm.sent", { id: shipment.trackingId }));
+    void navigate(`/app/shipments/${encodeURIComponent(shipment.trackingId)}`);
   };
+  // The backend's messages are already translated (Accept-Language).
+  const apiErrorMessage = (err: unknown) => (isApiError(err) && err.messages[0] ? err.messages[0] : "app:shipments.errorBody");
+
+  const submitLink = form.handleSubmit((values) => {
+    create.mutate(
+      { productUrl: values.productUrl.trim() },
+      { onSuccess, onError: (err) => form.setError("root", { message: apiErrorMessage(err) }) },
+    );
+  });
+
+  const submitPhotos = (event: FormEvent) => {
+    event.preventDefault();
+    setPhotosFieldError(undefined);
+    setPhotosFormError(undefined);
+    if (photos.length === 0) return setPhotosFieldError("app:shipments.newForm.photosRequired");
+    create.mutate({ images: photos }, { onSuccess, onError: (err) => setPhotosFormError(apiErrorMessage(err)) });
+  };
+
+  const submit = mode === "link" ? submitLink : submitPhotos;
 
   return (
     <div className="flex flex-col gap-8">
@@ -80,24 +83,12 @@ export function NewShipmentPage() {
             <TabsTrigger value="photos">{t("app:shipments.newForm.byPhotos")}</TabsTrigger>
           </TabsList>
           <TabsContent value="link" forceMount className="data-[state=inactive]:hidden">
-            <Field
-              label={t("app:shipments.newForm.urlLabel")}
-              hint={t("app:shipments.newForm.urlHint")}
-              error={error?.field === "link" ? error.message : undefined}
-            >
-              <Input
-                type="url"
-                inputMode="url"
-                autoComplete="url"
-                placeholder="https://"
-                dir="ltr"
-                value={productUrl}
-                onChange={(event) => setProductUrl(event.target.value)}
-              />
+            <Field label={t("app:shipments.newForm.urlLabel")} hint={t("app:shipments.newForm.urlHint")} error={errors.productUrl?.message}>
+              <Input type="url" inputMode="url" autoComplete="url" placeholder="https://" dir="ltr" {...form.register("productUrl")} />
             </Field>
           </TabsContent>
           <TabsContent value="photos" forceMount className="data-[state=inactive]:hidden">
-            <PhotoPicker onChange={setPhotos} error={error?.field === "photos" ? error.message : undefined} />
+            <PhotoPicker onChange={setPhotos} error={photosFieldError} />
           </TabsContent>
         </Tabs>
 
@@ -106,7 +97,8 @@ export function NewShipmentPage() {
           {t("app:shipments.newForm.whatNext")}
         </p>
 
-        {error && !error.field && <FieldError message={error.message} />}
+        {mode === "link" && errors.root?.message && <FieldError message={errors.root.message} />}
+        {mode === "photos" && photosFormError && <FieldError message={photosFormError} />}
 
         <div className="flex gap-2">
           <Button type="submit" variant="accent" loading={create.isPending}>

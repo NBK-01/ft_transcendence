@@ -1,5 +1,6 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, Info, Minus, Plus, ReceiptText, TriangleAlert } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router";
 
@@ -14,19 +15,10 @@ import { Skeleton } from "@trans/ui/components/skeleton";
 import { toast } from "@trans/ui/components/toaster";
 
 import { useShipment, useSubmitPayment } from "../features/shipments/api";
-import {
-  digitsOnly,
-  formatCardNumber,
-  formatExpiry,
-  isValidCardNumber,
-  isValidCvc,
-  parseExpiry,
-} from "../features/shipments/card";
+import { digitsOnly, formatCardNumber, formatExpiry, parseExpiry } from "../features/shipments/card";
+import { checkoutSchema, MAX_QTY, MIN_QTY, type CheckoutValues } from "../features/shipments/checkout-schema";
 import { formatMoney } from "../features/shipments/format";
 import type { ShipmentDetail } from "../features/shipments/types";
-
-const MIN_QTY = 1;
-const MAX_QTY = 99;
 
 /** /app/shipments/:id/checkout — pay for an approved offer (pending_payment only). */
 export function CheckoutPage() {
@@ -63,10 +55,17 @@ export function CheckoutPage() {
               : t("app:shipments.detailErrorTitle")
           }
           description={t("app:shipments.errorBody")}
+          // A 404 means this shipment doesn't exist (or isn't yours) — retrying just 404s again.
           action={
-            <Button variant="secondary" onClick={() => void refetch()} disabled={isFetching}>
-              {t("app:shipments.retry")}
-            </Button>
+            isApiError(error) && error.status === 404 ? (
+              <Button variant="secondary" asChild>
+                <Link to="/app">{t("app:shipments.backToList")}</Link>
+              </Button>
+            ) : (
+              <Button variant="secondary" onClick={() => void refetch()} disabled={isFetching}>
+                {t("app:shipments.retry")}
+              </Button>
+            )
           }
         />
       ) : data.status !== "pending_payment" || !data.offer ? (
@@ -87,42 +86,37 @@ export function CheckoutPage() {
   );
 }
 
-type Errors = Partial<Record<"holderName" | "cardNumber" | "expiry" | "cvc" | "form", string>>;
-
 function CheckoutForm({ shipment }: { shipment: ShipmentDetail }) {
   const { t, i18n } = useTranslation(["common", "app"]);
   const navigate = useNavigate();
   const pay = useSubmitPayment(shipment.trackingId);
   const offer = shipment.offer!;
 
-  const [quantity, setQuantity] = useState(MIN_QTY);
-  const [holderName, setHolderName] = useState("");
-  const [cardNumber, setCardNumber] = useState("");
-  const [expiry, setExpiry] = useState("");
-  const [cvc, setCvc] = useState("");
-  const [errors, setErrors] = useState<Errors>({});
+  const form = useForm<CheckoutValues>({
+    resolver: zodResolver(checkoutSchema),
+    defaultValues: { quantity: MIN_QTY, holderName: "", cardNumber: "", expiry: "", cvc: "" },
+  });
+  const { errors } = form.formState;
+  const quantity = useWatch({ control: form.control, name: "quantity" });
+  const clamp = (value: number) => Math.min(MAX_QTY, Math.max(MIN_QTY, Number.isFinite(value) ? Math.trunc(value) : MIN_QTY));
 
   const unit = offer.unitPrice;
   const total = Math.round(unit.amount * quantity * 100) / 100;
   const money = (amount: number) => formatMoney(amount, unit.currency, i18n.language);
-  const clamp = (value: number) => Math.min(MAX_QTY, Math.max(MIN_QTY, Number.isFinite(value) ? Math.trunc(value) : MIN_QTY));
 
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    const exp = parseExpiry(expiry);
-    const next: Errors = {};
-    if (!holderName.trim()) next.holderName = "app:shipments.checkout.errors.holderName";
-    if (!isValidCardNumber(cardNumber)) next.cardNumber = "app:shipments.checkout.errors.cardNumber";
-    if (!exp) next.expiry = "app:shipments.checkout.errors.expiry";
-    if (!isValidCvc(cvc)) next.cvc = "app:shipments.checkout.errors.cvc";
-    setErrors(next);
-    if (Object.keys(next).length > 0 || !exp) return;
-
-    // Only these leave the browser: never the full card number or the CVC.
+  const submit = form.handleSubmit((values) => {
+    // The schema already confirmed this parses; only these leave the browser,
+    // never the full card number or the CVC.
+    const exp = parseExpiry(values.expiry)!;
     pay.mutate(
       {
-        quantity,
-        card: { holderName: holderName.trim(), last4: digitsOnly(cardNumber).slice(-4), expMonth: exp.month, expYear: exp.year },
+        quantity: values.quantity,
+        card: {
+          holderName: values.holderName.trim(),
+          last4: digitsOnly(values.cardNumber).slice(-4),
+          expMonth: exp.month,
+          expYear: exp.year,
+        },
       },
       {
         onSuccess: () => {
@@ -130,10 +124,12 @@ function CheckoutForm({ shipment }: { shipment: ShipmentDetail }) {
           void navigate(`/app/shipments/${encodeURIComponent(shipment.trackingId)}`);
         },
         onError: (err) =>
-          setErrors({ form: isApiError(err) && err.messages[0] ? err.messages[0] : "app:shipments.errorBody" }),
+          form.setError("root", {
+            message: isApiError(err) && err.messages[0] ? err.messages[0] : "app:shipments.errorBody",
+          }),
       },
     );
-  };
+  });
 
   return (
     <form onSubmit={submit} noValidate className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
@@ -166,28 +162,34 @@ function CheckoutForm({ shipment }: { shipment: ShipmentDetail }) {
                 variant="secondary"
                 size="sm"
                 shape="square"
-                onClick={() => setQuantity((q) => clamp(q - 1))}
+                onClick={() => form.setValue("quantity", clamp(quantity - 1))}
                 disabled={quantity <= MIN_QTY}
                 aria-label={t("app:shipments.checkout.decrease")}
               >
                 <Minus aria-hidden="true" />
               </Button>
-              <Input
-                type="number"
-                inputMode="numeric"
-                min={MIN_QTY}
-                max={MAX_QTY}
-                value={quantity}
-                onChange={(event) => setQuantity(clamp(event.target.valueAsNumber))}
-                aria-labelledby="qty-label"
-                className="h-8 w-14 text-center tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+              <Controller
+                control={form.control}
+                name="quantity"
+                render={({ field }) => (
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    min={MIN_QTY}
+                    max={MAX_QTY}
+                    value={field.value}
+                    onChange={(event) => field.onChange(clamp(event.target.valueAsNumber))}
+                    aria-labelledby="qty-label"
+                    className="h-8 w-14 text-center tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                )}
               />
               <Button
                 type="button"
                 variant="secondary"
                 size="sm"
                 shape="square"
-                onClick={() => setQuantity((q) => clamp(q + 1))}
+                onClick={() => form.setValue("quantity", clamp(quantity + 1))}
                 disabled={quantity >= MAX_QTY}
                 aria-label={t("app:shipments.checkout.increase")}
               >
@@ -212,47 +214,65 @@ function CheckoutForm({ shipment }: { shipment: ShipmentDetail }) {
         </p>
 
         {/* Demo form: autoComplete is off so the browser never fills in a real saved card. */}
-        <Field label={t("app:shipments.checkout.holderName")} error={errors.holderName}>
-          <Input autoComplete="off" value={holderName} onChange={(event) => setHolderName(event.target.value)} />
+        <Field label={t("app:shipments.checkout.holderName")} error={errors.holderName?.message}>
+          <Input autoComplete="off" {...form.register("holderName")} />
         </Field>
-        <Field label={t("app:shipments.checkout.cardNumber")} error={errors.cardNumber}>
-          <Input
-            inputMode="numeric"
-            autoComplete="off"
-            placeholder="1234 1234 1234 1234"
-            dir="ltr"
-            className="font-mono"
-            value={cardNumber}
-            onChange={(event) => setCardNumber(formatCardNumber(event.target.value))}
+        <Field label={t("app:shipments.checkout.cardNumber")} error={errors.cardNumber?.message}>
+          <Controller
+            control={form.control}
+            name="cardNumber"
+            render={({ field }) => (
+              <Input
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="1234 1234 1234 1234"
+                dir="ltr"
+                className="font-mono"
+                value={field.value}
+                onChange={(event) => field.onChange(formatCardNumber(event.target.value))}
+              />
+            )}
           />
         </Field>
         <div className="grid grid-cols-2 gap-4">
-          <Field label={t("app:shipments.checkout.expiry")} error={errors.expiry}>
-            <Input
-              inputMode="numeric"
-              autoComplete="off"
-              placeholder="MM / YY"
-              dir="ltr"
-              className="font-mono"
-              value={expiry}
-              onChange={(event) => setExpiry(formatExpiry(event.target.value))}
+          <Field label={t("app:shipments.checkout.expiry")} error={errors.expiry?.message}>
+            <Controller
+              control={form.control}
+              name="expiry"
+              render={({ field }) => (
+                <Input
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder="MM / YY"
+                  dir="ltr"
+                  className="font-mono"
+                  value={field.value}
+                  onChange={(event) => field.onChange(formatExpiry(event.target.value))}
+                />
+              )}
             />
           </Field>
-          <Field label={t("app:shipments.checkout.cvc")} error={errors.cvc}>
-            <Input
-              inputMode="numeric"
-              autoComplete="off"
-              placeholder="123"
-              maxLength={4}
-              dir="ltr"
-              className="font-mono"
-              value={cvc}
-              onChange={(event) => setCvc(digitsOnly(event.target.value).slice(0, 4))}
+          <Field label={t("app:shipments.checkout.cvc")} error={errors.cvc?.message}>
+            <Controller
+              control={form.control}
+              name="cvc"
+              render={({ field }) => (
+                <Input
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder="123"
+                  maxLength={4}
+                  dir="ltr"
+                  className="font-mono"
+                  value={field.value}
+                  onChange={(event) => field.onChange(digitsOnly(event.target.value).slice(0, 4))}
+                />
+              )}
             />
           </Field>
         </div>
 
-        {errors.form && <FieldError message={errors.form} />}
+        {errors.root?.message && <FieldError message={errors.root.message} />}
 
         <Button type="submit" variant="accent" size="lg" loading={pay.isPending}>
           {t("app:shipments.checkout.pay", { total: money(total) })}

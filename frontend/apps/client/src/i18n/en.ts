@@ -110,6 +110,47 @@ const en = {
     connecting: "Connecting…",
     offline: "You're offline. Messages will send once you're back.",
   },
+  notifications: {
+    bellLabel: "Notifications, {{count}} unread",
+    markAllRead: "Mark all as read",
+    markAllError: "Couldn't mark your notifications as read. Try again.",
+    loadMore: "Load more",
+    unread: "Unread",
+    dismiss: "Dismiss: {{title}}",
+    dismissError: "Couldn't dismiss the notification. Try again.",
+    emptyTitle: "No notifications",
+    emptyBody: "Updates about your shipments and account appear here.",
+    types: {
+      shipment: {
+        title: "Shipment {{trackingId}}: {{status}}",
+        created: "Your shipment was created and is on its way to being processed.",
+        confirmed: "Your payment was confirmed. Tracking starts now.",
+        in_transit: "Your shipment is on the move.",
+        out_for_delivery: "Your shipment is out for delivery.",
+        delivered: "Your shipment was delivered.",
+        cancelled: "Your shipment was cancelled.",
+        other: "It moved to a new step.",
+      },
+      shipmentFile: {
+        package_photo: {
+          title: "New photo added",
+          message: "A photo of your package was added to shipment {{trackingId}} ({{fileName}}).",
+        },
+        proof_of_delivery: {
+          title: "Proof of delivery added",
+          message: "Proof of delivery for shipment {{trackingId}} is ready ({{fileName}}).",
+        },
+        other: {
+          title: "New file added",
+          message: "A file was added to shipment {{trackingId}} ({{fileName}}).",
+        },
+      },
+      passwordChanged: {
+        title: "Password changed",
+        message: "If this wasn't you, reset your password right away.",
+      },
+    },
+  },
   shipments: {
     listLabel: "Your shipments",
     columns: { trackingId: "Tracking ID", route: "Route", status: "Status", updatedAt: "Last update" },

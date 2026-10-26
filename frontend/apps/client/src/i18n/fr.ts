@@ -111,6 +111,47 @@ const fr: ClientResources = {
     connecting: "Connexion…",
     offline: "Vous êtes hors ligne. Les messages seront envoyés dès votre retour.",
   },
+  notifications: {
+    bellLabel: "Notifications, {{count}} non lues",
+    markAllRead: "Tout marquer comme lu",
+    markAllError: "Impossible de marquer vos notifications comme lues. Réessayez.",
+    loadMore: "Charger plus",
+    unread: "Non lu",
+    dismiss: "Ignorer : {{title}}",
+    dismissError: "Impossible d'ignorer la notification. Réessayez.",
+    emptyTitle: "Aucune notification",
+    emptyBody: "Les mises à jour de vos envois et de votre compte apparaissent ici.",
+    types: {
+      shipment: {
+        title: "Envoi {{trackingId}} : {{status}}",
+        created: "Votre envoi a été créé et va être traité.",
+        confirmed: "Votre paiement a été confirmé. Le suivi commence maintenant.",
+        in_transit: "Votre envoi est en cours de route.",
+        out_for_delivery: "Votre envoi est en cours de livraison.",
+        delivered: "Votre envoi a été livré.",
+        cancelled: "Votre envoi a été annulé.",
+        other: "Il est passé à une nouvelle étape.",
+      },
+      shipmentFile: {
+        package_photo: {
+          title: "Nouvelle photo ajoutée",
+          message: "Une photo de votre colis a été ajoutée à l'envoi {{trackingId}} ({{fileName}}).",
+        },
+        proof_of_delivery: {
+          title: "Preuve de livraison ajoutée",
+          message: "La preuve de livraison de l'envoi {{trackingId}} est prête ({{fileName}}).",
+        },
+        other: {
+          title: "Nouveau fichier ajouté",
+          message: "Un fichier a été ajouté à l'envoi {{trackingId}} ({{fileName}}).",
+        },
+      },
+      passwordChanged: {
+        title: "Mot de passe modifié",
+        message: "Si ce n'était pas vous, réinitialisez votre mot de passe immédiatement.",
+      },
+    },
+  },
   shipments: {
     listLabel: "Vos expéditions",
     columns: { trackingId: "N° de suivi", route: "Trajet", status: "Statut", updatedAt: "Dernière mise à jour" },
