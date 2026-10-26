@@ -357,6 +357,56 @@ export type AdminShipmentDetail = ShipmentDetail & {
   createdAt: string;
 };
 
+/** Who moved a shipment (backend ShipmentActorType). */
+export type ShipmentActorType = "customer" | "staff" | "partner" | "carrier";
+
+/** Who did a shipment event (backend ActivityActorDto). */
+export type ActivityActor = {
+  type: ShipmentActorType;
+  /** A customer's, a staff member's or an API key's id; null for the carrier. */
+  id: string | null;
+  /** The person's name, or the API key's for a partner; null for the carrier, or an account that's gone. */
+  name: string | null;
+  /** A partner's branch (its API key's); null otherwise. */
+  organization: ShipmentBranch | null;
+};
+
+/** One shipment event with who did it (backend ActivityDto). */
+export type ShipmentActivity = {
+  id: string;
+  trackingId: string;
+  status: ShipmentState;
+  location: string;
+  occurredAt: string;
+  /** Null on events from before who did it was recorded. */
+  actor: ActivityActor | null;
+};
+
+/** A number for the period asked, and for the one just before it. */
+export type PeriodCount = { current: number; previous: number };
+
+/** GET /admin/stats/overview (backend OverviewStatsDto). */
+export type OverviewStats = {
+  period: { from: string; to: string; previousFrom: string };
+  /** Shipments created in the period: customer requests and partner ones. */
+  created: PeriodCount;
+  delivered: PeriodCount;
+  /** How many shipments are in each status now. */
+  byStatus: Record<ShipmentState, number>;
+  /** The latest events, newest first, whatever the period. */
+  recentActivity: ShipmentActivity[];
+};
+
+/** GET /admin/stats/overview's query (backend OverviewStatsQueryDto). */
+export type OverviewStatsQuery = {
+  /** ISO 8601 with the browser's offset, so "today" is the user's day. Included. */
+  from: string;
+  /** After `from`, at most 366 days later. Excluded. */
+  to: string;
+  /** One branch only. Customer orders have no branch, so they never count. */
+  organizationId?: string;
+};
+
 /** One step of a shipment's timeline (backend ShipmentEventDto). The API lists them newest first. */
 export type ShipmentEvent = {
   status: ShipmentState;

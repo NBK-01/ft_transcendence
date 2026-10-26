@@ -1,22 +1,21 @@
-import { CircleAlert, CircleCheck, Hourglass, Info, Truck } from "lucide-react";
+import { CircleCheck, Hourglass, PackagePlus, Truck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 
-import { isForbidden, useAdminShipments, type AdminShipment } from "@trans/api";
-import { ShipmentStateBadge } from "@trans/ui/blocks/shipment-state";
+import { isForbidden, type OverviewStats } from "@trans/api";
 import { ShipmentStateBreakdown } from "@trans/ui/blocks/shipment-state-breakdown";
-import { Button } from "@trans/ui/components/button";
 import { Card } from "@trans/ui/components/card";
 import { Skeleton } from "@trans/ui/components/skeleton";
 
+import { useOrganizations } from "../branches/api";
 import { useBranchFilter } from "../branches/use-branch-filter";
-import { useActivityTime } from "../messages/use-activity-time";
-import { ShipmentRoute } from "../shipments/shipment-route";
-import { COUNTED_STATES, totalOf, useShipmentCounts, type CountedState, type CountQuery } from "./api";
+import { ActivityCard } from "./activity-card";
+import { changeOf, COUNTED_STATES, useTodayOverview, type CountedState } from "./api";
+import { CardError } from "./card-error";
 import { OverviewStat } from "./overview-stat";
 import { queryState } from "./query-state";
 
-type Counts = Record<CountedState, CountQuery>;
+type ByStatus = OverviewStats["byStatus"];
 
 /** The admin's to-do: find a supplier, confirm a payment. */
 const AWAITING: CountedState[] = ["pending_sourcing", "pending_payment_confirmation"];
@@ -25,22 +24,26 @@ const MOVING: CountedState[] = ["in_transit", "out_for_delivery"];
 /** The shipments list filtered to one status (pass it through withBranch). */
 const statusPath = (status: CountedState) => `/shipments?status=${status}`;
 
+const sumOf = (byStatus: ByStatus | undefined, states: CountedState[]) =>
+  byStatus && states.reduce((sum, state) => sum + byStatus[state], 0);
+
 /**
  * Shipment numbers for "shipments:read:all" (admin, support): mount it only
- * for them. Every number covers all branches and all time: the API can't
- * filter shipments by branch or date yet.
+ * for them. One request (GET /admin/stats/overview): what's waiting and moving
+ * now, what was created and delivered today against yesterday, every status,
+ * and who did what last. All of it follows the top bar's branch filter.
  */
 export function ShipmentsSection() {
   const { t } = useTranslation(["common", "app"]);
-  const counts = useShipmentCounts();
-  // Most recently updated first.
-  const recent = useAdminShipments({ limit: 5 });
-  const { withBranch } = useBranchFilter();
+  const stats = useTodayOverview();
+  const { branchId, withBranch } = useBranchFilter();
+  const branch = useOrganizations().data?.find((org) => org.id === branchId);
 
   // A 403 (the role changed since signing in) drops the section, not the page.
-  if ([recent, ...Object.values(counts)].some((query) => isForbidden(query.error))) return null;
+  if (isForbidden(stats.error)) return null;
 
-  const pick = (states: CountedState[]) => states.map((state) => counts[state]);
+  const state = queryState(stats);
+  const data = stats.data;
 
   return (
     <section className="flex flex-col gap-4" aria-labelledby="shipments-heading">
@@ -48,50 +51,60 @@ export function ShipmentsSection() {
         <h2 id="shipments-heading" className="text-heading-20">
           {t("nav.shipments")}
         </h2>
-        <p className="text-copy-14 text-gray-900">{t("app:overview.shipments.scope")}</p>
+        <p className="text-copy-14 text-pretty text-gray-900">
+          {branch
+            ? t("app:overview.shipments.scopeBranch", { branch: branch.name })
+            : t("app:overview.shipments.scope")}
+        </p>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {/* Two statuses each, and the list filters by one: the card links to each instead of being a link. */}
         <OverviewStat
           label={t("app:overview.shipments.awaiting")}
           icon={Hourglass}
-          value={totalOf(pick(AWAITING))}
-          description={<StatusLinks states={AWAITING} counts={counts} />}
-          {...queryState(...pick(AWAITING))}
+          value={sumOf(data?.byStatus, AWAITING)}
+          description={data && <StatusLinks states={AWAITING} byStatus={data.byStatus} />}
+          {...state}
         />
         <OverviewStat
           label={t("app:overview.shipments.moving")}
           icon={Truck}
-          value={totalOf(pick(MOVING))}
-          description={<StatusLinks states={MOVING} counts={counts} />}
-          {...queryState(...pick(MOVING))}
+          value={sumOf(data?.byStatus, MOVING)}
+          description={data && <StatusLinks states={MOVING} byStatus={data.byStatus} />}
+          {...state}
+        />
+        <OverviewStat
+          label={t("app:overview.shipments.createdToday")}
+          icon={PackagePlus}
+          value={data?.created.current}
+          change={data && changeOf(data.created)}
+          changeLabel={t("app:overview.shipments.vsYesterday")}
+          description={data && t("app:overview.shipments.yesterday", { count: data.created.previous })}
+          {...state}
         />
         <OverviewStat
           to={withBranch(statusPath("delivered"))}
-          label={t("app:overview.shipments.delivered")}
+          label={t("app:overview.shipments.deliveredToday")}
           icon={CircleCheck}
-          value={totalOf([counts.delivered])}
-          description={t("app:overview.shipments.allTime")}
-          {...queryState(counts.delivered)}
+          value={data?.delivered.current}
+          change={data && changeOf(data.delivered)}
+          changeLabel={t("app:overview.shipments.vsYesterday")}
+          description={data && t("app:overview.shipments.yesterday", { count: data.delivered.previous })}
+          {...state}
         />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <BreakdownCard counts={counts} />
-        <RecentCard recent={recent} />
+        <BreakdownCard byStatus={data?.byStatus} {...state} />
+        <ActivityCard activity={data?.recentActivity} {...state} />
       </div>
-
-      <p className="flex items-start gap-2 text-copy-13 text-pretty text-gray-900">
-        <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-        {t("app:overview.shipments.note")}
-      </p>
     </section>
   );
 }
 
 /** "Pending sourcing: 3", one link per status, each to the list filtered to it. */
-function StatusLinks({ states, counts }: { states: CountedState[]; counts: Counts }) {
+function StatusLinks({ states, byStatus }: { states: CountedState[]; byStatus: ByStatus }) {
   const { t } = useTranslation(["common", "app"]);
   const { withBranch } = useBranchFilter();
   return (
@@ -102,28 +115,25 @@ function StatusLinks({ states, counts }: { states: CountedState[]; counts: Count
           to={withBranch(statusPath(state))}
           className="focus-ring rounded-sm underline decoration-gray-alpha-500 underline-offset-2 transition-colors duration-150 hover:text-gray-1000 hover:decoration-current"
         >
-          {t("app:overview.shipments.statusCount", {
-            status: t(`status.${state}`),
-            count: counts[state].data?.meta.totalItems ?? 0,
-          })}
+          {t("app:overview.shipments.statusCount", { status: t(`status.${state}`), count: byStatus[state] })}
         </Link>
       ))}
     </span>
   );
 }
 
-function BreakdownCard({ counts }: { counts: Counts }) {
+type BreakdownProps = { byStatus: ByStatus | undefined; isLoading: boolean; error: unknown; onRetry: () => void };
+
+function BreakdownCard({ byStatus, isLoading, error, onRetry }: BreakdownProps) {
   const { t } = useTranslation(["common", "app"]);
   const { withBranch } = useBranchFilter();
-  const queries = COUNTED_STATES.map((state) => counts[state]);
-  const { isLoading, error, onRetry } = queryState(...queries);
-  const total = totalOf(queries);
+  const total = sumOf(byStatus, COUNTED_STATES);
 
   return (
     <Card className="gap-4 p-5" aria-busy={isLoading || undefined}>
       <div className="flex items-baseline justify-between gap-3">
         <h3 className="text-heading-16">{t("app:overview.shipments.byStatus")}</h3>
-        {total !== undefined && (
+        {total !== undefined && !isLoading && (
           <p className="text-copy-13 text-gray-900 tabular-nums">{t("app:overview.shipments.total", { count: total })}</p>
         )}
       </div>
@@ -137,104 +147,18 @@ function BreakdownCard({ counts }: { counts: Counts }) {
             ))}
           </div>
         </div>
-      ) : error ? (
+      ) : error || !byStatus ? (
         <CardError onRetry={onRetry} />
       ) : (
         <ShipmentStateBreakdown
           label={t("app:overview.shipments.byStatus")}
           items={COUNTED_STATES.map((state) => ({
             state,
-            count: counts[state].data?.meta.totalItems ?? 0,
+            count: byStatus[state],
             href: withBranch(statusPath(state)),
           }))}
         />
       )}
     </Card>
-  );
-}
-
-/** The latest changes: the list's first page, which the API sorts by last update. */
-function RecentCard({ recent }: { recent: ReturnType<typeof useAdminShipments> }) {
-  const { t } = useTranslation(["common", "app"]);
-  const { withBranch } = useBranchFilter();
-  const { isLoading, error, onRetry } = queryState(recent);
-  const items = recent.data?.items ?? [];
-
-  return (
-    <Card className="gap-2 p-5" aria-busy={isLoading || undefined}>
-      <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-heading-16">{t("app:overview.shipments.recent")}</h3>
-        <Link
-          to={withBranch("/shipments")}
-          className="focus-ring shrink-0 rounded-sm text-label-14 text-gray-900 transition-colors duration-150 hover:text-gray-1000 hover:underline"
-        >
-          {t("app:overview.shipments.viewAll")}
-        </Link>
-      </div>
-      {isLoading ? (
-        <div className="flex flex-col">
-          <span className="sr-only">{t("table.loading")}</span>
-          {Array.from({ length: 5 }, (_, index) => (
-            <div key={index} className="flex flex-col gap-2 py-3">
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-4 w-56 max-w-full" />
-            </div>
-          ))}
-        </div>
-      ) : error ? (
-        <CardError onRetry={onRetry} />
-      ) : items.length === 0 ? (
-        <p className="py-8 text-center text-copy-14 text-gray-900">{t("app:overview.shipments.recentEmpty")}</p>
-      ) : (
-        <ul className="flex flex-col divide-y divide-gray-alpha-400">
-          {items.map((shipment) => (
-            <RecentRow key={shipment.trackingId} shipment={shipment} />
-          ))}
-        </ul>
-      )}
-    </Card>
-  );
-}
-
-function RecentRow({ shipment }: { shipment: AdminShipment }) {
-  const { withBranch } = useBranchFilter();
-  const activity = useActivityTime();
-  return (
-    <li className="flex items-start gap-3 py-3">
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <Link
-            to={withBranch(`/shipments/${encodeURIComponent(shipment.trackingId)}`)}
-            dir="ltr"
-            className="focus-ring rounded-sm text-label-mono-14 text-gray-1000 hover:underline"
-          >
-            {shipment.trackingId}
-          </Link>
-          <ShipmentStateBadge status={shipment.status} size="sm" />
-        </div>
-        <div className="flex min-w-0 items-center gap-1.5 text-copy-13 text-gray-900">
-          <span className="min-w-0 truncate">{shipment.client.name}</span>
-          <span aria-hidden="true">·</span>
-          <ShipmentRoute origin={shipment.origin} destination={shipment.destination} className="min-w-0 truncate" />
-        </div>
-      </div>
-      <time dateTime={shipment.updatedAt} className="shrink-0 pt-0.5 text-label-12 text-gray-900 tabular-nums">
-        {activity(shipment.updatedAt)}
-      </time>
-    </li>
-  );
-}
-
-/** A card's content that couldn't load. */
-function CardError({ onRetry }: { onRetry: () => void }) {
-  const { t } = useTranslation("common");
-  return (
-    <div role="alert" className="flex flex-col items-center gap-3 py-8 text-center">
-      <CircleAlert className="size-5 text-red-700" aria-hidden="true" />
-      <p className="text-copy-14 text-gray-900">{t("stat.error")}</p>
-      <Button variant="secondary" size="sm" onClick={onRetry}>
-        {t("table.retry")}
-      </Button>
-    </div>
   );
 }
