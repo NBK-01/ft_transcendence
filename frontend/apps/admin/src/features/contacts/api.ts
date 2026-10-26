@@ -2,10 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, keys, type Contact, type MessageResponse } from "@trans/api";
 
-/** Backend ContactErrorCodes the screens react to. */
-export const CONTACT_ALREADY_EXISTS = 10002;
-export const CONTACT_SCOPE_VIOLATION = 10003;
-export const CONTACT_NOT_PENDING = 10005;
+/** Backend ContactErrorCodes the screens react to (12000-12999, reassigned from 10000-10999). */
+export const CONTACT_ALREADY_EXISTS = 14002;
+export const CONTACT_SCOPE_VIOLATION = 14003;
+export const CONTACT_NOT_PENDING = 14005;
 
 /** GET /contacts: every contact you're part of, in any state. The tabs split it in the browser. */
 export function useContacts() {
@@ -24,11 +24,11 @@ function useContactMutation<TInput, TResult>(mutationFn: (input: TInput) => Prom
   });
 }
 
-/** POST /contacts. 403 (10003) outside your branch unless one of you is an admin; 409 (10002) if already connected. */
+/** POST /contacts. 403 (14003) outside your branch unless one of you is an admin; 409 (14002) if already connected. */
 export const useSendContactRequest = () =>
   useContactMutation((addresseeId: string) => api.post<Contact>("/contacts", { addresseeId }));
 
-/** PATCH /contacts/:id/accept. Only the addressee; 409 (10005) if the request was withdrawn meanwhile. */
+/** PATCH /contacts/:id/accept. Only the addressee; 409 (14005) if the request was withdrawn meanwhile. */
 export const useAcceptContact = () =>
   useContactMutation((id: string) => api.patch<Contact>(`/contacts/${encodeURIComponent(id)}/accept`));
 

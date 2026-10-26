@@ -370,6 +370,13 @@ const OPEN_ROUTES: Record<string, string> = {
   'GET /chat/conversations/:id/messages': 'any signed-in user',
   'POST /chat/conversations/:id/messages': 'any signed-in user',
   'PATCH /chat/conversations/:id/read': 'any signed-in user',
+
+  // The caller's own notifications — NotificationsService scopes every query to the caller's id.
+  'GET /notifications': 'any signed-in user',
+  'GET /notifications/unread-count': 'any signed-in user',
+  'PATCH /notifications/:id/read': 'any signed-in user',
+  'PATCH /notifications/read-all': 'any signed-in user',
+  'DELETE /notifications/:id': 'any signed-in user',
 };
 
 describe('routes that are open today', () => {

@@ -1,12 +1,13 @@
 import { HttpStatus } from '@nestjs/common';
 import { DomainException } from '../../common/exceptions/base/error-types';
 
+/** Contacts domain error codes (14000-14999, reassigned from 10000-10999, then from 12000-12999 after colliding with Notifications — see error-types.ts) */
 export enum ContactErrorCodes {
-  ContactNotFound = 10001,
-  ContactAlreadyExists = 10002,
-  ContactScopeViolation = 10003,
-  ContactSelfRequest = 10004,
-  ContactNotPending = 10005,
+  ContactNotFound = 14001,
+  ContactAlreadyExists = 14002,
+  ContactScopeViolation = 14003,
+  ContactSelfRequest = 14004,
+  ContactNotPending = 14005,
 }
 
 export enum ContactErrorMessages {

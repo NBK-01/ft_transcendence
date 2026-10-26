@@ -4,6 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
 import { AuthProvider, User } from './user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UserDto } from './dto/user.dto';
 import { UserFactory } from './factories/user.factory';
 import { CryptoService } from '../common/services/crypto.service';
@@ -72,6 +73,37 @@ export class UsersService {
     }
     const avatarUrl = await this.resolveAvatarUrl(user.avatarKey);
     return UserFactory.toDto(user, avatarUrl);
+  }
+
+  /**
+   * `name` has no separate first/last columns of its own — it's re-derived
+   * from firstName+lastName on every update so nav/auth responses (which
+   * still read `name`) stay in sync without migrating every reference.
+   */
+  async updateProfile(userId: string, dto: UpdateProfileDto): Promise<UserDto> {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new UserNotFoundException(userId);
+    }
+
+    const firstName = dto.firstName ?? user.firstName;
+    const lastName = dto.lastName ?? user.lastName;
+    const dateOfBirth =
+      dto.dateOfBirth !== undefined ? dto.dateOfBirth : user.dateOfBirth;
+    const phoneNumber =
+      dto.phoneNumber !== undefined ? dto.phoneNumber : user.phoneNumber;
+
+    await this.userRepository.update(userId, {
+      firstName,
+      lastName,
+      dateOfBirth,
+      phoneNumber,
+      name: `${firstName ?? ''} ${lastName ?? ''}`.trim(),
+    });
+
+    const updated = await this.findById(userId);
+    const avatarUrl = await this.resolveAvatarUrl(updated?.avatarKey);
+    return UserFactory.toDto(updated as User, avatarUrl);
   }
 
   private async resolveAvatarUrl(

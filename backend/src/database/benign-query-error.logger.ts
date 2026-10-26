@@ -1,7 +1,6 @@
 import { Logger as NestLogger } from '@nestjs/common';
 import { AdvancedConsoleLogger, QueryRunner } from 'typeorm';
-
-const POSTGRES_UNIQUE_VIOLATION = '23505';
+import { isUniqueConstraintViolation } from '../common/utils/database-errors';
 
 /**
  * TypeORM's default logger reports every failed query at `error` severity, even ones
@@ -22,7 +21,7 @@ export class BenignQueryErrorLogger extends AdvancedConsoleLogger {
     parameters?: unknown[],
     queryRunner?: QueryRunner,
   ): void {
-    if (!this.isUniqueConstraintViolation(error)) {
+    if (!isUniqueConstraintViolation(error)) {
       // AbstractLogger's own signature narrows `error` to `string` even though the
       // Logger interface (and the postgres driver at runtime) pass the raw Error.
       super.logQueryError(error as string, query, parameters, queryRunner);
@@ -31,10 +30,6 @@ export class BenignQueryErrorLogger extends AdvancedConsoleLogger {
     this.nestLogger.warn(
       `Unique constraint race recovered by caller: ${this.messageOf(error)} -- ${query}`,
     );
-  }
-
-  private isUniqueConstraintViolation(error: unknown): boolean {
-    return (error as { code?: string })?.code === POSTGRES_UNIQUE_VIOLATION;
   }
 
   private messageOf(error: string | Error): string {

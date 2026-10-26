@@ -2,6 +2,7 @@ import { KeyRound } from "lucide-react";
 import { Suspense } from "react";
 import { createBrowserRouter } from "react-router";
 
+import { ErrorFallback } from "@trans/ui/blocks/error-boundary";
 import { NotFoundPage } from "@trans/ui/blocks/not-found-page";
 
 import { RequireAdmin, RequirePermission } from "./features/auth/require-admin";
@@ -26,72 +27,79 @@ import { Stub } from "./routes/stub";
 export const router = createBrowserRouter(
   [
     {
-      path: "privacy",
-      element: (
-        <Suspense>
-          <LegalPage kind="privacy" />
-        </Suspense>
-      ),
-    },
-    {
-      path: "terms",
-      element: (
-        <Suspense>
-          <LegalPage kind="terms" />
-        </Suspense>
-      ),
-    },
-    { path: "login", element: <LoginPage /> },
-    {
-      path: "/",
-      element: (
-        <RequireStaff>
-          <AdminLayout />
-        </RequireStaff>
-      ),
+      // Pathless root: a data router catches render errors per matched route tree,
+      // so one `errorElement` here is the only way to cover every route below.
+      errorElement: <ErrorFallback />,
       children: [
-        { index: true, element: <OverviewPage /> },
         {
-          path: "shipments",
+          path: "privacy",
           element: (
-            <RequirePermission permission="shipments:read:all">
-              <ShipmentsPage />
-            </RequirePermission>
+            <Suspense>
+              <LegalPage kind="privacy" />
+            </Suspense>
           ),
         },
         {
-          path: "shipments/:trackingId",
+          path: "terms",
           element: (
-            <RequirePermission permission="shipments:read:all">
-              <ShipmentDetailPage />
-            </RequirePermission>
+            <Suspense>
+              <LegalPage kind="terms" />
+            </Suspense>
           ),
         },
-        { path: "messages", element: <MessagesPage /> },
-        { path: "messages/:id", element: <MessagesPage /> },
-        { path: "contacts", element: <ContactsPage /> },
+        { path: "login", element: <LoginPage /> },
         {
-          path: "users",
+          path: "/",
           element: (
-            <RequireAdmin>
-              <UsersPage />
-            </RequireAdmin>
+            <RequireStaff>
+              <AdminLayout />
+            </RequireStaff>
           ),
+          children: [
+            { index: true, element: <OverviewPage /> },
+            {
+              path: "shipments",
+              element: (
+                <RequirePermission permission="shipments:read:all">
+                  <ShipmentsPage />
+                </RequirePermission>
+              ),
+            },
+            {
+              path: "shipments/:trackingId",
+              element: (
+                <RequirePermission permission="shipments:read:all">
+                  <ShipmentDetailPage />
+                </RequirePermission>
+              ),
+            },
+            { path: "messages", element: <MessagesPage /> },
+            { path: "messages/:id", element: <MessagesPage /> },
+            { path: "contacts", element: <ContactsPage /> },
+            {
+              path: "users",
+              element: (
+                <RequireAdmin>
+                  <UsersPage />
+                </RequireAdmin>
+              ),
+            },
+            { path: "branches", element: <BranchesPage /> },
+            { path: "branches/:id", element: <BranchDetailPage /> },
+            {
+              path: "api-keys",
+              element: (
+                <RequireAdmin>
+                  <Stub page="apiKeys" icon={KeyRound} />
+                </RequireAdmin>
+              ),
+            },
+            { path: "profile", element: <ProfilePage /> },
+          ],
         },
-        { path: "branches", element: <BranchesPage /> },
-        { path: "branches/:id", element: <BranchDetailPage /> },
-        {
-          path: "api-keys",
-          element: (
-            <RequireAdmin>
-              <Stub page="apiKeys" icon={KeyRound} />
-            </RequireAdmin>
-          ),
-        },
-        { path: "profile", element: <ProfilePage /> },
+        { path: "*", element: <NotFoundPage /> },
       ],
     },
-    { path: "*", element: <NotFoundPage /> },
   ],
   { basename: "/admin" },
 );

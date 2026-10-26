@@ -29,6 +29,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { OAuthExchangeDto } from './dto/oauth-exchange.dto';
 import { Public } from '../common/decorators/public.decorator';
+import { RequireCustomer } from '../common/decorators/access-control.decorator';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { AuthContextService } from '../common/context';
 import { UsersService } from '../users/users.service';
@@ -207,6 +208,7 @@ export class AuthController {
   // account (RefreshTokenService), the same session-lifecycle concern as
   // change-password/logout-all above, and AuthService already holds that
   // collaborator — UsersModule doesn't import AuthModule, so it can't.
+  @RequireCustomer()
   @Delete('account')
   @ApiBearerAuth()
   @ApiOperation({ summary: "Deactivate the authenticated user's own account" })

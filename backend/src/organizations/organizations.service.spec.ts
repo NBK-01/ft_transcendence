@@ -93,6 +93,9 @@ function setup() {
       Promise.resolve(
         staff.filter((user) => user.organizationId === where.organizationId),
       ),
+    // removeStaff looks the member up first, to emit the organizationId they were removed from.
+    findOne: ({ where }: { where: { id: string } }) =>
+      Promise.resolve(staff.find((user) => user.id === where.id) ?? null),
   };
 
   const internalUsers = new InternalUsersService(
