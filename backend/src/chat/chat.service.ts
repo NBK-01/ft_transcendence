@@ -66,11 +66,31 @@ export class ChatService {
     conversationId: string,
     content: string,
   ): Promise<MessageDto> {
+    const { message } = await this.sendMessageWithType(
+      actor,
+      conversationId,
+      content,
+    );
+    return message;
+  }
+
+  /**
+   * sendMessage, plus the conversation's type: ChatGateway tells the support
+   * pool about support conversations only, never about a staff DM.
+   */
+  async sendMessageWithType(
+    actor: RequestUser,
+    conversationId: string,
+    content: string,
+  ): Promise<{ message: MessageDto; conversationType: ConversationType }> {
     const conversation = await this.getConversationOrThrow(conversationId);
     await this.chatAccessService.assertCanSendMessage(actor, conversation);
     const message = await this.createMessage(conversation.id, actor, content);
     await this.markConversationAsRead(actor, conversation.id);
-    return MessageFactory.toDto(message);
+    return {
+      message: MessageFactory.toDto(message),
+      conversationType: conversation.type,
+    };
   }
 
   async listMessages(
