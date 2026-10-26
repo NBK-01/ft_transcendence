@@ -1,5 +1,6 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../common/entities/base.entity';
+import { ShipmentActorType } from '../constants/shipment-actor';
 import { ShipmentState } from '../constants/shipment-state';
 import { Shipment } from './shipment.entity';
 
@@ -22,4 +23,20 @@ export class ShipmentEvent extends BaseEntity {
   /** Where it happened or what happened, e.g. "Lyon hub" or "Offer approved". */
   @Column()
   location!: string;
+
+  /** Who wrote it (see ShipmentActor). Null on events from before it was recorded. */
+  @Column({
+    name: 'actor_type',
+    type: 'enum',
+    enum: ShipmentActorType,
+    nullable: true,
+  })
+  actorType!: ShipmentActorType | null;
+
+  /**
+   * A User, InternalUser or ApiKey id, depending on actorType; null for the
+   * carrier. No foreign key: it points at a different table per type.
+   */
+  @Column({ name: 'actor_id', type: 'uuid', nullable: true })
+  actorId!: string | null;
 }

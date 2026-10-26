@@ -2,6 +2,11 @@ import { HttpStatus } from '@nestjs/common';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { FileStorageService } from '../file-storage/file-storage.service';
 import { User } from '../users/user.entity';
+import {
+  customerActor,
+  ShipmentActorType,
+  staffActor,
+} from './constants/shipment-actor';
 import { ShipmentState } from './constants/shipment-state';
 import { Shipment } from './entities/shipment.entity';
 import { ShipmentEvent } from './entities/shipment-event.entity';
@@ -31,6 +36,7 @@ import { ShipmentsService } from './shipments.service';
 
 const CLIENT_ID = 'client-1';
 const TRACKING_ID = 'TRK-ABC123';
+const STAFF_ID = 'staff-1';
 const ALL_STATES = Object.values(ShipmentState);
 const CLIENT = Object.assign(new User(), {
   id: CLIENT_ID,
@@ -49,8 +55,10 @@ interface RecordedUpdate {
 
 class FakeShipmentStore {
   readonly rows = new Map<string, StoredShipment>();
-  readonly events: Pick<ShipmentEvent, 'shipmentId' | 'status' | 'location'>[] =
-    [];
+  readonly events: Pick<
+    ShipmentEvent,
+    'shipmentId' | 'status' | 'location' | 'actorType' | 'actorId'
+  >[] = [];
   readonly updates: RecordedUpdate[] = [];
   private nextId = 1;
 
@@ -276,6 +284,7 @@ describe('ShipmentsService.transition', () => {
         from: [ShipmentState.PENDING_CLIENT_DECISION],
         to: ShipmentState.PENDING_PAYMENT,
         location: 'Offer approved',
+        actor: customerActor(CLIENT_ID),
       },
     );
 
@@ -286,6 +295,8 @@ describe('ShipmentsService.transition', () => {
         shipmentId: row.id,
         status: ShipmentState.PENDING_PAYMENT,
         location: 'Offer approved',
+        actorType: ShipmentActorType.CUSTOMER,
+        actorId: CLIENT_ID,
       },
     ]);
   });
@@ -298,7 +309,12 @@ describe('ShipmentsService.transition', () => {
     await shipments.transition(
       store.manager as unknown as EntityManager,
       store.load(row.id),
-      { from, to: ShipmentState.IN_TRANSIT, location: 'Hub' },
+      {
+        from,
+        to: ShipmentState.IN_TRANSIT,
+        location: 'Hub',
+        actor: staffActor(STAFF_ID),
+      },
     );
 
     expect(store.updates).toHaveLength(1);
@@ -322,6 +338,7 @@ describe('ShipmentsService.transition', () => {
         from: [ShipmentState.PENDING_PAYMENT_CONFIRMATION],
         to: ShipmentState.CONFIRMED,
         location: 'Payment confirmed',
+        actor: staffActor(STAFF_ID),
         changes: { origin: 'Shenzhen', status: ShipmentState.DELIVERED },
       },
     );
@@ -343,6 +360,7 @@ describe('ShipmentsService.transition', () => {
           from: [ShipmentState.PENDING_CLIENT_DECISION],
           to: ShipmentState.PENDING_PAYMENT,
           location: 'Offer approved',
+          actor: customerActor(CLIENT_ID),
         },
       ),
     );
@@ -365,6 +383,7 @@ describe('ShipmentsService.transition under concurrency', () => {
         from: [ShipmentState.PENDING_CLIENT_DECISION],
         to: ShipmentState.PENDING_SOURCING,
         location: 'Offer rejected',
+        actor: customerActor(CLIENT_ID),
       }),
     );
 
@@ -381,6 +400,7 @@ describe('ShipmentsService.transition under concurrency', () => {
       from: [ShipmentState.PENDING_CLIENT_DECISION],
       to: ShipmentState.PENDING_PAYMENT,
       location: 'Offer approved',
+      actor: customerActor(CLIENT_ID),
     };
     const manager = store.manager as unknown as EntityManager;
 
@@ -422,8 +442,8 @@ describe('ShipmentsService.transition under concurrency', () => {
     const row = services.store.seed(ShipmentState.PENDING_PAYMENT_CONFIRMATION);
 
     const results = await Promise.allSettled([
-      services.admin.confirmPayment(TRACKING_ID, confirmDto()),
-      services.admin.confirmPayment(TRACKING_ID, confirmDto()),
+      services.admin.confirmPayment(STAFF_ID, TRACKING_ID, confirmDto()),
+      services.admin.confirmPayment(STAFF_ID, TRACKING_ID, confirmDto()),
     ]);
 
     expect(
@@ -447,7 +467,8 @@ const actions: Action[] = [
     name: 'admin sends an offer',
     allowedFrom: [ShipmentState.PENDING_SOURCING],
     to: ShipmentState.PENDING_CLIENT_DECISION,
-    run: ({ admin }) => admin.createOffer(TRACKING_ID, offerDto(), []),
+    run: ({ admin }) =>
+      admin.createOffer(STAFF_ID, TRACKING_ID, offerDto(), []),
   },
   {
     name: 'client accepts the offer',
@@ -472,7 +493,8 @@ const actions: Action[] = [
     name: 'admin confirms the payment',
     allowedFrom: [ShipmentState.PENDING_PAYMENT_CONFIRMATION],
     to: ShipmentState.CONFIRMED,
-    run: ({ admin }) => admin.confirmPayment(TRACKING_ID, confirmDto()),
+    run: ({ admin }) =>
+      admin.confirmPayment(STAFF_ID, TRACKING_ID, confirmDto()),
   },
   // Written out here on purpose rather than read from TRACKING_TRANSITIONS,
   // so an accidental change to that table fails this test.
@@ -485,21 +507,25 @@ const actions: Action[] = [
     ],
     to: ShipmentState.IN_TRANSIT,
     run: ({ admin }) =>
-      admin.addEvent(TRACKING_ID, event(ShipmentState.IN_TRANSIT)),
+      admin.addEvent(STAFF_ID, TRACKING_ID, event(ShipmentState.IN_TRANSIT)),
   },
   {
     name: 'tracking event: out_for_delivery',
     allowedFrom: [ShipmentState.IN_TRANSIT],
     to: ShipmentState.OUT_FOR_DELIVERY,
     run: ({ admin }) =>
-      admin.addEvent(TRACKING_ID, event(ShipmentState.OUT_FOR_DELIVERY)),
+      admin.addEvent(
+        STAFF_ID,
+        TRACKING_ID,
+        event(ShipmentState.OUT_FOR_DELIVERY),
+      ),
   },
   {
     name: 'tracking event: delivered',
     allowedFrom: [ShipmentState.OUT_FOR_DELIVERY],
     to: ShipmentState.DELIVERED,
     run: ({ admin }) =>
-      admin.addEvent(TRACKING_ID, event(ShipmentState.DELIVERED)),
+      admin.addEvent(STAFF_ID, TRACKING_ID, event(ShipmentState.DELIVERED)),
   },
   {
     name: 'tracking event: cancelled',
@@ -514,7 +540,7 @@ const actions: Action[] = [
     ],
     to: ShipmentState.CANCELLED,
     run: ({ admin }) =>
-      admin.addEvent(TRACKING_ID, event(ShipmentState.CANCELLED)),
+      admin.addEvent(STAFF_ID, TRACKING_ID, event(ShipmentState.CANCELLED)),
   },
 ];
 describe('allowed transitions', () => {
@@ -557,7 +583,7 @@ describe('allowed transitions', () => {
         const services = setup();
         const row = services.store.seed(from);
         await expectInvalidState(
-          services.admin.addEvent(TRACKING_ID, event(status)),
+          services.admin.addEvent(STAFF_ID, TRACKING_ID, event(status)),
         );
         expect(row.status).toBe(from);
       }
@@ -595,7 +621,7 @@ describe('what each transition records', () => {
     const { store, admin } = setup();
     const row = store.seed(ShipmentState.PENDING_PAYMENT_CONFIRMATION);
 
-    await admin.confirmPayment(TRACKING_ID, confirmDto());
+    await admin.confirmPayment(STAFF_ID, TRACKING_ID, confirmDto());
 
     expect(row).toMatchObject({
       origin: 'Shenzhen',
@@ -616,16 +642,20 @@ describe('a shipment from request to delivery', () => {
     );
     // create() picks a random tracking ID; the rest of the flow uses it.
     const trackingId = created.trackingId;
-    await admin.createOffer(trackingId, offerDto(), []);
+    await admin.createOffer(STAFF_ID, trackingId, offerDto(), []);
     await shipments.rejectOffer(CLIENT_ID, trackingId);
-    await admin.createOffer(trackingId, offerDto(), []);
+    await admin.createOffer(STAFF_ID, trackingId, offerDto(), []);
     await shipments.acceptOffer(CLIENT_ID, trackingId);
     await shipments.submitPayment(CLIENT_ID, trackingId, payment());
-    await admin.confirmPayment(trackingId, confirmDto());
-    await admin.addEvent(trackingId, event(ShipmentState.IN_TRANSIT));
-    await admin.addEvent(trackingId, event(ShipmentState.IN_TRANSIT));
-    await admin.addEvent(trackingId, event(ShipmentState.OUT_FOR_DELIVERY));
-    await admin.addEvent(trackingId, event(ShipmentState.DELIVERED));
+    await admin.confirmPayment(STAFF_ID, trackingId, confirmDto());
+    await admin.addEvent(STAFF_ID, trackingId, event(ShipmentState.IN_TRANSIT));
+    await admin.addEvent(STAFF_ID, trackingId, event(ShipmentState.IN_TRANSIT));
+    await admin.addEvent(
+      STAFF_ID,
+      trackingId,
+      event(ShipmentState.OUT_FOR_DELIVERY),
+    );
+    await admin.addEvent(STAFF_ID, trackingId, event(ShipmentState.DELIVERED));
 
     expect(store.events.map((step) => step.status)).toEqual([
       ShipmentState.PENDING_SOURCING,
@@ -640,12 +670,33 @@ describe('a shipment from request to delivery', () => {
       ShipmentState.OUT_FOR_DELIVERY,
       ShipmentState.DELIVERED,
     ]);
+    // Each step records who took it: the client for theirs, the staff member for the rest.
+    const client = {
+      actorType: ShipmentActorType.CUSTOMER,
+      actorId: CLIENT_ID,
+    };
+    const staff = { actorType: ShipmentActorType.STAFF, actorId: STAFF_ID };
+    expect(
+      store.events.map(({ actorType, actorId }) => ({ actorType, actorId })),
+    ).toEqual([
+      client,
+      staff,
+      client,
+      staff,
+      client,
+      client,
+      staff,
+      staff,
+      staff,
+      staff,
+      staff,
+    ]);
     const [row] = store.rows.values();
     expect(row.status).toBe(ShipmentState.DELIVERED);
 
     // Delivered is final: nothing moves it again.
     await expectInvalidState(
-      admin.addEvent(trackingId, event(ShipmentState.CANCELLED)),
+      admin.addEvent(STAFF_ID, trackingId, event(ShipmentState.CANCELLED)),
     );
   });
 });

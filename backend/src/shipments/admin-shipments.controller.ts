@@ -21,6 +21,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { RequirePermission } from '../common/decorators/access-control.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RequestUser } from '../common/context/auth-context.types';
 import { MissingRequiredDataException } from '../common/exceptions/validation-exceptions';
 import { AdminShipmentsService } from './admin-shipments.service';
 import { ShipmentsService } from './shipments.service';
@@ -114,11 +116,17 @@ export class AdminShipmentsController {
   @ApiResponse({ status: 201, type: AdminShipmentDetailDto })
   @ApiResponse({ status: 409, description: 'Not in pending_sourcing' })
   async createOffer(
+    @CurrentUser() staff: RequestUser,
     @Param('trackingId') trackingId: string,
     @Body() dto: CreateOfferDto,
     @UploadedFiles() images: Express.Multer.File[] = [],
   ) {
-    return this.adminShipmentsService.createOffer(trackingId, dto, images);
+    return this.adminShipmentsService.createOffer(
+      staff.id,
+      trackingId,
+      dto,
+      images,
+    );
   }
 
   @RequirePermission('shipments:update:org')
@@ -131,10 +139,11 @@ export class AdminShipmentsController {
   @ApiResponse({ status: 200, type: AdminShipmentDetailDto })
   @ApiResponse({ status: 409, description: 'No payment waiting' })
   async confirmPayment(
+    @CurrentUser() staff: RequestUser,
     @Param('trackingId') trackingId: string,
     @Body() dto: ConfirmPaymentDto,
   ) {
-    return this.adminShipmentsService.confirmPayment(trackingId, dto);
+    return this.adminShipmentsService.confirmPayment(staff.id, trackingId, dto);
   }
 
   @RequirePermission('shipments:update:org')
@@ -149,10 +158,11 @@ export class AdminShipmentsController {
     description: 'Not allowed from the current status',
   })
   async addEvent(
+    @CurrentUser() staff: RequestUser,
     @Param('trackingId') trackingId: string,
     @Body() dto: CreateEventDto,
   ) {
-    return this.adminShipmentsService.addEvent(trackingId, dto);
+    return this.adminShipmentsService.addEvent(staff.id, trackingId, dto);
   }
 
   @RequirePermission('shipments:update:org')

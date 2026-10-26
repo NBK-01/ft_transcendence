@@ -3,6 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
+import { CARRIER_ACTOR } from '../shipments/constants/shipment-actor';
 import { TRACKING_TRANSITIONS } from '../shipments/constants/shipment-state';
 import {
   InvalidShipmentStateException,
@@ -162,6 +163,7 @@ export class WebhooksService {
           from: TRACKING_TRANSITIONS[update.status] ?? [],
           to: update.status,
           location: update.location,
+          actor: CARRIER_ACTOR,
         });
         await manager.update(WebhookLog, webhookLogId, {
           status: WebhookLogStatus.PROCESSED,
