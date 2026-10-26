@@ -9,6 +9,10 @@
         "title": "Payment confirmed",
         "message": "Your payment for {trackingId} is confirmed. We'll let you know when it ships."
       },
+      "created": {
+        "title": "New shipment",
+        "message": "A shipment, {trackingId}, was created for you. We'll let you know when it ships."
+      },
       "in_transit": {
         "title": "In transit",
         "message": "{trackingId} is on its way."
@@ -139,6 +143,18 @@
     "self": {
       "title": "Password changed",
       "message": "Your password was changed. If this wasn't you, reset it now and contact support."
+    }
+  },
+  "API_KEY_CREATED": {
+    "admins": {
+      "title": "New API key",
+      "message": "{name} was created for {branch}. Partners can use it with the public API."
+    }
+  },
+  "API_KEY_REVOKED": {
+    "admins": {
+      "title": "API key revoked",
+      "message": "{name} for {branch} was revoked. It no longer works."
     }
   }
 }

@@ -5,6 +5,7 @@ import { I18nService } from 'nestjs-i18n';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { ShipmentLookupService } from '../../notifications/shipment-lookup.service';
 import { ActionLookupService } from '../../notifications/action-lookup.service';
+import { WebhooksService } from '../../webhooks/webhooks.service';
 import { JobServices } from '../interfaces/job-handler.interface';
 import { handlerFor } from '../registry/handler-registry';
 
@@ -21,6 +22,7 @@ export abstract class JobsProcessor extends WorkerHost {
     private readonly notificationsService: NotificationsService,
     private readonly shipmentLookupService: ShipmentLookupService,
     private readonly actionLookupService: ActionLookupService,
+    private readonly webhooksService: WebhooksService,
     private readonly i18n: I18nService,
   ) {
     super();
@@ -57,6 +59,7 @@ export abstract class JobsProcessor extends WorkerHost {
       notificationsService: this.notificationsService,
       shipmentLookupService: this.shipmentLookupService,
       actionLookupService: this.actionLookupService,
+      webhooksService: this.webhooksService,
       i18n: this.i18n,
     };
   }

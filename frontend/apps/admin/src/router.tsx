@@ -1,4 +1,3 @@
-import { KeyRound } from "lucide-react";
 import { Suspense } from "react";
 import { createBrowserRouter } from "react-router";
 
@@ -9,6 +8,7 @@ import { RequireAdmin, RequirePermission } from "./features/auth/require-admin";
 import { RequireStaff } from "./features/auth/require-staff";
 import { AdminLayout } from "./layouts/admin-layout";
 import {
+  ApiKeysPage,
   BranchDetailPage,
   BranchesPage,
   ContactsPage,
@@ -21,7 +21,6 @@ import {
   UsersPage,
 } from "./routes/lazy-pages";
 import { LoginPage } from "./routes/login";
-import { Stub } from "./routes/stub";
 
 /** Served under /admin (Vite `base` + router `basename`), so links here are relative to it. */
 export const router = createBrowserRouter(
@@ -90,7 +89,7 @@ export const router = createBrowserRouter(
               path: "api-keys",
               element: (
                 <RequireAdmin>
-                  <Stub page="apiKeys" icon={KeyRound} />
+                  <ApiKeysPage />
                 </RequireAdmin>
               ),
             },

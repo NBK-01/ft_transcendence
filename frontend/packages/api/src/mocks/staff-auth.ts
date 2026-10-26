@@ -65,7 +65,7 @@ export const staffCaller = (request: Request) => {
 
 /** Whether a role may make this request, per the rules on requireStaffAccess. */
 function roleAllows(roleName: string | null, method: string, pathname: string) {
-  if (/\/api\/(internal-users|access-control)(\/|$)/.test(pathname)) return roleName === "admin";
+  if (/\/api\/(internal-users|access-control|api-keys)(\/|$)/.test(pathname)) return roleName === "admin";
   if (/\/api\/organizations(\/|$)/.test(pathname)) return method === "GET" || roleCan(roleName, "organizations:manage");
   if (/\/api\/admin\/shipments(\/|$)/.test(pathname)) {
     return roleCan(roleName, method === "GET" ? "shipments:read:all" : "shipments:update:org");
@@ -79,14 +79,14 @@ function roleAllows(roleName: string | null, method: string, pathname: string) {
  * without access → 403 (7001). Otherwise it returns nothing, so MSW moves on
  * to the matching handler. The role is read from the account as it is now,
  * like the backend does, not from when the token was issued.
- *  - Staff accounts and roles (@RequireRole("admin")): admins only.
+ *  - Staff accounts, roles and API keys (@RequireRole("admin")): admins only.
  *  - Branches: any staff member may read; changes need "organizations:manage".
  *  - Contacts: any staff member.
  *  - Shipments (/admin/shipments): reading needs "shipments:read:all" (admin,
  *    support), every change "shipments:update:org" (admin, dispatcher).
  */
 export const requireStaffAccess = http.all(
-  /\/api\/(internal-users|organizations|access-control|contacts|admin\/shipments)(\/|$|\?)/,
+  /\/api\/(internal-users|organizations|access-control|contacts|admin\/shipments|api-keys)(\/|$|\?)/,
   ({ request }) => {
     const { caller, response } = staffCaller(request);
     if (!caller) return response;

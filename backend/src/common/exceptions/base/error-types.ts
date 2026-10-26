@@ -21,6 +21,7 @@ import { HttpException, HttpStatus } from '@nestjs/common';
  *   15000-15999  OTP (reassigned from 4000-4999, where it collided with
  *                Organizations — OTP was never listed in this reserved-range
  *                comment in the first place)
+ *   16000-16999  Public API (API keys, partner endpoints)
  */
 
 export interface ErrorMessageData {

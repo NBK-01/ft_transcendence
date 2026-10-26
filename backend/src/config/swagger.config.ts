@@ -15,6 +15,16 @@ export function setupSwagger(app: INestApplication): void {
     .setDescription('Shipping Ops Platform')
     .setVersion('0.0.1')
     .addBearerAuth()
+    // The public API's routes (/api/v1/*) take a partner API key instead of a login token.
+    .addApiKey(
+      {
+        type: 'apiKey',
+        in: 'header',
+        name: 'X-API-Key',
+        description: 'Partner API key (stk_…), for the Public API routes',
+      },
+      'api-key',
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

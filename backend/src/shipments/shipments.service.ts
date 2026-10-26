@@ -439,8 +439,11 @@ export class ShipmentsService {
    * Internals
    * ------------------------------------------------------------------- */
 
-  /** "TRK-" + 6 hex digits (16.7M combinations); retried on the rare collision. */
-  private async generateTrackingId(): Promise<string> {
+  /**
+   * "TRK-" + 6 hex digits (16.7M combinations); retried on the rare collision.
+   * Not private: the public API's partner shipments get their ids here too.
+   */
+  async generateTrackingId(): Promise<string> {
     for (;;) {
       const trackingId = `TRK-${randomBytes(3).toString('hex').toUpperCase()}`;
       if (!(await this.shipmentRepository.exists({ where: { trackingId } }))) {

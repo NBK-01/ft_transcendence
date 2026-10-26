@@ -1,6 +1,7 @@
 import { roleCan, type Permission } from "../permissions";
 import type {
   AccountType,
+  ApiKeyPayload,
   AppNotification,
   AttachmentKind,
   InternalUser,
@@ -154,7 +155,8 @@ export type ActionNotice =
     }
   | { type: "SUPPORT_CONVERSATION_STARTED"; conversationId: string; customerName: string }
   | { type: "SHIPMENT_FILE_ADDED"; trackingId: string; clientId: string; kind: AttachmentKind; fileName: string }
-  | { type: "PASSWORD_CHANGED"; account: Who };
+  | { type: "PASSWORD_CHANGED"; account: Who }
+  | { type: "API_KEY_CREATED" | "API_KEY_REVOKED"; apiKey: ApiKeyPayload };
 
 type ActionType = ActionNotice["type"];
 
@@ -188,6 +190,10 @@ const ACTION_COPY = {
   PASSWORD_CHANGED: {
     self: ["Password changed", "Your password was changed. If this wasn't you, reset it now and contact support."],
   },
+  API_KEY_CREATED: {
+    admins: ["New API key", "{name} was created for {branch}. Partners can use it with the public API."],
+  },
+  API_KEY_REVOKED: { admins: ["API key revoked", "{name} for {branch} was revoked. It no longer works."] },
 } as const satisfies Record<ActionType, Record<string, Copy>>;
 
 type Audience = { copy: Copy; recipients: Who[] };
@@ -280,6 +286,13 @@ function resolve(notice: ActionNotice): Resolution {
       };
     case "PASSWORD_CHANGED":
       return { payload: {}, args: {}, audiences: [{ copy: ACTION_COPY.PASSWORD_CHANGED.self, recipients: [notice.account] }] };
+    case "API_KEY_CREATED":
+    case "API_KEY_REVOKED":
+      return {
+        payload: notice.apiKey,
+        args: { name: notice.apiKey.name, branch: notice.apiKey.branchName },
+        audiences: [{ copy: ACTION_COPY[notice.type].admins, recipients: admins() }],
+      };
   }
 }
 

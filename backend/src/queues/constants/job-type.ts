@@ -8,4 +8,6 @@ export enum JobType {
   SHIPMENT_EVENT_NOTIFICATION = 'SHIPMENT_EVENT_NOTIFICATION',
   /** Something else was created, changed or deleted: notify whoever it affects. */
   ACTION_NOTIFICATION = 'ACTION_NOTIFICATION',
+  /** A carrier's signed tracking update was logged: apply it once. */
+  CARRIER_WEBHOOK = 'CARRIER_WEBHOOK',
 }

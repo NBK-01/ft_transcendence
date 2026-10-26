@@ -23,7 +23,8 @@
     "migration:run": "npm run typeorm -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
     "migration:show": "npm run typeorm -- migration:show",
-    "seed:bootstrap": "NODE_OPTIONS=\"--require ts-node/register\" ts-node -r tsconfig-paths/register src/database/seeds/bootstrap-admin.seed.ts"
+    "seed:bootstrap": "NODE_OPTIONS=\"--require ts-node/register\" ts-node -r tsconfig-paths/register src/database/seeds/bootstrap-admin.seed.ts",
+    "webhook:carrier": "ts-node scripts/send-carrier-webhook.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",
@@ -46,6 +47,7 @@
     "@sendgrid/mail": "^8.1.6",
     "@socket.io/redis-adapter": "^8.3.0",
     "argon2": "^0.44.0",
+    "bcrypt": "^6.0.0",
     "bullmq": "^5.81.5",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
@@ -72,6 +74,7 @@
     "@nestjs/cli": "^10.0.0",
     "@nestjs/schematics": "^10.0.0",
     "@nestjs/testing": "^10.0.0",
+    "@types/bcrypt": "^6.0.0",
     "@types/express": "^4.17.17",
     "@types/jest": "^29.5.2",
     "@types/multer": "^2.3.0",

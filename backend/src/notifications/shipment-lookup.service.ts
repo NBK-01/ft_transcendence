@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { LessThan, Repository } from 'typeorm';
 import { ShipmentState } from '../shipments/constants/shipment-state';
 import { ShipmentEvent } from '../shipments/entities/shipment-event.entity';
 import { InternalUser } from '../internal-users/internal-user.entity';
@@ -17,6 +17,12 @@ export interface ShipmentEventSummary {
   trackingId: string;
   /** The shipment's customer (a User id). */
   clientId: string;
+  /**
+   * The shipment's first timeline step. A shipment that starts at
+   * `confirmed` was created by a partner (public API), so its customer is
+   * told about a new shipment, not a confirmed payment.
+   */
+  isFirstEvent: boolean;
 }
 
 /** Read-only lookups for the shipment notification job: the event, and the staff to tell about it. */
@@ -38,11 +44,18 @@ export class ShipmentLookupService {
     if (!event?.shipment) {
       return null;
     }
+    const hasEarlierEvent = await this.eventRepository.exists({
+      where: {
+        shipmentId: event.shipmentId,
+        createdAt: LessThan(event.createdAt),
+      },
+    });
     return {
       id: event.id,
       status: event.status,
       trackingId: event.shipment.trackingId,
       clientId: event.shipment.clientId,
+      isFirstEvent: !hasEarlierEvent,
     };
   }
 

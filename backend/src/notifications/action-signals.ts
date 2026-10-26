@@ -16,6 +16,10 @@ export const ActionSignals = {
   ORGANIZATION_STAFF_REMOVED: 'organization.staff-removed',
   /** UsersService / InternalUsersService.updatePasswordHash (change and reset). */
   PASSWORD_CHANGED: 'password.changed',
+  /** ApiKeysService.create. */
+  API_KEY_CREATED: 'api-key.created',
+  /** ApiKeysService.revoke, only when it actually revoked the key. */
+  API_KEY_REVOKED: 'api-key.revoked',
 } as const;
 
 export interface OrganizationDeactivatedSignal {
@@ -30,4 +34,13 @@ export interface OrganizationStaffSignal {
 export interface PasswordChangedSignal {
   accountType: AccountType;
   accountId: string;
+}
+
+/** Everything the notification needs, taken when the key is created or revoked. */
+export interface ApiKeySignal {
+  apiKeyId: string;
+  name: string;
+  organizationId: string;
+  branchName: string;
+  maskedKey: string;
 }

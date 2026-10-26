@@ -459,10 +459,19 @@ export type NotificationType =
   /** To the shipment's customer. */
   | "SHIPMENT_FILE_ADDED"
   /** To the account's owner, even when they did it. */
-  | "PASSWORD_CHANGED";
+  | "PASSWORD_CHANGED"
+  /** An admin created a partner API key. To the other admins. */
+  | "API_KEY_CREATED"
+  /** An admin revoked one. To the other admins. */
+  | "API_KEY_REVOKED";
 
 /** SHIPMENT_UPDATE: a new step on a shipment's timeline. Link to the shipment, and word it from its status. */
-export type ShipmentUpdatePayload = { trackingId: string; status: ShipmentState };
+export type ShipmentUpdatePayload = {
+  trackingId: string;
+  status: ShipmentState;
+  /** A shipment created straight at `confirmed` (by a partner, through the public API): "new shipment", not "payment confirmed". */
+  isNew?: true;
+};
 
 /** A branch, by its name when it happened. */
 export type BranchPayload = { organizationId: string; name: string };
@@ -488,6 +497,15 @@ export type SupportConversationPayload = { conversationId: string; customerName:
 
 export type ShipmentFilePayload = { trackingId: string; kind: AttachmentKind; fileName: string };
 
+/** A partner API key, masked: never the key itself. */
+export type ApiKeyPayload = {
+  apiKeyId: string;
+  name: string;
+  organizationId: string;
+  branchName: string;
+  maskedKey: string;
+};
+
 /** What each notification type carries in `payload` (backend NotificationPayloads). */
 export type NotificationPayloads = {
   SHIPMENT_UPDATE: ShipmentUpdatePayload;
@@ -504,6 +522,8 @@ export type NotificationPayloads = {
   SUPPORT_CONVERSATION_STARTED: SupportConversationPayload;
   SHIPMENT_FILE_ADDED: ShipmentFilePayload;
   PASSWORD_CHANGED: Record<string, never>;
+  API_KEY_CREATED: ApiKeyPayload;
+  API_KEY_REVOKED: ApiKeyPayload;
 };
 
 /**
@@ -538,3 +558,29 @@ export type NotificationFilters = {
 
 /** GET /notifications/unread-count, and PATCH /notifications/read-all (how many it marked). */
 export type NotificationCount = { count: number };
+
+/**
+ * A partner API key (backend ApiKeyDto): what the admins' list shows. The key
+ * itself is only ever in CreatedApiKey, once.
+ */
+export type ApiKey = {
+  id: string;
+  name: string;
+  /** "stk_9f3a…c4d2": the key's start and its last four characters. */
+  maskedKey: string;
+  /** The branch it acts for. */
+  organization: { id: string; name: string };
+  /** Null once that staff account is gone. */
+  createdBy: { id: string; name: string } | null;
+  createdAt: string;
+  /** Updated at most once a minute; null until first used. */
+  lastUsedAt: string | null;
+  /** Set once; a revoked key is listed but never accepted again. */
+  revokedAt: string | null;
+};
+
+/** POST /api-keys: the record, plus the full key, shown this once. */
+export type CreatedApiKey = ApiKey & { key: string };
+
+/** POST /api-keys body. */
+export type CreateApiKeyInput = { name: string; organizationId: string };

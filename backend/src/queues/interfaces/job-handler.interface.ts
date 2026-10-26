@@ -3,12 +3,14 @@ import { I18nService } from 'nestjs-i18n';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { ShipmentLookupService } from '../../notifications/shipment-lookup.service';
 import { ActionLookupService } from '../../notifications/action-lookup.service';
+import { WebhooksService } from '../../webhooks/webhooks.service';
 
 /** What the processor hands every handler. A new dependency goes here and in JobsProcessor. */
 export interface JobServices {
   notificationsService: NotificationsService;
   shipmentLookupService: ShipmentLookupService;
   actionLookupService: ActionLookupService;
+  webhooksService: WebhooksService;
   i18n: I18nService;
 }
 

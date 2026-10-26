@@ -129,6 +129,7 @@ const en = {
     passwordMatch: "Passwords don't match.",
     passwordSame: "Choose a password different from your current one.",
     nameMax: "Keep it under 50 characters.",
+    max100: "Keep it under 100 characters.",
     descriptionMax: "Keep it under 200 characters.",
     dateOfBirth: "Enter a real date in the past.",
     phone: "Enter a number with its country code, e.g. +961 70 123 456.",

@@ -55,4 +55,8 @@ export const keys = {
     list: (filters: Omit<NotificationFilters, "page">) => [...keys.notifications.lists(), filters] as const,
     unreadCount: () => [...keys.notifications.all, "unread-count"] as const,
   },
+  apiKeys: {
+    all: ["api-keys"] as const,
+    list: (filters: { organizationId?: string }) => [...keys.apiKeys.all, "list", filters] as const,
+  },
 };

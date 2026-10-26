@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next";
 
 import {
   useStaffAccess,
+  type ApiKeyPayload,
   useStaffSession,
   type AppNotification,
   type NotificationType,
@@ -101,6 +102,17 @@ function staffChanges({ payload }: Of<"STAFF_ACCOUNT_UPDATED">, t: Translate, se
   };
 }
 
+/** Partner API keys: admins only, like the page they link to. */
+const apiKeysPath = (reader: Reader) => (reader.isAdmin ? "/api-keys" : null);
+
+/** A key by its name and branch, as they were when it happened. */
+const apiKeyWording =
+  (key: "apiKeyCreated" | "apiKeyRevoked") =>
+  ({ payload }: { payload: ApiKeyPayload }, t: Translate): Wording => ({
+    title: t(`notifications.types.${key}.title`, { name: payload.name }),
+    message: t(`notifications.types.${key}.message`, { branch: payload.branchName }),
+  });
+
 const KINDS: { [T in NotificationType]: Kind<T> } = {
   SHIPMENT_UPDATE: {
     icon: Package,
@@ -162,6 +174,8 @@ const KINDS: { [T in NotificationType]: Kind<T> } = {
     }),
     href: () => "/profile",
   },
+  API_KEY_CREATED: { icon: KeyRound, wording: apiKeyWording("apiKeyCreated"), href: (_, reader) => apiKeysPath(reader) },
+  API_KEY_REVOKED: { icon: KeyRound, wording: apiKeyWording("apiKeyRevoked"), href: (_, reader) => apiKeysPath(reader) },
 };
 
 export function describeNotification(notification: AppNotification, t: Translate, reader: Reader): NotificationView {
