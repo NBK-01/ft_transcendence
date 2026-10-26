@@ -13,13 +13,13 @@ import { MessageDto } from './dto/message.dto';
 import { ConversationFactory } from './factories/conversation.factory';
 import { MessageFactory } from './factories/message.factory';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
+import { isUniqueConstraintViolation } from '../common/utils/database-errors';
 import { CHAT_SUPPORT_ACCESS_PERMISSION } from './chat.constants';
 import {
   ConversationNotFoundException,
   StaffNotConnectedException,
 } from './exceptions';
 
-const POSTGRES_UNIQUE_VIOLATION = '23505';
 const PARTICIPANT_CONFLICT_KEYS = [
   'conversationId',
   'participantId',
@@ -257,7 +257,7 @@ export class ChatService {
         }),
       );
     } catch (error) {
-      if (!this.isUniqueConstraintViolation(error)) {
+      if (!isUniqueConstraintViolation(error)) {
         throw error;
       }
       return this.conversationRepository.findOneByOrFail({
@@ -300,7 +300,7 @@ export class ChatService {
         }),
       );
     } catch (error) {
-      if (!this.isUniqueConstraintViolation(error)) {
+      if (!isUniqueConstraintViolation(error)) {
         throw error;
       }
       return this.conversationRepository.findOneByOrFail({ customerId });
@@ -319,9 +319,5 @@ export class ChatService {
       },
       [...PARTICIPANT_CONFLICT_KEYS],
     );
-  }
-
-  private isUniqueConstraintViolation(error: unknown): boolean {
-    return (error as { code?: string })?.code === POSTGRES_UNIQUE_VIOLATION;
   }
 }

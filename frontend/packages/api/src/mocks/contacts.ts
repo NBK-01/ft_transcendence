@@ -14,12 +14,12 @@ import { staffCaller } from "./staff-auth";
  * blocks or removes. Rejecting or removing deletes the contact.
  */
 
-/** Backend ContactErrorCodes. */
-const CONTACT_NOT_FOUND = 10001;
-const CONTACT_ALREADY_EXISTS = 10002;
-const CONTACT_SCOPE_VIOLATION = 10003;
-const CONTACT_SELF_REQUEST = 10004;
-const CONTACT_NOT_PENDING = 10005;
+/** Backend ContactErrorCodes (12000-12999, reassigned from 10000-10999). */
+const CONTACT_NOT_FOUND = 14001;
+const CONTACT_ALREADY_EXISTS = 14002;
+const CONTACT_SCOPE_VIOLATION = 14003;
+const CONTACT_SELF_REQUEST = 14004;
+const CONTACT_NOT_PENDING = 14005;
 
 const STATUSES: ContactStatus[] = ["pending", "accepted", "blocked"];
 

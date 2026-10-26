@@ -118,7 +118,8 @@ function setup() {
         contacts.filter((row) => matches(row, where)).map(withParties),
       ),
     create: (values: Partial<Contact>) => Object.assign(new Contact(), values),
-    save: (contact: Contact) => {
+    save: async (contact: Contact) => {
+      await Promise.resolve(); // let a racing request interleave
       const duplicate = contacts.some(
         (row) =>
           row !== contact &&
@@ -267,14 +268,14 @@ describe('send a request', () => {
     ['the sender has no organization (and is not admin)', 'nora', 'alice'],
     ['the receiver has no organization (and is not admin)', 'alice', 'nora'],
     ['the receiver does not exist', 'alice', 'ghost'],
-  ])('is refused (403, 10003) when %s', async (_l, from, to) => {
+  ])('is refused (403, 14003) when %s', async (_l, from, to) => {
     const { service, contacts } = setup();
 
     await expectOutOfScope(service.sendRequest(from, to));
     expect(contacts).toHaveLength(0);
   });
 
-  it('to yourself is refused (400, 10004)', async () => {
+  it('to yourself is refused (400, 14004)', async () => {
     const { service } = setup();
 
     await expectError(
@@ -289,7 +290,7 @@ describe('send a request', () => {
     ['the same direction', 'alice', 'bob'],
     ['the opposite direction', 'bob', 'alice'],
   ])(
-    'is refused (409, 10002) when a contact already exists in %s',
+    'is refused (409, 14002) when a contact already exists in %s',
     async (_l, from, to) => {
       const { service, contactBetween, contacts } = setup();
       await contactBetween('alice', 'bob');
@@ -298,6 +299,25 @@ describe('send a request', () => {
       expect(contacts).toHaveLength(1);
     },
   );
+
+  it('lets exactly one of two simultaneous requests for the same pair win, the other gets 409 (not a raw DB error)', async () => {
+    const { service, contacts } = setup();
+
+    const results = await Promise.allSettled([
+      service.sendRequest('alice', 'bob'),
+      service.sendRequest('alice', 'bob'),
+    ]);
+
+    expect(results.map((result) => result.status).sort()).toEqual([
+      'fulfilled',
+      'rejected',
+    ]);
+    const loser = results.find((result) => result.status === 'rejected');
+    await expectAlreadyExists(
+      Promise.reject((loser as PromiseRejectedResult).reason),
+    );
+    expect(contacts).toHaveLength(1);
+  });
 });
 
 describe('accept', () => {
@@ -327,7 +347,7 @@ describe('accept', () => {
   );
 
   it.each([ContactStatus.ACCEPTED, ContactStatus.BLOCKED])(
-    'a contact that is already %s cannot be accepted (409, 10005)',
+    'a contact that is already %s cannot be accepted (409, 14005)',
     async (status) => {
       const { service, contactBetween } = setup();
       const id = await contactBetween('alice', 'bob', status);
@@ -336,7 +356,7 @@ describe('accept', () => {
     },
   );
 
-  it('an unknown id is 404 (10001)', async () => {
+  it('an unknown id is 404 (14001)', async () => {
     const { service } = setup();
 
     await expectNotFound(service.acceptRequest('contact-404', 'bob'));
@@ -367,7 +387,7 @@ describe('reject', () => {
     expect(contacts).toHaveLength(1);
   });
 
-  it('an accepted contact cannot be rejected (409, 10005), it has to be removed', async () => {
+  it('an accepted contact cannot be rejected (409, 14005), it has to be removed', async () => {
     const { service, contactBetween } = setup();
     const id = await contactBetween('alice', 'bob', ContactStatus.ACCEPTED);
 
@@ -420,7 +440,7 @@ describe('block', () => {
     await expect(service.areConnected('alice', 'bob')).resolves.toBe(true);
   });
 
-  it('an unknown id is 404 (10001)', async () => {
+  it('an unknown id is 404 (14001)', async () => {
     const { service } = setup();
 
     await expectNotFound(service.blockContact('contact-404', 'alice'));

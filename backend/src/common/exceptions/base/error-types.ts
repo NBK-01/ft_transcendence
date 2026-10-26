@@ -13,11 +13,12 @@ import { HttpException, HttpStatus } from '@nestjs/common';
  *   7000-7999  Access Control (RBAC)
  *   8000-8999  Internal Users / Staff Auth
  *   9000-9999  File Storage
- *   10000-10999  Contacts
  *   11000-11999  Chat
  *   12000-12999  Notifications
  *   13000-13999  Queues
- *   15000-15999  Public API
+ *   14000-14999  Contacts (reassigned from 10000-10999, then from 12000-12999
+ *                after colliding with Notifications on merge with main)
+ *   15000-15999  Public API (API keys, partner endpoints)
  */
 
 export interface ErrorMessageData {

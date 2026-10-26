@@ -4,11 +4,14 @@ import { DomainException } from '../../common/exceptions/base/error-types';
 export enum InternalUserErrorCodes {
   InternalUserNotFound = 8001,
   InternalUserAlreadyExists = 8002,
+  // 8003-8006 are taken by StaffAuthErrorCodes, which shares this block.
+  CannotRemoveLastAdmin = 8007,
 }
 
 export enum InternalUserErrorMessages {
   InternalUserNotFound = 'errors.INTERNAL_USER_NOT_FOUND',
   InternalUserAlreadyExists = 'errors.INTERNAL_USER_ALREADY_EXISTS',
+  CannotRemoveLastAdmin = 'errors.CANNOT_REMOVE_LAST_ADMIN',
 }
 
 export class InternalUserNotFoundException extends DomainException {
@@ -33,6 +36,20 @@ export class InternalUserAlreadyExistsException extends DomainException {
       },
       HttpStatus.CONFLICT,
       InternalUserErrorCodes.InternalUserAlreadyExists,
+    );
+  }
+}
+
+/** The last active admin can't deactivate or demote themselves (or be deactivated/demoted by another admin) — that would lock the system out of admin access with no recovery path. */
+export class CannotRemoveLastAdminException extends DomainException {
+  constructor(id: string) {
+    super(
+      {
+        key: InternalUserErrorMessages.CannotRemoveLastAdmin,
+        params: { id },
+      },
+      HttpStatus.CONFLICT,
+      InternalUserErrorCodes.CannotRemoveLastAdmin,
     );
   }
 }

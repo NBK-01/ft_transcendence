@@ -21,6 +21,7 @@ import { InternalUser } from './internal-user.entity';
 import { InternalUsersController } from './internal-users.controller';
 import { InternalUsersService } from './internal-users.service';
 import {
+  CannotRemoveLastAdminException,
   InternalUserAlreadyExistsException,
   InternalUserErrorCodes,
   InternalUserNotFoundException,
@@ -215,6 +216,13 @@ const expectRoleNotFound = (promise: Promise<unknown>) =>
     HttpStatus.NOT_FOUND,
     AccessControlErrorCodes.RoleNotFound,
   );
+const expectLastAdmin = (promise: Promise<unknown>) =>
+  expectDomainError(
+    promise,
+    CannotRemoveLastAdminException,
+    HttpStatus.CONFLICT,
+    InternalUserErrorCodes.CannotRemoveLastAdmin,
+  );
 
 describe('create', () => {
   it('saves an active account with its role and org, and hashes the password', async () => {
@@ -349,6 +357,7 @@ describe('update', () => {
 describe('activate / deactivate (PATCH isActive)', () => {
   it('a deactivated account is refused on its very next request (401, 7003)', async () => {
     const { create, service, callAs } = setup();
+    await create({ roleName: 'admin' }); // keeps `admin` from being the last active admin
     const admin = await create({ roleName: 'admin' });
     await expect(callAs(staffToken(admin.id), 'findAll')).resolves.toBe(true);
 
@@ -364,6 +373,7 @@ describe('activate / deactivate (PATCH isActive)', () => {
 
   it('reactivating lets the same account back in', async () => {
     const { create, service, callAs } = setup();
+    await create({ roleName: 'admin' }); // keeps `admin` from being the last active admin
     const admin = await create({ roleName: 'admin' });
     await service.update(admin.id, { isActive: false });
 
@@ -387,6 +397,7 @@ describe('activate / deactivate (PATCH isActive)', () => {
 
   it('demoting an admin takes away admin routes on the next request (403, 7001)', async () => {
     const { create, service, callAs } = setup();
+    await create({ roleName: 'admin' }); // keeps `admin` from being the last active admin
     const admin = await create({ roleName: 'admin' });
 
     await service.update(admin.id, { roleName: 'dispatcher' });
@@ -443,17 +454,17 @@ describe('route protection: every route is admin-only', () => {
 });
 
 describe('current gaps (pinned, not endorsed)', () => {
-  // Fixed by 6706f1e on backend_test_suite (not on main yet). Once that is
-  // merged this test fails: replace it with "stores the email lowercased".
-  it('a mixed-case email is stored as typed, but findByEmail lowercases, so that account can never be found to log in', async () => {
+  // Was "stored as typed, so findByEmail (which lowercases) could never find
+  // it again" — fixed by 6706f1e: create() now lowercases on write too.
+  it('stores a mixed-case email lowercased, so findByEmail can find it again', async () => {
     const { create, service } = setup();
 
     const user = await create({ email: 'Jane.Doe@Example.com' });
 
-    expect(user.email).toBe('Jane.Doe@Example.com');
+    expect(user.email).toBe('jane.doe@example.com');
     await expect(
       service.findByEmail('Jane.Doe@Example.com'),
-    ).resolves.toBeNull();
+    ).resolves.toMatchObject({ id: user.id });
   });
 
   it('creating with an organization that does not exist fails as a raw DB error (500), not 404', async () => {
@@ -475,31 +486,85 @@ describe('current gaps (pinned, not endorsed)', () => {
 
     expect(error).toBeInstanceOf(QueryFailedError);
   });
+});
 
-  it('the last active admin can deactivate themselves, after which nobody can reach the admin routes', async () => {
-    const { create, service, callAs } = setup();
-    const admin = await create({ roleName: 'admin' });
-
-    await service.update(admin.id, { isActive: false });
-
-    const error = await rejection(callAs(staffToken(admin.id), 'update'));
-    expect((error as DomainException).code).toBe(
-      AccessControlErrorCodes.InternalUserInactive,
-    );
-    const admins = (await service.findAll()).filter(
-      (user) => user.roleName === 'admin' && user.isActive,
-    );
-    expect(admins).toHaveLength(0);
-  });
-
-  it('the last admin can also demote themselves to a non-admin role', async () => {
+describe('last active admin protection', () => {
+  it('the last admin cannot deactivate themselves (409, 8007)', async () => {
     const { create, service } = setup();
     const admin = await create({ roleName: 'admin' });
 
+    await expectLastAdmin(service.update(admin.id, { isActive: false }));
+
+    expect(await service.getProfile(admin.id)).toMatchObject({
+      roleName: 'admin',
+      isActive: true,
+    });
+  });
+
+  it('the last admin cannot be demoted to a non-admin role (409, 8007)', async () => {
+    const { create, service } = setup();
+    const admin = await create({ roleName: 'admin' });
+
+    await expectLastAdmin(service.update(admin.id, { roleName: 'driver' }));
+
+    expect((await service.getProfile(admin.id)).roleName).toBe('admin');
+  });
+
+  it('an admin can be deactivated once another active admin exists', async () => {
+    const { create, service } = setup();
+    const admin = await create({ roleName: 'admin' });
+    await create({ roleName: 'admin' });
+
+    await service.update(admin.id, { isActive: false });
+
+    expect((await service.getProfile(admin.id)).isActive).toBe(false);
+  });
+
+  it('an admin can be demoted once another active admin exists', async () => {
+    const { create, service } = setup();
+    const admin = await create({ roleName: 'admin' });
+    await create({ roleName: 'admin' });
+
     await service.update(admin.id, { roleName: 'driver' });
 
-    expect(
-      (await service.findAll()).some((user) => user.roleName === 'admin'),
-    ).toBe(false);
+    expect((await service.getProfile(admin.id)).roleName).toBe('driver');
+  });
+
+  it('a deactivated extra admin does not count: the remaining active one is still the last admin', async () => {
+    const { create, service } = setup();
+    const admin = await create({ roleName: 'admin' });
+    const other = await create({ roleName: 'admin' });
+    await service.update(other.id, { isActive: false });
+
+    await expectLastAdmin(service.update(admin.id, { isActive: false }));
+  });
+
+  it("the last admin's unrelated fields (name, organizationId) can still be updated freely", async () => {
+    const { create, service } = setup();
+    const admin = await create({ roleName: 'admin' });
+
+    await service.update(admin.id, {
+      name: 'Renamed',
+      organizationId: ORG,
+    });
+
+    expect(await service.getProfile(admin.id)).toMatchObject({
+      name: 'Renamed',
+      organizationId: ORG,
+      roleName: 'admin',
+      isActive: true,
+    });
+  });
+
+  it('re-sending roleName: "admin" on the last admin is not a demotion and is allowed', async () => {
+    const { create, service } = setup();
+    const admin = await create({ roleName: 'admin' });
+
+    await service.update(admin.id, { roleName: 'admin', name: 'Still Admin' });
+
+    expect(await service.getProfile(admin.id)).toMatchObject({
+      roleName: 'admin',
+      name: 'Still Admin',
+    });
   });
 });

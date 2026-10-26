@@ -168,6 +168,11 @@ const fr: CommonResources = {
     body: "La page que vous cherchez n'existe pas ou a été déplacée.",
     action: "Retour à l'accueil",
   },
+  crash: {
+    title: "Une erreur est survenue",
+    body: "Une erreur inattendue s'est produite. Recharger la page résout généralement le problème.",
+    action: "Recharger la page",
+  },
   legal: {
     lastUpdated: "Dernière mise à jour",
     onThisPage: "Sur cette page",

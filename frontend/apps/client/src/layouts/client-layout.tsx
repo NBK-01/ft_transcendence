@@ -1,5 +1,5 @@
 import { Bell, MessageSquare, Package, UserRound } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, Outlet, useLocation } from "react-router";
 
@@ -7,6 +7,7 @@ import { useLiveChat, useLogout, useSession } from "@trans/api";
 import { AppShell, type NavGroup } from "@trans/ui/blocks/app-shell";
 import { Logo } from "@trans/ui/blocks/logo";
 import { Button } from "@trans/ui/components/button";
+import { Skeleton } from "@trans/ui/components/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@trans/ui/components/tooltip";
 
 const MESSAGES_PATH = "/app/messages";
@@ -95,7 +96,25 @@ export function ClientLayout() {
         </Tooltip>
       }
     >
-      <Outlet />
+      {/* Pages load their code on first visit (see router.tsx). */}
+      <Suspense fallback={<PageSkeleton />}>
+        <Outlet />
+      </Suspense>
     </AppShell>
+  );
+}
+
+/** While a page's code loads on a first visit: the shape of a page header and its table. */
+function PageSkeleton() {
+  const { t } = useTranslation("common");
+  return (
+    <div className="flex flex-col gap-8" aria-busy="true">
+      <span className="sr-only">{t("table.loading")}</span>
+      <div className="flex flex-col gap-3">
+        <Skeleton className="h-9 w-48" />
+        <Skeleton className="h-5 w-96 max-w-full" />
+      </div>
+      <Skeleton className="h-64 w-full" />
+    </div>
   );
 }

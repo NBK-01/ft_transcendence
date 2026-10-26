@@ -169,6 +169,11 @@ const en = {
     body: "The page you're looking for doesn't exist or was moved.",
     action: "Go home",
   },
+  crash: {
+    title: "Something went wrong",
+    body: "An unexpected error occurred. Reloading the page usually fixes it.",
+    action: "Reload page",
+  },
   legal: {
     lastUpdated: "Last updated",
     onThisPage: "On this page",
