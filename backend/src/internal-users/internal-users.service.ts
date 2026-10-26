@@ -11,8 +11,11 @@ import { CryptoService } from '../common/services/crypto.service';
 import {
   InternalUserNotFoundException,
   InternalUserAlreadyExistsException,
+  CannotRemoveLastAdminException,
 } from './exceptions';
 import { RoleNotFoundException } from '../access-control/exceptions';
+
+const ADMIN_ROLE_NAME = 'admin';
 
 @Injectable()
 export class InternalUsersService {
@@ -88,13 +91,20 @@ export class InternalUsersService {
       throw new InternalUserNotFoundException(id);
     }
 
+    let role: Role | undefined;
     if (dto.roleName) {
-      const role = await this.roleRepository.findOne({
-        where: { name: dto.roleName },
-      });
+      role =
+        (await this.roleRepository.findOne({
+          where: { name: dto.roleName },
+        })) ?? undefined;
       if (!role) {
         throw new RoleNotFoundException(dto.roleName);
       }
+    }
+
+    await this.assertNotRemovingLastActiveAdmin(user, dto, role);
+
+    if (role) {
       user.roleId = role.id;
       user.role = role;
     }
@@ -109,6 +119,36 @@ export class InternalUsersService {
     }
 
     return this.internalUserRepository.save(user);
+  }
+
+  /**
+   * Guards against deactivating or demoting the last active admin — only
+   * relevant when `user` currently IS an active admin and this update would
+   * take that status away (an unrelated change, like organizationId, is
+   * left alone even on the last admin).
+   */
+  private async assertNotRemovingLastActiveAdmin(
+    user: InternalUser,
+    dto: UpdateInternalUserDto,
+    newRole: Role | undefined,
+  ): Promise<void> {
+    const isActiveAdmin = user.role?.name === ADMIN_ROLE_NAME && user.isActive;
+    if (!isActiveAdmin) {
+      return;
+    }
+    const losesAdminStatus =
+      dto.isActive === false ||
+      (newRole !== undefined && newRole.name !== ADMIN_ROLE_NAME);
+    if (!losesAdminStatus) {
+      return;
+    }
+    const otherActiveAdmins = await this.internalUserRepository.find({
+      // isActiveAdmin being true guarantees roleId is set (the role relation loaded above).
+      where: { roleId: user.roleId as string, isActive: true },
+    });
+    if (otherActiveAdmins.every((admin) => admin.id === user.id)) {
+      throw new CannotRemoveLastAdminException(user.id);
+    }
   }
 
   async setOrganization(

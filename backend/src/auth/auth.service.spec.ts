@@ -3,7 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import Redis from 'ioredis';
 import { Repository } from 'typeorm';
 import { AuthContextService } from '../common/context';
-import { AccountType } from '../common/context/auth-context.types';
+import { AccountType, RequestUser } from '../common/context/auth-context.types';
 import { CryptoService } from '../common/services/crypto.service';
 import { CommunicationService } from '../communication/communication.service';
 import { FileStorageService } from '../file-storage/file-storage.service';
@@ -156,6 +156,7 @@ function setup(env: Record<string, string> = {}) {
     isVerified: false,
     authProvider: AuthProvider.EMAIL,
     forceLogoutAfter: null,
+    isActive: true, // mirrors the real column's `default: true` (see User entity)
   }));
   const sessions = new InMemoryTable<RefreshToken>('session');
   // OTP audit log: written to, never read back by these flows.
@@ -167,6 +168,18 @@ function setup(env: Record<string, string> = {}) {
   const outbox = new Outbox();
   const mail = outbox as unknown as CommunicationService;
   const jwt = new JwtService({ secret: JWT_SECRET });
+  // deactivateAccount()/changePassword() read the acting user from here —
+  // real AuthContextService is request-scoped (nestjs-cls), so tests set it
+  // directly via `context.user` instead of threading a request through.
+  const context: { user?: RequestUser } = {};
+  const authContext = {
+    requireUser: () => {
+      if (!context.user) {
+        throw new Error('test setup: no user set on context.user');
+      }
+      return context.user;
+    },
+  } as unknown as AuthContextService;
 
   const usersService = new UsersService(
     users as unknown as Repository<User>,
@@ -192,9 +205,9 @@ function setup(env: Record<string, string> = {}) {
     {} as OAuthCodeService,
     mail,
     config,
-    {} as AuthContextService,
+    authContext,
   );
-  return { auth, jwt, users, sessions, outbox };
+  return { auth, jwt, users, sessions, outbox, context };
 }
 
 type Harness = ReturnType<typeof setup>;
@@ -634,5 +647,67 @@ describe('password reset', () => {
       }),
       AuthErrorCodes.WrongAuthProvider,
     );
+  });
+});
+
+describe('deactivateAccount', () => {
+  it('deactivates the account, marks it for force-logout, and revokes every refresh token', async () => {
+    const harness = setup();
+    const session = await verifiedAccount(harness);
+    harness.context.user = {
+      id: session.user.id,
+      email: EMAIL,
+      accountType: AccountType.CUSTOMER,
+    };
+
+    const result = await harness.auth.deactivateAccount();
+
+    expect(result).toEqual({ message: 'Account deactivated' });
+    expect(harness.users.rows[0]).toMatchObject({ isActive: false });
+    expect(harness.users.rows[0].forceLogoutAfter).toBeInstanceOf(Date);
+    await expectCode(
+      harness.auth.refresh(session.refreshToken),
+      AuthErrorCodes.InvalidRefreshToken,
+    );
+  });
+
+  it('a deactivated account can no longer log in (2012)', async () => {
+    const harness = setup();
+    const session = await verifiedAccount(harness);
+    harness.context.user = {
+      id: session.user.id,
+      email: EMAIL,
+      accountType: AccountType.CUSTOMER,
+    };
+
+    await harness.auth.deactivateAccount();
+
+    await expectCode(
+      harness.auth.login({ email: EMAIL, password: PASSWORD }),
+      AuthErrorCodes.AccountDeactivated,
+    );
+  });
+
+  it('revokes every session, not only the one that asked to deactivate', async () => {
+    const harness = setup();
+    const phone = await verifiedAccount(harness);
+    const laptop = await harness.auth.login({
+      email: EMAIL,
+      password: PASSWORD,
+    });
+    harness.context.user = {
+      id: phone.user.id,
+      email: EMAIL,
+      accountType: AccountType.CUSTOMER,
+    };
+
+    await harness.auth.deactivateAccount();
+
+    for (const session of [phone, laptop]) {
+      await expectCode(
+        harness.auth.refresh(session.refreshToken),
+        AuthErrorCodes.InvalidRefreshToken,
+      );
+    }
   });
 });

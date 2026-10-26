@@ -12,6 +12,10 @@ export class UserFactory {
       avatarUrl,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      dateOfBirth: user.dateOfBirth,
+      phoneNumber: user.phoneNumber,
     };
   }
 

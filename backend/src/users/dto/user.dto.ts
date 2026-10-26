@@ -36,4 +36,20 @@ export class UserDto {
 
   @ApiProperty({ description: 'Last update timestamp', type: Date })
   updatedAt!: Date;
+
+  @ApiProperty({ description: 'First name', nullable: true, required: false })
+  firstName?: string | null;
+
+  @ApiProperty({ description: 'Last name', nullable: true, required: false })
+  lastName?: string | null;
+
+  @ApiProperty({
+    description: 'Calendar date, "YYYY-MM-DD" (no time, no time zone)',
+    nullable: true,
+    required: false,
+  })
+  dateOfBirth?: string | null;
+
+  @ApiProperty({ description: 'Phone number', nullable: true, required: false })
+  phoneNumber?: string | null;
 }

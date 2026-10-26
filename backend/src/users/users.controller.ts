@@ -1,6 +1,8 @@
 import {
+  Body,
   Controller,
   Get,
+  Patch,
   Post,
   UploadedFile,
   UseInterceptors,
@@ -14,10 +16,14 @@ import {
   ApiConsumes,
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { FileStorageService } from '../file-storage/file-storage.service';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import {
+  RequireCustomer,
+  RequireRole,
+} from '../common/decorators/access-control.decorator';
 import { RequestUser } from '../common/context/auth-context.types';
-import { RequireRole } from '../common/decorators/access-control.decorator';
 
 @ApiTags('Users')
 @ApiBearerAuth()
@@ -37,6 +43,19 @@ export class UsersController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async getProfile(@CurrentUser() currentUser: RequestUser) {
     return this.usersService.getProfile(currentUser.id);
+  }
+
+  @RequireCustomer()
+  @Patch('profile')
+  @ApiOperation({ summary: "Update the current user's profile" })
+  @ApiResponse({ status: 200, description: 'Profile updated successfully' })
+  @ApiResponse({ status: 400, description: 'Validation failed' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async updateProfile(
+    @Body() dto: UpdateProfileDto,
+    @CurrentUser() currentUser: RequestUser,
+  ) {
+    return this.usersService.updateProfile(currentUser.id, dto);
   }
 
   @Post('profile/avatar')

@@ -1,10 +1,9 @@
 /**
  * GET /users/profile (backend UserDto).
  *
- * Real today: id, email, name, isVerified, avatarUrl, createdAt, updatedAt.
- * Proposed, mocked until the backend adds them: firstName, lastName,
- * dateOfBirth, phoneNumber. They're optional so the page still works
- * against the real endpoint, which doesn't send them yet.
+ * Real: id, email, name, isVerified, avatarUrl, createdAt, updatedAt,
+ * firstName, lastName, dateOfBirth, phoneNumber. The latter four stay
+ * optional since existing accounts may not have filled them in yet.
  */
 export type Profile = {
   id: string;
@@ -24,7 +23,7 @@ export type Profile = {
   phoneNumber?: string | null;
 };
 
-/** PATCH /users/profile body (proposed). Email isn't editable here. */
+/** PATCH /users/profile body (real endpoint). Email isn't editable here. */
 export type ProfileUpdate = {
   firstName: string;
   lastName: string;

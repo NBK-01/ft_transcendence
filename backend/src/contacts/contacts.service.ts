@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Contact, ContactStatus } from './contact.entity';
 import { InternalUsersService } from '../internal-users/internal-users.service';
 import { AccessControlService } from '../access-control/access-control.service';
+import { isUniqueConstraintViolation } from '../common/utils/database-errors';
 import { ContactDto } from './dto/contact.dto';
 import { ContactFactory } from './factories/contact.factory';
 import {
@@ -32,13 +33,7 @@ export class ContactsService {
     this.assertNotSelf(requesterId, addresseeId);
     await this.assertSameScope(requesterId, addresseeId);
     await this.assertNoExistingContact(requesterId, addresseeId);
-    const contact = await this.contactRepository.save(
-      this.contactRepository.create({
-        requesterId,
-        addresseeId,
-        status: ContactStatus.PENDING,
-      }),
-    );
+    const contact = await this.insertContact(requesterId, addresseeId);
     return this.getDtoOrThrow(contact.id);
   }
 
@@ -172,6 +167,32 @@ export class ContactsService {
       ],
     });
     if (existing) {
+      throw new ContactAlreadyExistsException();
+    }
+  }
+
+  /**
+   * On a unique-violation (two requests racing past assertNoExistingContact's
+   * pre-check, same shape as the race ChatService's findOrInsert* methods
+   * already recover from): the other request already won, so this throws the
+   * exact same exception the pre-check itself throws for the same outcome.
+   */
+  private async insertContact(
+    requesterId: string,
+    addresseeId: string,
+  ): Promise<Contact> {
+    try {
+      return await this.contactRepository.save(
+        this.contactRepository.create({
+          requesterId,
+          addresseeId,
+          status: ContactStatus.PENDING,
+        }),
+      );
+    } catch (error) {
+      if (!isUniqueConstraintViolation(error)) {
+        throw error;
+      }
       throw new ContactAlreadyExistsException();
     }
   }

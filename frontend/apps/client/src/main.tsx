@@ -6,6 +6,7 @@ import "./styles.css";
 
 import { ApiProvider, configureApi } from "@trans/api";
 import { AppProviders } from "@trans/ui/blocks/app-providers";
+import { ErrorBoundary } from "@trans/ui/blocks/error-boundary";
 import { toast } from "@trans/ui/components/toaster";
 import { i18next, initI18n } from "@trans/ui/i18n";
 
@@ -35,7 +36,9 @@ createRoot(root).render(
   <StrictMode>
     <ApiProvider>
       <AppProviders>
-        <RouterProvider router={router} />
+        <ErrorBoundary>
+          <RouterProvider router={router} />
+        </ErrorBoundary>
       </AppProviders>
     </ApiProvider>
   </StrictMode>,

@@ -10,10 +10,9 @@ import { AVATAR_MAX_BYTES, AVATAR_TYPES } from "./validation";
  * Mock profile endpoints (VITE_API_MOCKS=true), enveloped like the real API.
  * In memory: changes stick until the page reloads.
  *
- * GET /users/profile and POST /users/profile/avatar exist in the backend; these
- * copies add the proposed fields. PATCH /users/profile is proposed: delete its
- * handler once it ships. Same rules as the real avatar upload (JPEG/PNG/WebP,
- * 2 MB, error codes 9001/9002).
+ * GET /users/profile, PATCH /users/profile and POST /users/profile/avatar all
+ * mirror real backend endpoints now. Same rules as the real avatar upload
+ * (JPEG/PNG/WebP, 2 MB, error codes 9001/9002).
  */
 
 const profile: Profile = {

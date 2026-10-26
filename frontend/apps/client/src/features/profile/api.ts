@@ -18,7 +18,7 @@ export function useProfile() {
   });
 }
 
-/** PATCH /users/profile — save names, birth date and phone (proposed; mocked until the backend adds it). */
+/** PATCH /users/profile — save names, birth date and phone (real endpoint). */
 export function useUpdateProfile() {
   const queryClient = useQueryClient();
   return useMutation({

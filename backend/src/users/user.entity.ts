@@ -50,4 +50,17 @@ export class User extends BaseEntity {
   /** Set false by self-deactivation (DELETE /users/profile) — blocks login, never a hard delete. */
   @Column({ name: 'is_active', default: true })
   isActive!: boolean;
+
+  @Column({ name: 'first_name', type: 'varchar', nullable: true })
+  firstName!: string | null;
+
+  @Column({ name: 'last_name', type: 'varchar', nullable: true })
+  lastName!: string | null;
+
+  /** 'date' columns round-trip as "YYYY-MM-DD" strings, not Date objects — see PostgresDriver.prepareHydratedValue. */
+  @Column({ name: 'date_of_birth', type: 'date', nullable: true })
+  dateOfBirth!: string | null;
+
+  @Column({ name: 'phone_number', type: 'varchar', nullable: true })
+  phoneNumber!: string | null;
 }
