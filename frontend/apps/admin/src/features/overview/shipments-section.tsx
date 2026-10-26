@@ -36,7 +36,7 @@ const sumOf = (byStatus: ByStatus | undefined, states: CountedState[]) =>
 export function ShipmentsSection() {
   const { t } = useTranslation(["common", "app"]);
   const stats = useTodayOverview();
-  const { branchId, withBranch } = useBranchFilter();
+  const { branchId } = useBranchFilter();
   const branch = useOrganizations().data?.find((org) => org.id === branchId);
 
   // A 403 (the role changed since signing in) drops the section, not the page.
@@ -83,8 +83,8 @@ export function ShipmentsSection() {
           description={data && t("app:overview.shipments.yesterday", { count: data.created.previous })}
           {...state}
         />
+        {/* Not a link: the list can't filter by day, so it would show every delivered shipment. */}
         <OverviewStat
-          to={withBranch(statusPath("delivered"))}
           label={t("app:overview.shipments.deliveredToday")}
           icon={CircleCheck}
           value={data?.delivered.current}
