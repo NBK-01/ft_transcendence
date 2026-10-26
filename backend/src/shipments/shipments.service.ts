@@ -20,7 +20,13 @@ import { ShipmentFile } from './entities/shipment-file.entity';
 import { ShipmentOffer } from './entities/shipment-offer.entity';
 import { ShipmentPayment } from './entities/shipment-payment.entity';
 import { CreateShipmentDto } from './dto/create-shipment.dto';
+import {
+  customerActor,
+  ShipmentActor,
+  ShipmentActorType,
+} from './constants/shipment-actor';
 import { ListShipmentsQueryDto } from './dto/list-shipments-query.dto';
+import { ListAdminShipmentsQueryDto } from './dto/list-admin-shipments-query.dto';
 import { SubmitPaymentDto } from './dto/submit-payment.dto';
 import {
   ShipmentDetailDto,
@@ -50,6 +56,8 @@ export interface TransitionStep {
   from: ShipmentState[];
   to: ShipmentState;
   location: string;
+  /** Who's moving it: recorded on the timeline step. */
+  actor: ShipmentActor;
   /** Other columns to set in the same UPDATE. */
   changes?: QueryDeepPartialEntity<Shipment>;
 }
@@ -141,6 +149,8 @@ export class ShipmentsService {
           shipmentId: shipment.id,
           status: ShipmentState.PENDING_SOURCING,
           location: 'Request received',
+          actorType: ShipmentActorType.CUSTOMER,
+          actorId: clientId,
         });
       }),
     );
@@ -158,6 +168,7 @@ export class ShipmentsService {
         from: [ShipmentState.PENDING_CLIENT_DECISION],
         to: ShipmentState.PENDING_PAYMENT,
         location: 'Offer approved',
+        actor: customerActor(clientId),
       }),
     );
     return this.getDetail(clientId, trackingId);
@@ -175,6 +186,7 @@ export class ShipmentsService {
         from: [ShipmentState.PENDING_CLIENT_DECISION],
         to: ShipmentState.PENDING_SOURCING,
         location: 'Offer rejected, finding another supplier',
+        actor: customerActor(clientId),
       });
       if (offer) {
         await manager.update(ShipmentOffer, offer.id, {
@@ -211,6 +223,7 @@ export class ShipmentsService {
         from: [ShipmentState.PENDING_PAYMENT],
         to: ShipmentState.PENDING_PAYMENT_CONFIRMATION,
         location: 'Payment submitted',
+        actor: customerActor(clientId),
       });
       await manager.insert(ShipmentPayment, {
         shipmentId: shipment.id,
@@ -256,16 +269,27 @@ export class ShipmentsService {
    * Shared with AdminShipmentsService
    * ------------------------------------------------------------------- */
 
-  /** clientId given: only that client's shipments. Omitted (admin): everyone's, with the client joined. */
+  /**
+   * clientId given: only that client's shipments. Omitted (admin): everyone's,
+   * with the client and the branch joined, optionally one branch's only.
+   */
   listQuery(
-    query: ListShipmentsQueryDto,
+    query: ListAdminShipmentsQueryDto,
     clientId?: string,
   ): Promise<[Shipment[], number]> {
     const qb = this.shipmentRepository.createQueryBuilder('shipment');
     if (clientId) {
       qb.andWhere('shipment.clientId = :clientId', { clientId });
     } else {
-      qb.innerJoinAndSelect('shipment.client', 'client');
+      qb.innerJoinAndSelect('shipment.client', 'client').leftJoinAndSelect(
+        'shipment.organization',
+        'organization',
+      );
+    }
+    if (query.organizationId) {
+      qb.andWhere('shipment.organizationId = :organizationId', {
+        organizationId: query.organizationId,
+      });
     }
     const q = query.q?.trim();
     if (q) {
@@ -295,7 +319,7 @@ export class ShipmentsService {
     return shipment;
   }
 
-  /** With everything the detail view needs: offers, files, payment (and the client, for admin access). */
+  /** With everything the detail view needs: offers, files, payment (and the client and branch, for admin access). */
   async findWithDetail(
     trackingId: string,
     clientId?: string,
@@ -307,6 +331,7 @@ export class ShipmentsService {
         files: true,
         payment: true,
         client: !clientId,
+        organization: !clientId,
       },
     });
     if (!shipment) {
@@ -323,7 +348,7 @@ export class ShipmentsService {
   async transition(
     manager: EntityManager,
     shipment: Shipment,
-    { from, to, location, changes = {} }: TransitionStep,
+    { from, to, location, actor, changes = {} }: TransitionStep,
   ): Promise<void> {
     if (!from.includes(shipment.status)) {
       throw new InvalidShipmentStateException(shipment.status);
@@ -342,6 +367,8 @@ export class ShipmentsService {
       shipmentId: shipment.id,
       status: to,
       location,
+      actorType: actor.type,
+      actorId: actor.id,
     });
     shipment.status = to;
   }

@@ -15,6 +15,7 @@ import {
   TRACKING_TRANSITIONS,
 } from "../admin-shipments";
 import type {
+  ActivityActor,
   Address,
   AdminShipment,
   AdminShipmentDetail,
@@ -22,6 +23,7 @@ import type {
   ImageRef,
   Money,
   PaymentSummary,
+  ShipmentBranch,
   ShipmentClient,
   ShipmentEvent,
   ShipmentFile,
@@ -30,9 +32,10 @@ import type {
   SupplierOffer,
   TrackingEventStatus,
 } from "../types";
-import { MOCK_USER } from "./data";
+import { internalUsers, isUuid, MOCK_USER, ORGANIZATIONS } from "./data";
 import { notifyAction, notifyShipmentEvent } from "./notification-store";
 import { error, ok, paginated } from "./respond";
+import { staffCaller } from "./staff-auth";
 
 /**
  * Staff shipments (backend AdminShipmentsController and AdminShipmentsService).
@@ -41,11 +44,13 @@ import { error, ok, paginated } from "./respond";
  * backend's order: the body (400), the shipment (404, 3001), its status (409,
  * 3002), the files (400, 3004 / 9001 / 9002).
  *
- * Forty shipments from seven clients over the last six weeks; at least eleven
- * changed today, three of them new requests. Every status has some except
- * "requested", which nothing sets. Amina (MOCK_USER, the client app's
- * customer) has the same tracking IDs and statuses as in the client's own
- * mocks. In-memory: changes stick until the page reloads.
+ * Forty-six shipments from seven clients over the last six weeks; at least
+ * fifteen changed today, three of them new requests. Every status has some
+ * except "requested", which nothing sets. Six were created by a branch through
+ * the public API, so only they have a branch (`organization`), like on the
+ * real API. Amina (MOCK_USER, the client app's customer) has the same tracking
+ * IDs and statuses as in the client's own mocks, and none of the branch ones.
+ * In-memory: changes stick until the page reloads.
  *
  * The client app mocks /api/shipments itself (apps/client/src/features/shipments/mocks.ts);
  * these handlers only answer /api/admin/shipments.
@@ -54,7 +59,8 @@ import { error, ok, paginated } from "./respond";
 /** Backend ValidationErrorCodes.MissingRequiredData: the upload has no file. */
 const MISSING_REQUIRED_DATA = 5001;
 
-const STATES: readonly ShipmentState[] = [
+/** Every status, in lifecycle order. */
+export const STATES: readonly ShipmentState[] = [
   "pending_sourcing",
   "pending_client_decision",
   "pending_payment",
@@ -70,11 +76,16 @@ const TRACKING_EVENT_STATUSES = Object.keys(TRACKING_TRANSITIONS) as TrackingEve
 
 type Offer = SupplierOffer & { rejectedAt: string | null };
 
+/** A timeline step as the database has it: with an id and who did it (the events endpoint returns neither). */
+type StoredEvent = ShipmentEvent & { id: string; actor: ActivityActor | null };
+
 type Row = {
   /** Breaks ties in the list order, like the backend's id. */
   id: string;
   trackingId: string;
   client: ShipmentClient;
+  /** Only on shipments a branch created through the public API. */
+  organization: ShipmentBranch | null;
   status: ShipmentState;
   request: ShipmentRequest;
   /** Every offer made, oldest first. The client sees the newest one not rejected. */
@@ -85,7 +96,7 @@ type Row = {
   recipient: Address | null;
   weightKg: number | null;
   /** Newest first. */
-  events: ShipmentEvent[];
+  events: StoredEvent[];
   /** The Files tab's attachments, newest first. */
   files: ShipmentFile[];
   createdAt: string;
@@ -271,6 +282,11 @@ type Seed = {
   /** Cancelled from this status, for this reason. */
   cancelled?: [ShipmentState, string];
   files?: AttachmentKind[];
+  /**
+   * Created by this branch (an index into ORGANIZATIONS) through the public
+   * API: it starts at confirmed, with no request, offer or payment.
+   */
+  partner?: number;
 };
 
 const SEEDS: Seed[] = [
@@ -321,40 +337,90 @@ const SEEDS: Seed[] = [
   { trackingId: "TRK-61E7C4", client: 6, supplier: 9, status: "out_for_delivery", created: ago(17 * DAY), updated: ago(5 * HOUR), quantity: 2 },
   { trackingId: "TRK-8A2D6F", client: 6, supplier: 1, status: "delivered", created: ago(27 * DAY), updated: ago(19 * DAY), quantity: 2 },
   { trackingId: "TRK-F49C1B", client: 6, supplier: 8, status: "delivered", created: ago(13 * DAY), updated: ago(30 * HOUR), files: ["proof_of_delivery", "other"] },
+  // Created by a branch through the public API
+  { trackingId: "TRK-0F6A5D", client: 2, supplier: 3, status: "confirmed", created: today(0.45), updated: today(0.45), partner: 1 },
+  { trackingId: "TRK-4C1D9A", client: 1, supplier: 5, status: "in_transit", created: ago(2 * DAY), updated: today(0.65), partner: 0 },
+  { trackingId: "TRK-D2794E", client: 2, supplier: 6, status: "out_for_delivery", created: ago(3 * DAY), updated: today(0.75), partner: 1 },
+  { trackingId: "TRK-93AC4F", client: 4, supplier: 7, status: "delivered", created: ago(4 * DAY), updated: today(0.55), partner: 3 },
+  { trackingId: "TRK-B83E27", client: 3, supplier: 4, status: "delivered", created: ago(9 * DAY), updated: ago(5 * DAY), partner: 0 },
+  { trackingId: "TRK-6E05B1", client: 6, supplier: 10, status: "cancelled", created: ago(6 * DAY), updated: ago(2 * DAY), partner: 2, cancelled: ["in_transit", "Customer refused the parcel"] },
 ];
 
-type Step = [ShipmentState, string];
+/* ---------------------------------------------------------------------------
+ * Who did each step (shipment_event.actor_type / actor_id)
+ * ------------------------------------------------------------------------ */
+
+type ActorKind = ActivityActor["type"];
+type Step = [ShipmentState, string, ActorKind];
+
+/** Events older than this have no actor, like the real ones from before it was recorded. */
+const ACTORS_RECORDED_FROM = ago(14 * DAY);
+
+const ADMINS = internalUsers.filter((user) => user.roleName === "admin");
+const staffActor = (user: { id: string; name: string }): ActivityActor => ({
+  type: "staff",
+  id: user.id,
+  name: user.name,
+  organization: null,
+});
+/** The signed-in staff member behind a request (requireStaffAccess has let them through). */
+const callerActor = (request: Request): ActivityActor | null => {
+  const { caller } = staffCaller(request);
+  return caller ? staffActor(caller) : null;
+};
+/** A branch's system, calling with its API key. */
+const partnerActor = (branchIndex: number): ActivityActor => {
+  const branch = ORGANIZATIONS[branchIndex]!;
+  return {
+    type: "partner",
+    id: `00000000-0000-4000-b100-${String(branchIndex + 1).padStart(12, "0")}`,
+    name: "Warehouse system",
+    organization: { id: branch.id, name: branch.name },
+  };
+};
+const CARRIER: ActivityActor = { type: "carrier", id: null, name: null, organization: null };
 
 /** A seed's whole history, from the request to where it is now, with what each step left behind (offers, payment, route). */
 function build(seed: Seed, index: number): Row {
   const { client, home } = CLIENTS[seed.client]!;
   const supplier = SUPPLIERS[seed.supplier]!;
   const quantity = seed.quantity ?? 1;
+  const branch = seed.partner === undefined ? null : ORGANIZATIONS[seed.partner]!;
 
-  // Every step it would take, cut where it is now.
-  const path: Step[] = [["pending_sourcing", "Request received"]];
-  if (seed.rejected !== undefined) {
+  // Every step it would take, cut where it is now. A branch's starts at confirmed (PartnerShipmentsService.create),
+  // and the carrier's webhook moves it after that; an order's tracking is posted by an admin.
+  const tracker: ActorKind = branch ? "carrier" : "staff";
+  const path: Step[] = branch
+    ? [["confirmed", `Created by ${branch.name}`, "partner"]]
+    : [["pending_sourcing", "Request received", "customer"]];
+  if (!branch) {
+    if (seed.rejected !== undefined) {
+      path.push(
+        ["pending_client_decision", `Offer from ${SUPPLIERS[seed.rejected]!.address.name}`, "staff"],
+        ["pending_sourcing", "Offer rejected, finding another supplier", "customer"],
+      );
+    }
     path.push(
-      ["pending_client_decision", `Offer from ${SUPPLIERS[seed.rejected]!.address.name}`],
-      ["pending_sourcing", "Offer rejected, finding another supplier"],
+      ["pending_client_decision", `Offer from ${supplier.address.name}`, "staff"],
+      ["pending_payment", "Offer approved", "customer"],
+      ["pending_payment_confirmation", "Payment submitted", "customer"],
+      ["confirmed", "Payment confirmed", "staff"],
     );
   }
   path.push(
-    ["pending_client_decision", `Offer from ${supplier.address.name}`],
-    ["pending_payment", "Offer approved"],
-    ["pending_payment_confirmation", "Payment submitted"],
-    ["confirmed", "Payment confirmed"],
-    ["in_transit", supplier.address.city],
-    ["in_transit", `${home.city} hub`],
-    ["out_for_delivery", home.city],
+    ["in_transit", supplier.address.city, tracker],
+    ["in_transit", `${home.city} hub`, tracker],
+    ["out_for_delivery", home.city, tracker],
   );
-  if (seed.retried) path.push(["in_transit", `${home.city} hub, no one was home`], ["out_for_delivery", home.city]);
-  path.push(["delivered", home.city]);
+  if (seed.retried) {
+    path.push(["in_transit", `${home.city} hub, no one was home`, tracker], ["out_for_delivery", home.city, tracker]);
+  }
+  path.push(["delivered", home.city, tracker]);
 
   const [until, reason] = seed.cancelled ?? [seed.status];
   const end = seed.firstHop ? path.findIndex(([status]) => status === until) : path.findLastIndex(([status]) => status === until);
   const steps = path.slice(0, end + 1);
-  if (reason) steps.push(["cancelled", reason]);
+  if (reason) steps.push(["cancelled", reason, branch ? "partner" : "staff"]);
 
   const times = steps.map((_, step) =>
     new Date(seed.created + (steps.length > 1 ? ((seed.updated - seed.created) * step) / (steps.length - 1) : 0)).toISOString(),
@@ -376,6 +442,14 @@ function build(seed: Seed, index: number): Row {
       },
     ];
   });
+
+  const admin = ADMINS[index % ADMINS.length]!;
+  const actorOf = (kind: ActorKind, at: string): ActivityActor | null => {
+    if (Date.parse(at) < ACTORS_RECORDED_FROM) return null;
+    if (kind === "customer") return { type: "customer", id: client.id, name: client.name, organization: null };
+    if (kind === "staff") return staffActor(admin);
+    return kind === "partner" ? partnerActor(seed.partner!) : CARRIER;
+  };
 
   const paid = firstAt("pending_payment_confirmation");
   const total = { amount: Math.round(supplier.unitPrice.amount * quantity * 100) / 100, currency: supplier.unitPrice.currency };
@@ -399,8 +473,11 @@ function build(seed: Seed, index: number): Row {
     id: `00000000-0000-4000-9000-${String(index + 1).padStart(12, "0")}`,
     trackingId: seed.trackingId,
     client,
+    organization: branch && { id: branch.id, name: branch.name },
     status: steps.at(-1)![0],
-    request: seed.photos
+    request: branch
+      ? { productUrl: null, images: [] }
+      : seed.photos
       ? { productUrl: null, images: [1, 2].map((n) => image(`${supplier.product} photo ${n}`, supplier.hue + 20)) }
       : { productUrl: `https://shop.example.com/products/${supplier.product.toLowerCase().replaceAll(" ", "-")}`, images: [] },
     offers,
@@ -408,7 +485,15 @@ function build(seed: Seed, index: number): Row {
     sender: live ? supplier.address : null,
     recipient: live ? home : null,
     weightKg: live ? Math.round(supplier.kgPerUnit * quantity * 100) / 100 : null,
-    events: steps.map(([status, location], step) => ({ status, location, occurredAt: times[step]! })).reverse(),
+    events: steps
+      .map(([status, location, kind], step) => ({
+        id: nextId("9200"),
+        status,
+        location,
+        occurredAt: times[step]!,
+        actor: actorOf(kind, times[step]!),
+      }))
+      .reverse(),
     files: files.sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt)),
     createdAt: times[0]!,
     updatedAt: times.at(-1)!,
@@ -417,15 +502,25 @@ function build(seed: Seed, index: number): Row {
 
 const shipments: Row[] = SEEDS.map(build);
 
+/** The live rows, for the stats mock (stats.ts): it counts what these handlers change. */
+export const mockShipments = (): readonly Row[] => shipments;
+export type { Row as MockShipment };
+
 // The notifications the backend's jobs would have left for the last week of
 // these timelines and attachments (notification-store.ts); anything older
 // than a day has been read.
 for (const row of shipments) {
-  for (const event of row.events.toReversed()) {
+  for (const [step, event] of row.events.toReversed().entries()) {
     const at = Date.parse(event.occurredAt);
     if (at < ago(7 * DAY)) continue;
     notifyShipmentEvent(
-      { trackingId: row.trackingId, clientId: row.client.id, status: event.status, occurredAt: event.occurredAt },
+      {
+        trackingId: row.trackingId,
+        clientId: row.client.id,
+        status: event.status,
+        occurredAt: event.occurredAt,
+        isNew: row.organization !== null && step === 0,
+      },
       { read: at < ago(DAY) },
     );
   }
@@ -451,6 +546,7 @@ const toRow = (row: Row): AdminShipment => ({
   status: row.status,
   updatedAt: row.updatedAt,
   client: row.client,
+  organization: row.organization,
   createdAt: row.createdAt,
 });
 
@@ -515,7 +611,7 @@ const isCurrency = (value: unknown) =>
 
 const ADDRESS_FIELDS = ["name", "street", "city", "postalCode", "country", "phone"];
 
-/** AddressDto, nested. Missing altogether is a 400 here; ConfirmPaymentDto has no @IsDefined, so the real API likely fails later with a 500. */
+/** AddressDto, nested and required (@IsDefined): missing altogether is a 400. */
 function addressChecks(field: string, value: unknown): Check[] {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return [`${field} is required`];
   const input = value as Record<string, unknown>;
@@ -556,13 +652,14 @@ const find = (trackingId: unknown) => shipments.find((row) => row.trackingId ===
 
 /**
  * ShipmentsService.transition, once the caller has checked where it may move
- * from. The new event notifies whoever didn't cause it, here the customer.
+ * from, recording who did it. The new event notifies whoever didn't cause it,
+ * here the customer.
  */
-function moveTo(row: Row, status: ShipmentState, location: string) {
+function moveTo(row: Row, status: ShipmentState, location: string, actor: ActivityActor | null) {
   const now = new Date().toISOString();
   row.status = status;
   row.updatedAt = now;
-  row.events.unshift({ status, location, occurredAt: now });
+  row.events.unshift({ id: crypto.randomUUID(), status, location, occurredAt: now, actor });
   notifyShipmentEvent({ trackingId: row.trackingId, clientId: row.client.id, status, occurredAt: now });
 }
 
@@ -580,18 +677,25 @@ export const shipmentHandlers = [
     const limit = Number(params.get("limit") ?? 20);
     const q = params.get("q");
     const status = params.get("status");
+    const organizationId = params.get("organizationId");
     const problem = invalid([
       !(Number.isInteger(page) && page >= 1) && "page must be a whole number, at least 1",
       !(Number.isInteger(limit) && limit >= 1 && limit <= 100) && "limit must be a whole number, from 1 to 100",
       text("q", q, 50, true),
       status !== null && oneOf("status", status, STATES),
+      organizationId !== null && !isUuid(organizationId) && "organizationId must be a valid identifier",
     ]);
     if (problem) return problem;
 
     // ILIKE '%q%' on the tracking ID, with % and _ taken literally.
     const search = q?.trim().toUpperCase();
     const rows = shipments
-      .filter((row) => (!search || row.trackingId.includes(search)) && (!status || row.status === status))
+      .filter(
+        (row) =>
+          (!search || row.trackingId.includes(search)) &&
+          (!status || row.status === status) &&
+          (!organizationId || row.organization?.id === organizationId),
+      )
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id));
     return paginated(rows.map(toRow), page, limit);
   }),
@@ -603,7 +707,10 @@ export const shipmentHandlers = [
 
   http.get("*/api/admin/shipments/:trackingId/events", ({ params }) => {
     const row = find(params.trackingId);
-    return row ? ok(row.events) : notFound(params.trackingId);
+    // ShipmentEventDto: no id, and not who did it.
+    return row
+      ? ok(row.events.map(({ status, location, occurredAt }): ShipmentEvent => ({ status, location, occurredAt })))
+      : notFound(params.trackingId);
   }),
 
   http.get("*/api/admin/shipments/:trackingId/files", ({ params }) => {
@@ -635,7 +742,7 @@ export const shipmentHandlers = [
     if (badFile) return badFile;
 
     const supplierName = String(form.get("supplierName")).trim();
-    moveTo(row, "pending_client_decision", `Offer from ${supplierName}`);
+    moveTo(row, "pending_client_decision", `Offer from ${supplierName}`, callerActor(request));
     row.offers.push({
       supplierName,
       unitPrice: { amount: unitPrice!, currency: String(form.get("currency")).toUpperCase() },
@@ -666,7 +773,7 @@ export const shipmentHandlers = [
     row.sender = { ...sender, city: sender.city.trim() };
     row.recipient = { ...recipient, city: recipient.city.trim() };
     row.weightKg = body.weightKg as number;
-    moveTo(row, "confirmed", "Payment confirmed");
+    moveTo(row, "confirmed", "Payment confirmed", callerActor(request));
     return ok(toDetail(row));
   }),
 
@@ -684,7 +791,7 @@ export const shipmentHandlers = [
     const status = body.status as TrackingEventStatus;
     if (!TRACKING_TRANSITIONS[status].includes(row.status)) return wrongState(row.status);
 
-    moveTo(row, status, String(body.location).trim());
+    moveTo(row, status, String(body.location).trim(), callerActor(request));
     return ok(toDetail(row), 201);
   }),
 

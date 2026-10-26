@@ -1,4 +1,4 @@
-import type { AdminShipmentFilters, NotificationFilters } from "./types";
+import type { AdminShipmentFilters, NotificationFilters, OverviewStatsQuery } from "./types";
 
 /**
  * Query keys, in one place so invalidation can't drift out of sync.
@@ -46,6 +46,9 @@ export const keys = {
     detail: (trackingId: string) => [...keys.adminShipments.all, "detail", trackingId] as const,
     events: (trackingId: string) => [...keys.adminShipments.detail(trackingId), "events"] as const,
     files: (trackingId: string) => [...keys.adminShipments.detail(trackingId), "files"] as const,
+    // The overview's numbers: every status change refreshes them, like the lists.
+    stats: () => [...keys.adminShipments.all, "stats"] as const,
+    overviewStats: (query: OverviewStatsQuery) => [...keys.adminShipments.stats(), "overview", query] as const,
   },
   // Whoever is signed in: sign-out clears the whole cache, so one account never sees another's.
   notifications: {

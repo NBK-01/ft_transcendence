@@ -7,6 +7,7 @@ import { organizationHandlers } from "./organizations";
 import { shipmentHandlers } from "./shipments";
 import { staffHandlers } from "./staff";
 import { requireStaffAccess, staffAuthHandlers } from "./staff-auth";
+import { statsHandlers } from "./stats";
 
 export { error, ok, paginated } from "./respond";
 
@@ -31,5 +32,6 @@ export const handlers = [
   ...contactHandlers,
   ...chatHandlers,
   ...shipmentHandlers,
+  ...statsHandlers,
   ...apiKeyHandlers,
 ];

@@ -28,7 +28,7 @@ export function ShipmentsPage() {
   const { t } = useTranslation(["common", "app"]);
   const { branchId } = useBranchFilter();
   const { q, status, page, tableState, setTableState, replacePage } = useShipmentFilters();
-  const shipments = useAdminShipments({ q, status, page, limit: PAGE_SIZE });
+  const shipments = useAdminShipments({ q, status, organizationId: branchId ?? undefined, page, limit: PAGE_SIZE });
   const columns = useShipmentColumns();
 
   // ?page=9 with only 2 pages (an old link, or the list shrank): go to the last page, without
@@ -61,11 +61,11 @@ export function ShipmentsPage() {
       <title>{`${t("nav.shipments")} · ${t("brand.name")}`}</title>
       <PageHeader title={t("nav.shipments")} description={t("app:pages.shipments")} />
       <div className="flex flex-col gap-3">
-        {/* Shipments have no branch yet: say so rather than quietly ignore the topbar filter. */}
+        {/* Only partner-created shipments have a branch: say why customer orders drop out of the list. */}
         {branchId && (
           <p className="flex items-start gap-2 text-copy-13 text-gray-900">
             <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            {t("app:shipments.list.allBranches")}
+            {t("app:shipments.list.branchOnly")}
           </p>
         )}
         <DataTable
@@ -84,8 +84,8 @@ export function ShipmentsPage() {
           emptyState={
             <EmptyState
               icon={Package}
-              title={t("app:shipments.list.emptyTitle")}
-              description={t("app:shipments.list.emptyBody")}
+              title={t(branchId ? "app:shipments.list.emptyBranchTitle" : "app:shipments.list.emptyTitle")}
+              description={t(branchId ? "app:shipments.list.emptyBranchBody" : "app:shipments.list.emptyBody")}
             />
           }
           pageSizeOptions={[PAGE_SIZE]}

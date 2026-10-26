@@ -87,12 +87,12 @@ const shipmentPath = (trackingId: string, suffix = "") => `/admin/shipments/${en
  */
 export function useAdminShipments(filters: AdminShipmentFilters = {}, { enabled = true }: { enabled?: boolean } = {}) {
   // The backend ignores a blank search, so it shares a cache entry with no search.
-  const { page = 1, limit = 20, status } = filters;
+  const { page = 1, limit = 20, status, organizationId } = filters;
   const q = filters.q?.trim() || undefined;
   return useQuery({
-    queryKey: keys.adminShipments.list({ q, status, page, limit }),
+    queryKey: keys.adminShipments.list({ q, status, organizationId, page, limit }),
     queryFn: ({ signal }) =>
-      api.getPage<AdminShipment>("/admin/shipments", { query: { q, status, page, limit }, signal }),
+      api.getPage<AdminShipment>("/admin/shipments", { query: { q, status, organizationId, page, limit }, signal }),
     placeholderData: keepPreviousData,
     enabled,
   });
@@ -127,8 +127,9 @@ export function useAdminShipmentFiles(trackingId: string) {
 
 /**
  * A status change. Each returns the updated shipment, which goes straight into
- * its cache; its timeline gained a step and the lists moved (status, order),
- * so those refetch. On a 409 (3002) the page is out of date: it all refetches.
+ * its cache; its timeline gained a step and the lists and the overview's
+ * numbers moved (status, order, counts), so those refetch. On a 409 (3002)
+ * the page is out of date: it all refetches.
  */
 function useShipmentChange<TInput extends { trackingId: string }>(
   send: (input: TInput) => Promise<AdminShipmentDetail>,
@@ -141,12 +142,14 @@ function useShipmentChange<TInput extends { trackingId: string }>(
       return Promise.all([
         queryClient.invalidateQueries({ queryKey: keys.adminShipments.events(trackingId) }),
         queryClient.invalidateQueries({ queryKey: keys.adminShipments.lists() }),
+        queryClient.invalidateQueries({ queryKey: keys.adminShipments.stats() }),
       ]);
     },
     onError: (error, { trackingId }) => {
       if (!isApiError(error) || error.errorCode !== INVALID_SHIPMENT_STATE) return;
       void queryClient.invalidateQueries({ queryKey: keys.adminShipments.detail(trackingId) });
       void queryClient.invalidateQueries({ queryKey: keys.adminShipments.lists() });
+      void queryClient.invalidateQueries({ queryKey: keys.adminShipments.stats() });
     },
   });
 }

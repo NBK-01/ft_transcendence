@@ -21,12 +21,14 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { RequirePermission } from '../common/decorators/access-control.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RequestUser } from '../common/context/auth-context.types';
 import { MissingRequiredDataException } from '../common/exceptions/validation-exceptions';
 import { AdminShipmentsService } from './admin-shipments.service';
 import { ShipmentsService } from './shipments.service';
 import { MAX_UPLOAD_FILES, UPLOAD_HARD_LIMITS } from './shipments.controller';
 import { ATTACHMENT_KINDS } from './constants/shipment-state';
-import { ListShipmentsQueryDto } from './dto/list-shipments-query.dto';
+import { ListAdminShipmentsQueryDto } from './dto/list-admin-shipments-query.dto';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { ConfirmPaymentDto } from './dto/confirm-payment.dto';
 import { CreateEventDto } from './dto/create-event.dto';
@@ -38,8 +40,9 @@ import {
 } from './dto/shipment.dto';
 
 /**
- * Staff side of shipments. Shipments don't belong to an organization yet,
- * so reads use shipments:read:all and every change uses shipments:update:org
+ * Staff side of shipments. Only partner-created shipments belong to a branch
+ * (organizationId; the list can filter by it), so reads still use
+ * shipments:read:all and every change uses shipments:update:org
  * (admin holds both; admins also pass every permission check anyway).
  */
 @ApiTags('Admin shipments')
@@ -57,7 +60,7 @@ export class AdminShipmentsController {
     summary:
       'List all shipments, most recently updated first (filter status=pending_sourcing for the sourcing queue)',
   })
-  async list(@Query() query: ListShipmentsQueryDto) {
+  async list(@Query() query: ListAdminShipmentsQueryDto) {
     return this.adminShipmentsService.list(query);
   }
 
@@ -113,11 +116,17 @@ export class AdminShipmentsController {
   @ApiResponse({ status: 201, type: AdminShipmentDetailDto })
   @ApiResponse({ status: 409, description: 'Not in pending_sourcing' })
   async createOffer(
+    @CurrentUser() staff: RequestUser,
     @Param('trackingId') trackingId: string,
     @Body() dto: CreateOfferDto,
     @UploadedFiles() images: Express.Multer.File[] = [],
   ) {
-    return this.adminShipmentsService.createOffer(trackingId, dto, images);
+    return this.adminShipmentsService.createOffer(
+      staff.id,
+      trackingId,
+      dto,
+      images,
+    );
   }
 
   @RequirePermission('shipments:update:org')
@@ -130,10 +139,11 @@ export class AdminShipmentsController {
   @ApiResponse({ status: 200, type: AdminShipmentDetailDto })
   @ApiResponse({ status: 409, description: 'No payment waiting' })
   async confirmPayment(
+    @CurrentUser() staff: RequestUser,
     @Param('trackingId') trackingId: string,
     @Body() dto: ConfirmPaymentDto,
   ) {
-    return this.adminShipmentsService.confirmPayment(trackingId, dto);
+    return this.adminShipmentsService.confirmPayment(staff.id, trackingId, dto);
   }
 
   @RequirePermission('shipments:update:org')
@@ -148,10 +158,11 @@ export class AdminShipmentsController {
     description: 'Not allowed from the current status',
   })
   async addEvent(
+    @CurrentUser() staff: RequestUser,
     @Param('trackingId') trackingId: string,
     @Body() dto: CreateEventDto,
   ) {
-    return this.adminShipmentsService.addEvent(trackingId, dto);
+    return this.adminShipmentsService.addEvent(staff.id, trackingId, dto);
   }
 
   @RequirePermission('shipments:update:org')

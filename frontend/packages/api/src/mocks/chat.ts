@@ -242,8 +242,7 @@ function replierFor(conversation: Conversation, senderId: string): { id: string;
 /**
  * The in-memory socket. Same events as ChatGateway, for this tab only: you get
  * `message.new` for conversations you joined, and `support.message.new` for
- * support conversations if you have support access. (The real gateway also
- * sends staff DMs to the support pool; that's a backend bug, not copied here.)
+ * support conversations if you have support access (never for a staff DM).
  */
 export function createMockChatConnection(): ChatConnection {
   const listeners = new Map<keyof ChatEvents, Set<(payload?: unknown) => void>>();

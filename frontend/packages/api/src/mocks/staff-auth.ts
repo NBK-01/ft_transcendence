@@ -70,6 +70,7 @@ function roleAllows(roleName: string | null, method: string, pathname: string) {
   if (/\/api\/admin\/shipments(\/|$)/.test(pathname)) {
     return roleCan(roleName, method === "GET" ? "shipments:read:all" : "shipments:update:org");
   }
+  if (/\/api\/admin\/stats(\/|$)/.test(pathname)) return roleCan(roleName, "shipments:read:all");
   return true;
 }
 
@@ -84,9 +85,10 @@ function roleAllows(roleName: string | null, method: string, pathname: string) {
  *  - Contacts: any staff member.
  *  - Shipments (/admin/shipments): reading needs "shipments:read:all" (admin,
  *    support), every change "shipments:update:org" (admin, dispatcher).
+ *  - Stats (/admin/stats): "shipments:read:all", like reading shipments.
  */
 export const requireStaffAccess = http.all(
-  /\/api\/(internal-users|organizations|access-control|contacts|admin\/shipments|api-keys)(\/|$|\?)/,
+  /\/api\/(internal-users|organizations|access-control|contacts|admin\/shipments|admin\/stats|api-keys)(\/|$|\?)/,
   ({ request }) => {
     const { caller, response } = staffCaller(request);
     if (!caller) return response;

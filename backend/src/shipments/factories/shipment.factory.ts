@@ -1,3 +1,4 @@
+import { Organization } from '../../organizations/organization.entity';
 import { User } from '../../users/user.entity';
 import {
   type AttachmentKind,
@@ -12,6 +13,7 @@ import {
   AdminShipmentDetailDto,
   AdminShipmentDto,
   ImageRefDto,
+  ShipmentBranchDto,
   ShipmentClientDto,
   ShipmentDetailDto,
   ShipmentDto,
@@ -79,15 +81,17 @@ export class ShipmentFactory {
     };
   }
 
+  /** Needs client and organization loaded. */
   static toAdminDto(shipment: Shipment): AdminShipmentDto {
     return {
       ...this.toDto(shipment),
       client: this.toClient(shipment.client!),
+      organization: this.toBranch(shipment.organization),
       createdAt: shipment.createdAt,
     };
   }
 
-  /** Needs client, offers, files and payment loaded. */
+  /** Needs client, organization, offers, files and payment loaded. */
   static toAdminDetail(
     shipment: Shipment,
     urls: FileUrls,
@@ -95,6 +99,7 @@ export class ShipmentFactory {
     return {
       ...this.toDetail(shipment, urls),
       client: this.toClient(shipment.client!),
+      organization: this.toBranch(shipment.organization),
       createdAt: shipment.createdAt,
     };
   }
@@ -129,5 +134,13 @@ export class ShipmentFactory {
 
   private static toClient(user: User): ShipmentClientDto {
     return { id: user.id, name: user.name, email: user.email };
+  }
+
+  private static toBranch(
+    organization?: Organization | null,
+  ): ShipmentBranchDto | null {
+    return organization
+      ? { id: organization.id, name: organization.name }
+      : null;
   }
 }

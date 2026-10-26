@@ -18,8 +18,8 @@ import { notifyOnce } from './notify-once';
  *    confirmed payment (confirmed), tracking updates and cancellations
  *    (CreateEventDto) → tell the customer.
  * If a status ever becomes reachable from both sides (say, a customer
- * cancelling), this map can't tell them apart any more: the event itself
- * would need to record who wrote it.
+ * cancelling), this map can't tell them apart any more: read the event's
+ * actorType (recorded on every event since ShipmentEventActor) instead.
  */
 export const AUDIENCE_BY_STATUS: Record<ShipmentState, AccountType | null> = {
   [ShipmentState.PENDING_SOURCING]: AccountType.STAFF,

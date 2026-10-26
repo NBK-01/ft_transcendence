@@ -16,6 +16,7 @@ import {
   ShipmentFileKind,
   ShipmentState,
 } from './constants/shipment-state';
+import { ShipmentActorType } from './constants/shipment-actor';
 import { ConfirmPaymentDto } from './dto/confirm-payment.dto';
 import { CreateEventDto } from './dto/create-event.dto';
 import { CreateOfferDto } from './dto/create-offer.dto';
@@ -42,6 +43,7 @@ import { ShipmentsService } from './shipments.service';
 
 const CLIENT_ID = 'client-1';
 const TRACKING_ID = 'TRK-ABC123';
+const STAFF_ID = 'staff-1';
 const CLIENT = Object.assign(new User(), {
   id: CLIENT_ID,
   name: 'Maria Test',
@@ -467,7 +469,7 @@ describe('sending an offer', () => {
     const row = store.seed(ShipmentState.PENDING_CLIENT_DECISION);
 
     await expectInvalidState(
-      admin.createOffer(TRACKING_ID, offerDto(), [file()]),
+      admin.createOffer(STAFF_ID, TRACKING_ID, offerDto(), [file()]),
     );
 
     expect(provider.uploads).toHaveLength(0);
@@ -480,7 +482,7 @@ describe('sending an offer', () => {
     const images = Array.from({ length: MAX_REQUEST_IMAGES + 1 }, () => file());
 
     await expectTooManyImages(
-      admin.createOffer(TRACKING_ID, offerDto(), images),
+      admin.createOffer(STAFF_ID, TRACKING_ID, offerDto(), images),
     );
 
     expect(provider.uploads).toHaveLength(0);
@@ -490,7 +492,7 @@ describe('sending an offer', () => {
     const { admin, provider, store } = setup();
     store.seed(ShipmentState.PENDING_SOURCING);
 
-    const detail = await admin.createOffer(TRACKING_ID, offerDto(), [
+    const detail = await admin.createOffer(STAFF_ID, TRACKING_ID, offerDto(), [
       file({ originalname: 'front.jpg' }),
       file({ originalname: 'back.jpg' }),
     ]);
@@ -512,7 +514,7 @@ describe('sending an offer', () => {
     const row = store.seed(ShipmentState.PENDING_SOURCING);
 
     await expectInvalidFileType(
-      admin.createOffer(TRACKING_ID, offerDto(), [
+      admin.createOffer(STAFF_ID, TRACKING_ID, offerDto(), [
         file({ mimetype: 'application/pdf' }),
       ]),
     );
@@ -527,7 +529,7 @@ describe('sending an offer', () => {
     store.seed(ShipmentState.PENDING_SOURCING);
 
     await expectFileTooLarge(
-      admin.createOffer(TRACKING_ID, offerDto(), [
+      admin.createOffer(STAFF_ID, TRACKING_ID, offerDto(), [
         file({ buffer: Buffer.alloc(11 * 1024 * 1024) }),
       ]),
     );
@@ -539,7 +541,7 @@ describe('sending an offer', () => {
     store.failOfferSave = true;
 
     await expect(
-      admin.createOffer(TRACKING_ID, offerDto(), [file()]),
+      admin.createOffer(STAFF_ID, TRACKING_ID, offerDto(), [file()]),
     ).rejects.toThrow('db exploded');
 
     expect(provider.uploads).toHaveLength(1);
@@ -551,6 +553,7 @@ describe('sending an offer', () => {
     store.seed(ShipmentState.PENDING_SOURCING);
 
     const detail = await admin.createOffer(
+      STAFF_ID,
       TRACKING_ID,
       offerDto({ supplierName: '  Shenzhen Gadget Co.  ', currency: 'usd' }),
       [],
@@ -569,7 +572,7 @@ describe('confirming payment', () => {
     const { store, admin } = setup();
     const row = store.seed(ShipmentState.PENDING_PAYMENT_CONFIRMATION);
 
-    await admin.confirmPayment(TRACKING_ID, confirmDto());
+    await admin.confirmPayment(STAFF_ID, TRACKING_ID, confirmDto());
 
     expect(row.sender).toMatchObject({
       name: 'Shenzhen Gadget Co.',
@@ -585,17 +588,21 @@ describe('confirming payment', () => {
 });
 
 describe('posting a tracking event', () => {
-  it('trims the location before recording it', async () => {
+  it('trims the location before recording it, with the staff member who posted it', async () => {
     const { store, admin } = setup();
     store.seed(ShipmentState.CONFIRMED);
 
-    await admin.addEvent(TRACKING_ID, {
+    await admin.addEvent(STAFF_ID, TRACKING_ID, {
       status: ShipmentState.IN_TRANSIT,
       location: '  Lyon hub  ',
     } as CreateEventDto);
 
     expect(store.events).toEqual([
-      expect.objectContaining({ location: 'Lyon hub' }),
+      expect.objectContaining({
+        location: 'Lyon hub',
+        actorType: ShipmentActorType.STAFF,
+        actorId: STAFF_ID,
+      }),
     ]);
   });
 });

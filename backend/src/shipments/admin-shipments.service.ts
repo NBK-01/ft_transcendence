@@ -7,8 +7,9 @@ import {
   ShipmentState,
   TRACKING_TRANSITIONS,
 } from './constants/shipment-state';
+import { staffActor } from './constants/shipment-actor';
 import { ShipmentOffer } from './entities/shipment-offer.entity';
-import { ListShipmentsQueryDto } from './dto/list-shipments-query.dto';
+import { ListAdminShipmentsQueryDto } from './dto/list-admin-shipments-query.dto';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { ConfirmPaymentDto } from './dto/confirm-payment.dto';
 import { CreateEventDto } from './dto/create-event.dto';
@@ -34,7 +35,7 @@ export class AdminShipmentsService {
   ) {}
 
   async list(
-    query: ListShipmentsQueryDto,
+    query: ListAdminShipmentsQueryDto,
   ): Promise<PaginatedResponseDto<AdminShipmentDto>> {
     const [rows, total] = await this.shipmentsService.listQuery(query);
     return PaginatedResponseDto.create(
@@ -55,6 +56,7 @@ export class AdminShipmentsService {
 
   /** pending_sourcing → pending_client_decision: the client now sees this supplier and can accept or reject. */
   async createOffer(
+    staffId: string,
     trackingId: string,
     dto: CreateOfferDto,
     images: Express.Multer.File[],
@@ -81,6 +83,7 @@ export class AdminShipmentsService {
           from: [ShipmentState.PENDING_SOURCING],
           to: ShipmentState.PENDING_CLIENT_DECISION,
           location: `Offer from ${supplierName}`,
+          actor: staffActor(staffId),
         });
         const offer = await manager.save(
           manager.create(ShipmentOffer, {
@@ -105,6 +108,7 @@ export class AdminShipmentsService {
 
   /** pending_payment_confirmation → confirmed: the order is live, with its route and weight set. */
   async confirmPayment(
+    staffId: string,
     trackingId: string,
     dto: ConfirmPaymentDto,
   ): Promise<AdminShipmentDetailDto> {
@@ -116,6 +120,7 @@ export class AdminShipmentsService {
         from: [ShipmentState.PENDING_PAYMENT_CONFIRMATION],
         to: ShipmentState.CONFIRMED,
         location: 'Payment confirmed',
+        actor: staffActor(staffId),
         changes: {
           sender,
           recipient,
@@ -130,6 +135,7 @@ export class AdminShipmentsService {
 
   /** A tracking update (in transit, out for delivery, delivered) or a cancellation. See TRACKING_TRANSITIONS. */
   async addEvent(
+    staffId: string,
     trackingId: string,
     dto: CreateEventDto,
   ): Promise<AdminShipmentDetailDto> {
@@ -139,6 +145,7 @@ export class AdminShipmentsService {
         from: TRACKING_TRANSITIONS[dto.status] ?? [],
         to: dto.status,
         location: dto.location.trim(),
+        actor: staffActor(staffId),
       }),
     );
     return this.getDetail(trackingId);

@@ -13,6 +13,7 @@ import { Server, Socket } from 'socket.io';
 import { ConnectionAuthenticator } from './connection-authenticator';
 import { PresenceService } from './presence.service';
 import { ChatService } from './chat.service';
+import { ConversationType } from './entities/conversation.entity';
 import { AccessControlService } from '../access-control/access-control.service';
 import { InternalUsersService } from '../internal-users/internal-users.service';
 import { AccountType, RequestUser } from '../common/context/auth-context.types';
@@ -127,18 +128,22 @@ export class ChatGateway
   ): Promise<void> {
     const user = this.requireUser(client);
     await this.presenceService.refreshPresence(user.accountType, user.id);
-    const message = await this.chatService.sendMessage(
-      user,
-      body.conversationId,
-      body.content,
-    );
+    const { message, conversationType } =
+      await this.chatService.sendMessageWithType(
+        user,
+        body.conversationId,
+        body.content,
+      );
     this.server
       .to(this.conversationRoom(body.conversationId))
       .emit('message.new', message);
-    this.server.to(SUPPORT_POOL_ROOM).emit('support.message.new', {
-      conversationId: body.conversationId,
-      preview: body.content.slice(0, 80),
-    });
+    // A staff DM's preview is for its two participants, not the whole pool.
+    if (conversationType === ConversationType.SUPPORT) {
+      this.server.to(SUPPORT_POOL_ROOM).emit('support.message.new', {
+        conversationId: body.conversationId,
+        preview: body.content.slice(0, 80),
+      });
+    }
   }
 
   private storeOnSocket(

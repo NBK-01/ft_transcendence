@@ -16,6 +16,7 @@ import { jwtConfig } from '../config/jwt.config';
 import { ChatGateway } from './chat.gateway';
 import { ChatService } from './chat.service';
 import { ConnectionAuthenticator } from './connection-authenticator';
+import { ConversationType } from './entities/conversation.entity';
 import { PresenceService } from './presence.service';
 import { WsExceptionFilter } from './ws-exception.filter';
 import {
@@ -98,10 +99,9 @@ function setup() {
 
   const chatService = {
     getAuthorizedConversation: jest.fn().mockResolvedValue({ id: 'conv-1' }),
-    sendMessage: jest.fn().mockResolvedValue({
-      id: 'message-1',
-      conversationId: 'conv-1',
-      content: 'hi',
+    sendMessageWithType: jest.fn().mockResolvedValue({
+      message: { id: 'message-1', conversationId: 'conv-1', content: 'hi' },
+      conversationType: ConversationType.SUPPORT,
     }),
   } as unknown as ChatService;
 
@@ -469,7 +469,7 @@ describe('handleJoinConversation', () => {
 });
 
 describe('handleSendMessage', () => {
-  it('refreshes presence, sends through ChatService, then broadcasts to the conversation room and the support pool', async () => {
+  it('refreshes presence, sends through ChatService, then broadcasts a support message to the conversation room and the support pool', async () => {
     const { gateway, chatService, presenceService } = setup();
     const { to, emit } = wireServer(gateway);
     const user = staffUser('staff-1');
@@ -484,7 +484,7 @@ describe('handleSendMessage', () => {
       AccountType.STAFF,
       'staff-1',
     );
-    expect(chatService.sendMessage).toHaveBeenCalledWith(
+    expect(chatService.sendMessageWithType).toHaveBeenCalledWith(
       user,
       'conv-1',
       'hello there',
@@ -520,7 +520,7 @@ describe('handleSendMessage', () => {
 
   it('propagates a DomainException from ChatService and never broadcasts', async () => {
     const { gateway, chatService } = setup();
-    (chatService.sendMessage as jest.Mock).mockRejectedValue(
+    (chatService.sendMessageWithType as jest.Mock).mockRejectedValue(
       new ConversationNotFoundException('conv-404'),
     );
     const { to } = wireServer(gateway);
@@ -555,6 +555,35 @@ describe('handleSendMessage', () => {
       );
     },
   );
+});
+
+// A staff DM's preview stays with its two participants.
+describe('handleSendMessage in a staff DM', () => {
+  it('sends a staff DM to its conversation room only, never to the support pool', async () => {
+    const { gateway, chatService } = setup();
+    (chatService.sendMessageWithType as jest.Mock).mockResolvedValue({
+      message: { id: 'message-2', conversationId: 'dm-1', content: 'private' },
+      conversationType: ConversationType.STAFF_DM,
+    });
+    const { to, emit } = wireServer(gateway);
+    const socket = fakeSocket({ data: { user: staffUser('staff-1') } });
+
+    await gateway.handleSendMessage(socket, {
+      conversationId: 'dm-1',
+      content: 'private',
+    });
+
+    expect(to).toHaveBeenCalledWith('conversation:dm-1');
+    expect(to).not.toHaveBeenCalledWith('staff:support-pool');
+    expect(emit).toHaveBeenCalledWith(
+      'message.new',
+      expect.objectContaining({ id: 'message-2' }),
+    );
+    expect(emit).not.toHaveBeenCalledWith(
+      'support.message.new',
+      expect.anything(),
+    );
+  });
 });
 
 describe('exception handling (WsExceptionFilter, bound on the gateway)', () => {

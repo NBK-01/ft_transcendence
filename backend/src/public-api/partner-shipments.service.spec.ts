@@ -4,6 +4,7 @@ import {
   ShipmentState,
   TRACKING_TRANSITIONS,
 } from '../shipments/constants/shipment-state';
+import { ShipmentActorType } from '../shipments/constants/shipment-actor';
 import { Shipment } from '../shipments/entities/shipment.entity';
 import { ShipmentEvent } from '../shipments/entities/shipment-event.entity';
 import { ShipmentsService } from '../shipments/shipments.service';
@@ -201,6 +202,8 @@ describe('PartnerShipmentsService.create', () => {
         shipmentId: 'ship-new',
         status: ShipmentState.CONFIRMED,
         location: 'Created by Lyon',
+        actorType: ShipmentActorType.PARTNER,
+        actorId: 'key-1',
       },
     ]);
     expect(detail.trackingId).toBe('TRK-NEW001');
@@ -238,6 +241,7 @@ describe('PartnerShipmentsService: status changes', () => {
         from: TRACKING_TRANSITIONS[ShipmentState.OUT_FOR_DELIVERY],
         to: ShipmentState.OUT_FOR_DELIVERY,
         location: 'Paris depot',
+        actor: { type: ShipmentActorType.PARTNER, id: 'key-1' },
       },
     );
   });
@@ -255,11 +259,13 @@ describe('PartnerShipmentsService: status changes', () => {
         from: TRACKING_TRANSITIONS[ShipmentState.CANCELLED],
         to: ShipmentState.CANCELLED,
         location: 'Customer refused it',
+        actor: { type: ShipmentActorType.PARTNER, id: 'key-1' },
       },
       {
         from: TRACKING_TRANSITIONS[ShipmentState.CANCELLED],
         to: ShipmentState.CANCELLED,
         location: 'Cancelled by Lyon',
+        actor: { type: ShipmentActorType.PARTNER, id: 'key-1' },
       },
     ]);
   });

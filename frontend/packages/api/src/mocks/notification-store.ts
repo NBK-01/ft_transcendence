@@ -120,18 +120,25 @@ export type NotifiedShipmentEvent = {
   clientId: string;
   status: ShipmentState;
   occurredAt: string;
+  /** Its first event, at `confirmed`: a partner created it through the public API. */
+  isNew?: boolean;
 };
+
+/** The backend's "created" copy, for a shipment a partner created (isNewShipment in the backend's handler). */
+const NEW_SHIPMENT_COPY: Copy = ["New shipment", "A shipment, {trackingId}, was created for you. We'll let you know when it ships."];
 
 /** What the backend's job does for a committed shipment event: one row per recipient, already delivered (SENT). */
 export function notifyShipmentEvent(event: NotifiedShipmentEvent, { read = false }: { read?: boolean } = {}) {
+  const isNew = event.isNew && event.status === "confirmed";
   const audience = AUDIENCE_BY_STATUS[event.status];
-  const copy = audience && SHIPMENT_COPY[audience][event.status];
+  const copy = isNew ? NEW_SHIPMENT_COPY : audience && SHIPMENT_COPY[audience][event.status];
   if (!audience || !copy) return;
 
   const recipients: Who[] = audience === "customer" ? [{ id: event.clientId, accountType: "customer" }] : staffWith("shipments:read:all");
   const filled = copy.map((text) => fill(text, { trackingId: event.trackingId })) as unknown as Copy;
+  const payload = { trackingId: event.trackingId, status: event.status, ...(isNew && { isNew: true as const }) };
   for (const recipient of recipients) {
-    push(recipient, "SHIPMENT_UPDATE", { trackingId: event.trackingId, status: event.status }, filled, { at: event.occurredAt, read });
+    push(recipient, "SHIPMENT_UPDATE", payload, filled, { at: event.occurredAt, read });
   }
 }
 

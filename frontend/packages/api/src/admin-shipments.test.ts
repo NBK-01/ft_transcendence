@@ -3,7 +3,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 import { ATTACHMENT_KINDS, trackingMovesFrom } from "./admin-shipments";
 import { api, configureApi, type Query } from "./client";
-import { internalUsers, MOCK_STAFF_PASSWORD } from "./mocks/data";
+import { internalUsers, MOCK_STAFF_PASSWORD, ORGANIZATIONS } from "./mocks/data";
 import { handlers } from "./mocks/handlers";
 import { tokens } from "./session";
 import type {
@@ -58,9 +58,13 @@ const events = (trackingId: string) => api.get<ShipmentEvent[]>(path(trackingId,
 const files = (trackingId: string) => api.get<ShipmentFile[]>(path(trackingId, "/files"));
 const addEvent = (trackingId: string, body: object) => api.post<AdminShipmentDetail>(path(trackingId, "/events"), body);
 
-/** A shipment in `status` right now. Tests move shipments, so each picks from the current list. */
+/**
+ * A customer's order in `status` right now. Tests move shipments, so each picks
+ * from the current list. Branch-created shipments (no request, offer or
+ * payment) have their own tests.
+ */
 async function oneIn(status: ShipmentState, pick: "first" | "last" = "first") {
-  const { items } = await list({ status, limit: 100 });
+  const items = (await list({ status, limit: 100 })).items.filter((row) => row.organization === null);
   const found = pick === "first" ? items[0] : items.at(-1);
   if (!found) throw new Error(`No shipment is ${status}`);
   return found.trackingId;
@@ -98,21 +102,32 @@ describe("admin shipments: access", () => {
 describe("admin shipments: the list", () => {
   beforeEach(() => signInAs());
 
-  it("rows are the backend's AdminShipmentDto: the shipment, its client and when it was created", async () => {
+  it("rows are the backend's AdminShipmentDto: the shipment, its client, its branch and when it was created", async () => {
     const { items } = await list();
-    expect(Object.keys(items[0]!).sort()).toEqual(["client", "createdAt", "destination", "origin", "status", "trackingId", "updatedAt"]);
+    expect(Object.keys(items[0]!).sort()).toEqual([
+      "client",
+      "createdAt",
+      "destination",
+      "organization",
+      "origin",
+      "status",
+      "trackingId",
+      "updatedAt",
+    ]);
     expect(Object.keys(items[0]!.client).sort()).toEqual(["email", "id", "name"]);
   });
 
   it("is ordered by the latest update, 20 a page by default", async () => {
     const first = await list();
     const second = await list({ page: 2 });
-    expect(first.meta).toEqual({ page: 1, limit: 20, totalItems: 40, totalPages: 2 });
+    const third = await list({ page: 3 });
+    expect(first.meta).toEqual({ page: 1, limit: 20, totalItems: 46, totalPages: 3 });
     expect(first.items).toHaveLength(20);
     expect(second.items).toHaveLength(20);
-    const all = [...first.items, ...second.items];
+    expect(third.items).toHaveLength(6);
+    const all = [...first.items, ...second.items, ...third.items];
     expect(newestFirst(all.map((row) => row.updatedAt))).toBe(true);
-    expect(new Set(all.map((row) => row.trackingId)).size).toBe(40);
+    expect(new Set(all.map((row) => row.trackingId)).size).toBe(46);
   });
 
   it("has every status but requested, and a route only once the payment is confirmed", async () => {
@@ -135,7 +150,7 @@ describe("admin shipments: the list", () => {
     const found = await list({ q: `  ${part} ` });
     expect(found.items.map((row) => row.trackingId)).toContain(target);
     expect(found.items.every((row) => row.trackingId.includes(part.toUpperCase()))).toBe(true);
-    expect((await list({ q: "trk-" })).meta.totalItems).toBe(40);
+    expect((await list({ q: "trk-" })).meta.totalItems).toBe(46);
     // ILIKE with % escaped: a literal %, not "anything".
     expect((await list({ q: "%" })).meta.totalItems).toBe(0);
 
@@ -146,9 +161,40 @@ describe("admin shipments: the list", () => {
   });
 
   it("refuses a bad query with a 400", async () => {
-    for (const query of [{ status: "lost" }, { page: 0 }, { page: "two" }, { limit: 101 }, { q: "x".repeat(51) }]) {
+    for (const query of [{ status: "lost" }, { page: 0 }, { page: "two" }, { limit: 101 }, { q: "x".repeat(51) }, { organizationId: "beirut" }]) {
       await expect(list(query)).rejects.toMatchObject(badRequest);
     }
+  });
+});
+
+describe("admin shipments: branches", () => {
+  beforeEach(() => signInAs());
+
+  it("only shipments a branch created have one; filtering by a branch lists just its own", async () => {
+    const { items } = await list({ limit: 100 });
+    const withBranch = items.filter((row) => row.organization);
+    expect(withBranch.length).toBeGreaterThan(0);
+    expect(items.some((row) => row.organization === null)).toBe(true);
+
+    const beirut = ORGANIZATIONS[0]!;
+    const own = await list({ organizationId: beirut.id, limit: 100 });
+    expect(own.items.length).toBeGreaterThan(0);
+    expect(own.items.every((row) => row.organization?.id === beirut.id && row.organization.name === beirut.name)).toBe(true);
+    expect(own.meta.totalItems).toBe(withBranch.filter((row) => row.organization!.id === beirut.id).length);
+
+    // A branch with no shipments, and one that doesn't exist: an empty page, not an error.
+    const empty = { items: [], meta: { totalItems: 0, totalPages: 1 } };
+    await expect(list({ organizationId: ORGANIZATIONS[4]!.id })).resolves.toMatchObject(empty);
+    await expect(list({ organizationId: "00000000-0000-4000-b000-000000000099" })).resolves.toMatchObject(empty);
+  });
+
+  it("a branch's shipment starts at confirmed, with no request, offer or payment", async () => {
+    const { items } = await list({ organizationId: ORGANIZATIONS[0]!.id, limit: 100 });
+    const shipment = await detail(items[0]!.trackingId);
+    expect(shipment.organization).toEqual({ id: ORGANIZATIONS[0]!.id, name: ORGANIZATIONS[0]!.name });
+    expect(shipment).toMatchObject({ request: { productUrl: null, images: [] }, offer: null, payment: null, declaredValue: null });
+    const steps = await events(shipment.trackingId);
+    expect(steps.at(-1)).toMatchObject({ status: "confirmed", location: `Created by ${ORGANIZATIONS[0]!.name}` });
   });
 });
 

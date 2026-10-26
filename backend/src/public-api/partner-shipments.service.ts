@@ -7,6 +7,10 @@ import {
   TRACKING_TRANSITIONS,
 } from '../shipments/constants/shipment-state';
 import { Shipment } from '../shipments/entities/shipment.entity';
+import {
+  partnerActor,
+  ShipmentActorType,
+} from '../shipments/constants/shipment-actor';
 import { ShipmentEvent } from '../shipments/entities/shipment-event.entity';
 import { ShipmentNotFoundException } from '../shipments/exceptions';
 import { ListShipmentsQueryDto } from '../shipments/dto/list-shipments-query.dto';
@@ -127,6 +131,8 @@ export class PartnerShipmentsService {
         shipmentId: shipment.id,
         status: ShipmentState.CONFIRMED,
         location: `Created by ${partner.organizationName}`,
+        actorType: ShipmentActorType.PARTNER,
+        actorId: partner.id,
       });
     });
     return this.get(partner, trackingId);
@@ -144,6 +150,7 @@ export class PartnerShipmentsService {
         from: TRACKING_TRANSITIONS[dto.status] ?? [],
         to: dto.status,
         location: dto.location.trim(),
+        actor: partnerActor(partner.id),
       }),
     );
     return this.get(partner, trackingId);
@@ -161,6 +168,7 @@ export class PartnerShipmentsService {
         from: TRACKING_TRANSITIONS[ShipmentState.CANCELLED] ?? [],
         to: ShipmentState.CANCELLED,
         location: reason?.trim() || `Cancelled by ${partner.organizationName}`,
+        actor: partnerActor(partner.id),
       }),
     );
     return this.get(partner, trackingId);

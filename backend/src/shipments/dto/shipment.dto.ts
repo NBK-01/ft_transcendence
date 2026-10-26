@@ -165,10 +165,28 @@ export class ShipmentClientDto {
   email!: string;
 }
 
-/** Admin list row: the client row plus who ordered it and when. */
+export class ShipmentBranchDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty()
+  name!: string;
+}
+
+const BRANCH_DESCRIPTION =
+  'The branch handling it. Set on shipments a partner created through the public API; customer requests have none';
+
+/** Admin list row: the client row plus who ordered it, when, and which branch has it. */
 export class AdminShipmentDto extends ShipmentDto {
   @ApiProperty({ type: ShipmentClientDto })
   client!: ShipmentClientDto;
+
+  @ApiProperty({
+    type: ShipmentBranchDto,
+    nullable: true,
+    description: BRANCH_DESCRIPTION,
+  })
+  organization!: ShipmentBranchDto | null;
 
   @ApiProperty({ type: Date })
   createdAt!: Date;
@@ -177,6 +195,13 @@ export class AdminShipmentDto extends ShipmentDto {
 export class AdminShipmentDetailDto extends ShipmentDetailDto {
   @ApiProperty({ type: ShipmentClientDto })
   client!: ShipmentClientDto;
+
+  @ApiProperty({
+    type: ShipmentBranchDto,
+    nullable: true,
+    description: BRANCH_DESCRIPTION,
+  })
+  organization!: ShipmentBranchDto | null;
 
   @ApiProperty({ type: Date })
   createdAt!: Date;

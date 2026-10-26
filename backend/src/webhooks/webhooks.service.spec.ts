@@ -6,6 +6,7 @@ import {
   ShipmentState,
   TRACKING_TRANSITIONS,
 } from '../shipments/constants/shipment-state';
+import { ShipmentActorType } from '../shipments/constants/shipment-actor';
 import { Shipment } from '../shipments/entities/shipment.entity';
 import {
   InvalidShipmentStateException,
@@ -287,6 +288,7 @@ describe('WebhooksService.processCarrierEvent', () => {
         from: TRACKING_TRANSITIONS[ShipmentState.IN_TRANSIT],
         to: ShipmentState.IN_TRANSIT,
         location: 'Lyon hub',
+        actor: { type: ShipmentActorType.CARRIER, id: null },
       },
     );
     expect(logs.rows[0]).toMatchObject({
