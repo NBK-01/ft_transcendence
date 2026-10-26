@@ -127,6 +127,7 @@ const fr: CommonResources = {
     passwordMatch: "Les mots de passe ne correspondent pas.",
     passwordSame: "Choisissez un mot de passe différent de l'actuel.",
     nameMax: "50 caractères maximum.",
+    max100: "100 caractères maximum.",
     descriptionMax: "200 caractères maximum.",
     dateOfBirth: "Saisissez une date réelle dans le passé.",
     phone: "Saisissez un numéro avec l'indicatif du pays, ex. +33 6 12 34 56 78.",
