@@ -6,11 +6,12 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
-import { CARRIER_SIGNATURE_HEADER } from '../constants/webhook.constants';
+import { InvalidWebhookSignatureException } from '../../common/exceptions/third-party-exceptions';
+import { WebhookNotConfiguredException } from '../exceptions';
 import {
-  InvalidWebhookSignatureException,
-  WebhookNotConfiguredException,
-} from '../exceptions';
+  CARRIER_SIGNATURE_HEADER,
+  WebhookProvider,
+} from '../constants/webhook.constants';
 import { checkSignature } from '../utils/signature';
 
 /**
@@ -37,8 +38,9 @@ export class CarrierSignatureGuard implements CanActivate {
       request.rawBody ?? Buffer.alloc(0),
       secret,
     );
+    // Missing, malformed, too old or wrong: one answer, which never says which.
     if (result !== 'valid') {
-      throw new InvalidWebhookSignatureException();
+      throw new InvalidWebhookSignatureException(WebhookProvider.CARRIER);
     }
     return true;
   }

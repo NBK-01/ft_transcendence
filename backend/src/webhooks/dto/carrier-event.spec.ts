@@ -40,7 +40,7 @@ describe('carrier event payloads', () => {
     { type: 'x' },
     { eventId: '', type: 'x' },
     { eventId: 'e' },
-  ])('refuses an envelope like %p (400, 6003)', (body) =>
+  ])('refuses an envelope like %p (400, 6004)', (body) =>
     expectInvalid(() => parseCarrierEnvelope(body)),
   );
 
@@ -64,7 +64,7 @@ describe('carrier event payloads', () => {
     { trackingId: 'TRK-1', status: 'cancelled', location: 'x' },
     { trackingId: 'TRK-1', status: 'in_transit', location: '' },
     { trackingId: 'TRK-1', status: 'in_transit', location: 'x'.repeat(201) },
-  ])('refuses a tracking update like %p (400, 6003)', (data) =>
+  ])('refuses a tracking update like %p (400, 6004)', (data) =>
     expectInvalid(() => parseTrackingUpdate(data)),
   );
 });

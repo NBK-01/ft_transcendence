@@ -11,9 +11,9 @@ import type { ApiKey, CreateApiKeyInput, CreatedApiKey } from "./types";
  */
 
 /** Backend PublicApiErrorCodes the admin screens react to. */
-export const API_KEY_NOT_FOUND = 14001;
+export const API_KEY_NOT_FOUND = 15001;
 /** 400: the branch is deactivated, so a key for it would be refused on every call. */
-export const API_KEY_BRANCH_INACTIVE = 14002;
+export const API_KEY_BRANCH_INACTIVE = 15002;
 
 /** GET /api-keys: every key, masked, newest first, revoked ones included. Optionally one branch's. */
 export function useApiKeys(
@@ -29,12 +29,14 @@ export function useApiKeys(
 
 /**
  * POST /api-keys. The response is the only place the full key ever appears:
- * it goes back to the caller (to show once) and never into the cache.
+ * it goes back to the caller (to show once), never into the query cache, and
+ * the mutation's own copy is dropped as soon as nothing observes it (gcTime 0).
  */
 export function useCreateApiKey() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateApiKeyInput) => api.post<CreatedApiKey>("/api-keys", input),
+    gcTime: 0,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.apiKeys.all }),
   });
 }

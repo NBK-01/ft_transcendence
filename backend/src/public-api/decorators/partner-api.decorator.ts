@@ -24,15 +24,15 @@ export const PartnerApi = () =>
     ApiResponse({
       status: 401,
       description:
-        'X-API-Key missing (14003), invalid (14004) or revoked (14005)',
+        'X-API-Key missing (15003), invalid (15004) or revoked (15005)',
     }),
     ApiResponse({
       status: 403,
-      description: "The key's branch is deactivated (14006)",
+      description: "The key's branch is deactivated (15006)",
     }),
     ApiResponse({
       status: 429,
       description:
-        'Over the per-key rate limit (14007): see the Retry-After and X-RateLimit-* headers',
+        'Over the per-key rate limit (15007): see the Retry-After and X-RateLimit-* headers',
     }),
   );

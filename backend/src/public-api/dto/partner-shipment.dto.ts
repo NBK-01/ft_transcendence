@@ -1,10 +1,17 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { ShipmentState } from '../../shipments/constants/shipment-state';
 import { AddressDto } from '../../shipments/dto/address.dto';
-import {
-  ShipmentClientDto,
-  ShipmentEventDto,
-} from '../../shipments/dto/shipment.dto';
+import { ShipmentEventDto } from '../../shipments/dto/shipment.dto';
+
+/**
+ * Who it's for, as the partner knows them: only the email it sent. The
+ * customer's id and name stay inside: a partner key reaches any customer by
+ * email, so it shouldn't learn more about them than it already had.
+ */
+export class PartnerCustomerDto {
+  @ApiProperty({ format: 'email', example: 'amina@example.com' })
+  email!: string;
+}
 
 /** A row of GET /v1/shipments: one of the key's branch's shipments. */
 export class PartnerShipmentDto {
@@ -21,10 +28,10 @@ export class PartnerShipmentDto {
   destination!: string | null;
 
   @ApiProperty({
-    type: ShipmentClientDto,
+    type: PartnerCustomerDto,
     description: 'The customer it is for',
   })
-  customer!: ShipmentClientDto;
+  customer!: PartnerCustomerDto;
 
   @ApiProperty({ type: Date })
   createdAt!: Date;

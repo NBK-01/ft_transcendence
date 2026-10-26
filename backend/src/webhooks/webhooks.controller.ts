@@ -67,11 +67,11 @@ export class WebhooksController {
     description:
       '{ received: true }, plus duplicate: true for a redelivery or ignored: true for an event type we don’t use',
   })
-  @ApiResponse({ status: 400, description: 'Unreadable body (6003)' })
+  @ApiResponse({ status: 400, description: 'Unreadable body (6004)' })
   @ApiResponse({ status: 401, description: 'Bad or stale signature (6002)' })
   @ApiResponse({
     status: 503,
-    description: 'CARRIER_WEBHOOK_SECRET not set (6001): retry later',
+    description: 'CARRIER_WEBHOOK_SECRET not set (6003): retry later',
   })
   async receiveCarrierEvent(@Body() body: unknown) {
     return this.webhooksService.receiveCarrierEvent(body);

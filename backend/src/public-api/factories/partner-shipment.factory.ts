@@ -16,11 +16,7 @@ export class PartnerShipmentFactory {
       status: shipment.status,
       origin: shipment.origin,
       destination: shipment.destination,
-      customer: {
-        id: shipment.client.id,
-        name: shipment.client.name,
-        email: shipment.client.email,
-      },
+      customer: { email: shipment.client.email },
       createdAt: shipment.createdAt,
       updatedAt: shipment.updatedAt,
     };

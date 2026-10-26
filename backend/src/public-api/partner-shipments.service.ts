@@ -102,7 +102,7 @@ export class PartnerShipmentsService {
     const email = dto.customerEmail.trim().toLowerCase();
     const customer = await this.userRepository.findOne({ where: { email } });
     if (!customer?.isActive) {
-      throw new PartnerCustomerNotFoundException(email);
+      throw new PartnerCustomerNotFoundException();
     }
     const sender = { ...dto.sender, city: dto.sender.city.trim() };
     const recipient = { ...dto.recipient, city: dto.recipient.city.trim() };

@@ -30,6 +30,19 @@ export interface WebhookReceipt {
   ignored?: true;
 }
 
+/**
+ * A PROCESSING claim older than this is a worker that died mid-job: a job
+ * may take the event over (BullMQ re-runs a stalled job well within it).
+ */
+const STALE_CLAIM_MS = 5 * 60_000;
+
+/** An event a job may (re)process: not done, not failed for good, and not held by a live job. */
+const isClaimable = (log: Pick<WebhookLog, 'status' | 'updatedAt'>) =>
+  log.status === WebhookLogStatus.RECEIVED ||
+  log.status === WebhookLogStatus.FAILED ||
+  (log.status === WebhookLogStatus.PROCESSING &&
+    log.updatedAt.getTime() < Date.now() - STALE_CLAIM_MS);
+
 /** A processing failure no retry can fix: the event is marked FAILED, not retried. */
 const isPermanent = (error: unknown) =>
   error instanceof ShipmentNotFoundException ||
@@ -89,11 +102,9 @@ export class WebhooksService {
         status: WebhookLogStatus.DUPLICATE,
       }),
     );
-    // Still RECEIVED: its job may have been lost (a crash after the insert). FAILED: worth another go.
-    if (
-      original.status === WebhookLogStatus.RECEIVED ||
-      original.status === WebhookLogStatus.FAILED
-    ) {
+    // Still RECEIVED: its job may have been lost (a crash after the insert).
+    // FAILED: worth another go. A stale PROCESSING: its worker died.
+    if (isClaimable(original)) {
       await this.signal({
         webhookLogId: original.id,
         deliveryId: duplicate.id,
@@ -103,11 +114,13 @@ export class WebhooksService {
   }
 
   /**
-   * The job's work. Claims the event (RECEIVED or FAILED → PROCESSING), so
-   * two jobs for one event never both apply it. A failure no retry can fix
-   * (unknown tracking ID, a move not allowed from where the shipment is) is
-   * FAILED at once; anything else goes back to RECEIVED and is rethrown, so
-   * BullMQ retries it.
+   * The job's work. Claims the event (RECEIVED, FAILED, or a stale
+   * PROCESSING → PROCESSING), so two live jobs never both apply it. The
+   * shipment's move and PROCESSED commit together, so a failure in between
+   * can't leave it applied but not marked (and applied again on retry). A
+   * failure no retry can fix (unknown tracking ID, a move not allowed from
+   * where the shipment is) is FAILED at once; anything else goes back to
+   * RECEIVED and is rethrown, so BullMQ retries it.
    */
   async processCarrierEvent(
     webhookLogId: string,
@@ -118,11 +131,18 @@ export class WebhooksService {
       .set({
         status: WebhookLogStatus.PROCESSING,
         attempts: () => 'attempts + 1',
+        // Stamped explicitly: it's what dates the claim (see STALE_CLAIM_MS).
+        updatedAt: () => 'now()',
       })
       .where('id = :id', { id: webhookLogId })
-      .andWhere('status IN (:...from)', {
-        from: [WebhookLogStatus.RECEIVED, WebhookLogStatus.FAILED],
-      })
+      .andWhere(
+        '(status IN (:...from) OR (status = :processing AND updated_at < :staleBefore))',
+        {
+          from: [WebhookLogStatus.RECEIVED, WebhookLogStatus.FAILED],
+          processing: WebhookLogStatus.PROCESSING,
+          staleBefore: new Date(Date.now() - STALE_CLAIM_MS),
+        },
+      )
       .execute();
     if (!claimed.affected) {
       // Already processed, or another job has it.
@@ -137,16 +157,17 @@ export class WebhooksService {
         parseCarrierEnvelope(log.payload).data,
       );
       const shipment = await this.shipmentsService.findOne(update.trackingId);
-      await this.dataSource.transaction((manager) =>
-        this.shipmentsService.transition(manager, shipment, {
+      await this.dataSource.transaction(async (manager) => {
+        await this.shipmentsService.transition(manager, shipment, {
           from: TRACKING_TRANSITIONS[update.status] ?? [],
           to: update.status,
           location: update.location,
-        }),
-      );
-      await this.setStatus(webhookLogId, WebhookLogStatus.PROCESSED, {
-        processedAt: new Date(),
-        errorMessage: null,
+        });
+        await manager.update(WebhookLog, webhookLogId, {
+          status: WebhookLogStatus.PROCESSED,
+          processedAt: new Date(),
+          errorMessage: null,
+        });
       });
       return WebhookLogStatus.PROCESSED;
     } catch (error) {

@@ -148,7 +148,7 @@ describe('PartnerShipmentsService: reaching a shipment', () => {
     const detail = await service.get(partner, ' trk-abc123 ');
     expect(detail).toMatchObject({
       trackingId: 'TRK-ABC123',
-      customer: { id: 'user-1', email: 'amina@example.com' },
+      customer: { email: 'amina@example.com' },
       weightKg: 1.5,
       events: [{ status: 'in_transit', location: 'Lyon hub' }],
     });
@@ -206,7 +206,7 @@ describe('PartnerShipmentsService.create', () => {
     expect(detail.trackingId).toBe('TRK-NEW001');
   });
 
-  it('is a 404 (14008) for an unknown or deactivated customer, and creates nothing', async () => {
+  it('is a 404 (15008) for an unknown or deactivated customer, and creates nothing', async () => {
     const { service, saved } = setup({
       users: [
         { ...customer, email: 'gone@example.com', isActive: false } as User,

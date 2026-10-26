@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { IsIn, IsNotEmpty, IsString, MaxLength } from 'class-validator';
 import { ShipmentState } from '../../shipments/constants/shipment-state';
 
@@ -17,6 +18,10 @@ export class UpdatePartnerShipmentStatusDto {
   status!: PartnerTrackingStatus;
 
   @ApiProperty({ example: 'Lyon hub', maxLength: 200 })
+  // Trimmed first, so a location of spaces counts as empty.
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
   @IsNotEmpty()
   @MaxLength(200)

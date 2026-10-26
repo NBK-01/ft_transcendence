@@ -23,6 +23,9 @@ export const API_KEY_BCRYPT_ROUNDS = 10;
 /** API_KEY_HMAC_SECRET must be at least this long. */
 export const API_KEY_HMAC_SECRET_MIN_LENGTH = 32;
 
+/** INTERNAL_CALLER_KEY, when set, must be at least this long. */
+export const INTERNAL_CALLER_KEY_MIN_LENGTH = 32;
+
 /** lastUsedAt is written at most this often per key. */
 export const LAST_USED_WRITE_INTERVAL_MS = 60_000;
 

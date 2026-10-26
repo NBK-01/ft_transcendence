@@ -16,6 +16,7 @@ import {
 import {
   API_KEY_HEADER,
   ApiKeyRejection,
+  INTERNAL_CALLER_KEY_MIN_LENGTH,
   INTERNAL_KEY_HEADER,
   PARTNER_CONTEXT_KEY,
 } from '../constants/api-key.constants';
@@ -50,8 +51,7 @@ export class ApiKeyGuard implements CanActivate {
     private readonly cls: ClsService,
     configService: ConfigService,
   ) {
-    this.internalCallerKey =
-      configService.get<string>('INTERNAL_CALLER_KEY') || undefined;
+    this.internalCallerKey = readInternalCallerKey(configService);
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -141,4 +141,20 @@ function rejectionFor(reason: ApiKeyRejection): DomainException {
     case ApiKeyRejection.INVALID:
       return new ApiKeyInvalidException();
   }
+}
+
+/**
+ * Optional; when set, long enough that a key holder can't guess it (a match
+ * lifts the rate limit, and the response shows whether it matched).
+ */
+function readInternalCallerKey(
+  configService: ConfigService,
+): string | undefined {
+  const key = configService.get<string>('INTERNAL_CALLER_KEY') || undefined;
+  if (key && key.length < INTERNAL_CALLER_KEY_MIN_LENGTH) {
+    throw new Error(
+      `INTERNAL_CALLER_KEY must be at least ${INTERNAL_CALLER_KEY_MIN_LENGTH} characters (or left empty to turn it off)`,
+    );
+  }
+  return key;
 }

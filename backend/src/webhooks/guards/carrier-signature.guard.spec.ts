@@ -1,6 +1,7 @@
 import { ExecutionContext, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DomainException } from '../../common/exceptions/base/error-types';
+import { ThirdPartyErrorCodes } from '../../common/exceptions/third-party-exceptions';
 import { WebhookErrorCodes } from '../exceptions';
 import { computeSignature } from '../utils/signature';
 import { CarrierSignatureGuard } from './carrier-signature.guard';
@@ -36,7 +37,7 @@ describe('CarrierSignatureGuard', () => {
     expect(check(SECRET, { 'carrier-signature': header() })).toBe(true);
   });
 
-  it('is a 503 (6001) while CARRIER_WEBHOOK_SECRET is unset, so the carrier retries later', () => {
+  it('is a 503 (6003) while CARRIER_WEBHOOK_SECRET is unset, so the carrier retries later', () => {
     expect(check(undefined, { 'carrier-signature': header() })).toEqual({
       status: HttpStatus.SERVICE_UNAVAILABLE,
       code: WebhookErrorCodes.WebhookNotConfigured,
@@ -46,7 +47,7 @@ describe('CarrierSignatureGuard', () => {
   it('is a 401 (6002) without a header, with a bad one, or without the raw body', () => {
     const unauthorized = {
       status: HttpStatus.UNAUTHORIZED,
-      code: WebhookErrorCodes.InvalidWebhookSignature,
+      code: ThirdPartyErrorCodes.InvalidWebhookSignature,
     };
     expect(check(SECRET, {})).toEqual(unauthorized);
     expect(

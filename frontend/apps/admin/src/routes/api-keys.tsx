@@ -1,5 +1,5 @@
 import { Ban, ExternalLink, KeyRound, MoreHorizontal, Plus } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useApiKeys, useRevokeApiKey, type ApiKey } from "@trans/api";
@@ -41,6 +41,7 @@ export function ApiKeysPage() {
   const [createOpen, setCreateOpen] = useState(false);
   // The dialogs open from a button or a menu item that may be gone by the time they close.
   const { ref: returnFocusRef, remember: rememberFocus } = useReturnFocus();
+  const createButtonRef = useRef<HTMLButtonElement>(null);
 
   // mutateAsync is stable, so it can sit in the columns' dependencies.
   const { mutateAsync: revoke } = useRevokeApiKey();
@@ -54,6 +55,8 @@ export function ApiKeysPage() {
   /** Throws when the request fails, so ConfirmDelete keeps the dialog open with its error. */
   const confirmRevoke = async (apiKey: ApiKey) => {
     await revoke(apiKey.id);
+    // A revoked row has no menu left to return to.
+    returnFocusRef.current = createButtonRef.current;
     toast.success(t("app:apiKeys.revoked", { name: apiKey.name }));
   };
 
@@ -176,7 +179,7 @@ export function ApiKeysPage() {
                 <span className="sr-only">{t("app:shipment.newTab")}</span>
               </a>
             </Button>
-            <Button prefix={<Plus />} onFocus={rememberFocus} onClick={() => setCreateOpen(true)}>
+            <Button ref={createButtonRef} prefix={<Plus />} onFocus={rememberFocus} onClick={() => setCreateOpen(true)}>
               {t("app:apiKeys.create")}
             </Button>
           </>

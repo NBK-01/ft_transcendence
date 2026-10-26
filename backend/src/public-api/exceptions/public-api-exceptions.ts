@@ -2,14 +2,14 @@ import { HttpStatus } from '@nestjs/common';
 import { DomainException } from '../../common/exceptions/base/error-types';
 
 export enum PublicApiErrorCodes {
-  ApiKeyNotFound = 14001,
-  ApiKeyBranchInactive = 14002,
-  ApiKeyMissing = 14003,
-  ApiKeyInvalid = 14004,
-  ApiKeyRevoked = 14005,
-  ApiKeyBranchDeactivated = 14006,
-  ApiKeyRateLimited = 14007,
-  PartnerCustomerNotFound = 14008,
+  ApiKeyNotFound = 15001,
+  ApiKeyBranchInactive = 15002,
+  ApiKeyMissing = 15003,
+  ApiKeyInvalid = 15004,
+  ApiKeyRevoked = 15005,
+  ApiKeyBranchDeactivated = 15006,
+  ApiKeyRateLimited = 15007,
+  PartnerCustomerNotFound = 15008,
 }
 
 export enum PublicApiErrorMessages {
@@ -113,12 +113,10 @@ export class ApiKeyRateLimitedException extends DomainException {
 
 /** No active customer account with that email: a partner can't create accounts. */
 export class PartnerCustomerNotFoundException extends DomainException {
-  constructor(email: string) {
+  // Doesn't repeat the email: the caller already has it, and logs shouldn't collect it.
+  constructor() {
     super(
-      {
-        key: PublicApiErrorMessages.PartnerCustomerNotFound,
-        params: { email },
-      },
+      { key: PublicApiErrorMessages.PartnerCustomerNotFound },
       HttpStatus.NOT_FOUND,
       PublicApiErrorCodes.PartnerCustomerNotFound,
     );

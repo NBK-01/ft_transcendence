@@ -20,7 +20,7 @@ import { DomainException } from '../../common/exceptions/base/error-types';
 import { PartnerRequest } from '../types/partner-context';
 
 const KEY = `stk_${'a'.repeat(64)}`;
-const INTERNAL_CALLER_KEY = 'internal-secret-for-tests';
+const INTERNAL_CALLER_KEY = 'internal-secret-for-tests-0123456789';
 const NOW = 1_700_000_000_000;
 
 const principal: ApiKeyPrincipal = {
@@ -121,7 +121,7 @@ beforeEach(() => {
 afterEach(() => jest.restoreAllMocks());
 
 describe('ApiKeyGuard: the key', () => {
-  it('is a 401 (14003) without X-API-Key, and checks nothing else', async () => {
+  it('is a 401 (15003) without X-API-Key, and checks nothing else', async () => {
     const { call, apiKeysService } = setup();
     expect(await refusal(call())).toEqual({
       status: HttpStatus.UNAUTHORIZED,
@@ -188,7 +188,7 @@ describe('ApiKeyGuard: the rate limit', () => {
     });
   });
 
-  it('is a 429 (14007) past the limit, and says when to come back', async () => {
+  it('is a 429 (15007) past the limit, and says when to come back', async () => {
     const { call, lastRequest, lastResponseHeaders } = setup({
       rateLimit: {
         limit: 60,
@@ -260,5 +260,13 @@ describe('ApiKeyGuard: X-Internal-Key', () => {
         }),
       ),
     ).toMatchObject({ code: PublicApiErrorCodes.ApiKeyInvalid });
+  });
+});
+
+describe('ApiKeyGuard: INTERNAL_CALLER_KEY at boot', () => {
+  it('refuses to start with one shorter than 32 characters', () => {
+    expect(() => setup({ internalCallerKey: 'too-short' })).toThrow(
+      /INTERNAL_CALLER_KEY/,
+    );
   });
 });

@@ -34,8 +34,9 @@ import { useOrganizations } from "../branches/api";
 /**
  * Creates a key, then shows it in full, once. The content mounts with the
  * dialog, so the key lives only in its state and is gone when it closes; it
- * never reaches the query cache. While the key is shown, a click outside
- * doesn't close the dialog, so it isn't lost by accident.
+ * never reaches the query cache. While the key is shown, neither a click
+ * outside nor Escape closes the dialog, so it isn't lost by accident: only
+ * "I've copied it" does.
  */
 export function CreateApiKeyDialog({
   open,
@@ -75,6 +76,7 @@ function ApiKeyDialogContent({
       className="max-w-lg"
       onCloseAutoFocus={focusOnClose(returnFocusTo)}
       onInteractOutside={(event) => created && event.preventDefault()}
+      onEscapeKeyDown={(event) => created && event.preventDefault()}
     >
       {created ? (
         <CreatedKey apiKey={created} onDone={onDone} />
@@ -198,8 +200,10 @@ function CreatedKey({ apiKey, onDone }: { apiKey: CreatedApiKey; onDone: () => v
             <div className="min-w-0 flex-1">
               <Field label={t("apiKeys.created.label")}>
                 {/* Read-only and selected on focus, so it can also be copied by hand. */}
+                {/* Focused when it appears (the submit button is gone), so screen readers reach it at once. */}
                 <Input
                   readOnly
+                  autoFocus
                   value={apiKey.key}
                   dir="ltr"
                   className="font-mono text-copy-13"

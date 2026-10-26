@@ -48,7 +48,11 @@ class FakeLogs {
       let values: Partial<WebhookLog> = {};
       let set: Record<string, unknown> = {};
       let id = '';
-      let from: WebhookLogStatus[] = [];
+      let claimable: {
+        from: WebhookLogStatus[];
+        processing: WebhookLogStatus;
+        staleBefore: Date;
+      } | null = null;
       const builder = {
         insert: () => builder,
         into: () => builder,
@@ -61,8 +65,8 @@ class FakeLogs {
           (id = params.id),
           builder
         ),
-        andWhere: (_: string, params: { from: WebhookLogStatus[] }) => (
-          (from = params.from),
+        andWhere: (_: string, params: NonNullable<typeof claimable>) => (
+          (claimable = params),
           builder
         ),
         execute: () => {
@@ -78,13 +82,20 @@ class FakeLogs {
             const row = this.add(values);
             return Promise.resolve({ raw: [{ id: row.id }] });
           }
-          // UPDATE … SET status = PROCESSING, attempts + 1 WHERE id AND status IN (from)
+          // UPDATE … SET PROCESSING, attempts + 1, updated_at = now()
+          // WHERE id AND (status IN (from) OR (PROCESSING AND updated_at < staleBefore))
           const row = this.rows.find(
-            (r) => r.id === id && from.includes(r.status),
+            (r) =>
+              r.id === id &&
+              claimable !== null &&
+              (claimable.from.includes(r.status) ||
+                (r.status === claimable.processing &&
+                  r.updatedAt < claimable.staleBefore)),
           );
           if (row) {
             row.status = set.status as WebhookLogStatus;
             row.attempts += 1;
+            row.updatedAt = new Date();
           }
           return Promise.resolve({ affected: row ? 1 : 0 });
         },
@@ -116,6 +127,13 @@ class FakeLogs {
     },
   } as unknown as Repository<WebhookLog>;
 
+  /** manager.update(WebhookLog, id, changes), inside the processing transaction. */
+  change(id: string, changes: Partial<WebhookLog>) {
+    const row = this.rows.find((r) => r.id === id);
+    if (row) Object.assign(row, changes);
+    return { affected: row ? 1 : 0 };
+  }
+
   add(values: Partial<WebhookLog>): WebhookLog {
     const row = {
       id: randomUUID(),
@@ -125,6 +143,7 @@ class FakeLogs {
       processedAt: null,
       idempotencyKey: null,
       duplicateOfId: null,
+      updatedAt: new Date(),
       ...values,
     } as WebhookLog;
     this.rows.push(row);
@@ -143,9 +162,14 @@ function setup({ findOne }: { findOne?: jest.Mock } = {}) {
     findOne: findOne ?? jest.fn().mockResolvedValue(shipment),
     transition: jest.fn().mockResolvedValue(undefined),
   };
+  // The transaction's manager writes to the same fake table (the PROCESSED mark).
+  const manager = {
+    update: (_entity: unknown, id: string, changes: Partial<WebhookLog>) =>
+      Promise.resolve(logs.change(id, changes)),
+  };
   const dataSource = {
-    transaction: jest.fn((work: (manager: unknown) => Promise<unknown>) =>
-      work({}),
+    transaction: jest.fn((work: (m: typeof manager) => Promise<unknown>) =>
+      work(manager),
     ),
   } as unknown as DataSource;
   const events = { emitAsync: jest.fn().mockResolvedValue([]) };
@@ -270,6 +294,21 @@ describe('WebhooksService.processCarrierEvent', () => {
       attempts: 1,
     });
     expect(logs.rows[0]!.processedAt).toBeInstanceOf(Date);
+  });
+
+  it('takes over an event stuck in PROCESSING for over 5 minutes (its worker died), not a fresh one', async () => {
+    const { service, logs, shipmentsService, id } = await logged();
+    const row = logs.rows[0]!;
+    row.status = WebhookLogStatus.PROCESSING;
+    row.updatedAt = new Date();
+
+    await expect(service.processCarrierEvent(id)).resolves.toBeNull();
+    expect(shipmentsService.transition).not.toHaveBeenCalled();
+
+    row.updatedAt = new Date(Date.now() - 6 * 60_000);
+    await expect(service.processCarrierEvent(id)).resolves.toBe(
+      WebhookLogStatus.PROCESSED,
+    );
   });
 
   it('does nothing for an event already processed (or being processed)', async () => {
