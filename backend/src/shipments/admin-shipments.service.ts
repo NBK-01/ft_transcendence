@@ -8,7 +8,7 @@ import {
   TRACKING_TRANSITIONS,
 } from './constants/shipment-state';
 import { ShipmentOffer } from './entities/shipment-offer.entity';
-import { ListShipmentsQueryDto } from './dto/list-shipments-query.dto';
+import { ListAdminShipmentsQueryDto } from './dto/list-admin-shipments-query.dto';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { ConfirmPaymentDto } from './dto/confirm-payment.dto';
 import { CreateEventDto } from './dto/create-event.dto';
@@ -34,7 +34,7 @@ export class AdminShipmentsService {
   ) {}
 
   async list(
-    query: ListShipmentsQueryDto,
+    query: ListAdminShipmentsQueryDto,
   ): Promise<PaginatedResponseDto<AdminShipmentDto>> {
     const [rows, total] = await this.shipmentsService.listQuery(query);
     return PaginatedResponseDto.create(

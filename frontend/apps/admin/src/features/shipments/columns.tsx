@@ -13,8 +13,8 @@ import { ShipmentRoute } from "./shipment-route";
 const column = createDataTableColumnHelper<AdminShipment>();
 
 /**
- * The shipments table: tracking ID (to the detail page), customer, route,
- * status and dates. The API orders the rows, so the headers are plain labels.
+ * The shipments table: tracking ID (to the detail page), customer, branch,
+ * route, status and dates. The API orders the rows, so the headers are plain labels.
  * Rebuilt when the language changes, so labels and dates follow.
  */
 export function useShipmentColumns() {
@@ -47,6 +47,21 @@ export function useShipmentColumns() {
             </span>
           </div>
         ),
+      }),
+      column.display({
+        id: "branch",
+        header: t("app:shipments.list.columns.branch"),
+        cell: ({ row }) =>
+          row.original.organization ? (
+            <Link
+              to={withBranch(`/branches/${encodeURIComponent(row.original.organization.id)}`)}
+              className="focus-ring rounded-sm text-label-14 text-gray-1000 hover:underline"
+            >
+              <bdi>{row.original.organization.name}</bdi>
+            </Link>
+          ) : (
+            <span className="text-copy-14 text-gray-900">{t("app:shipments.list.noBranch")}</span>
+          ),
       }),
       column.display({
         id: "route",

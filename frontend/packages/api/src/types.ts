@@ -158,7 +158,7 @@ export type ChatMessage = {
   createdAt: string;
 };
 
-/** Socket event `support.message.new`, sent to everyone with support access. */
+/** Socket event `support.message.new`: a message in a support conversation (never a staff DM), sent to everyone with support access. */
 export type SupportMessageEvent = { conversationId: string; preview: string };
 
 /** Socket event `presence.changed`. */
@@ -335,14 +335,25 @@ export type ShipmentClient = {
 };
 
 /** A row of GET /admin/shipments (backend AdminShipmentDto): who ordered it and when. */
+/**
+ * The branch handling a shipment (backend ShipmentBranchDto). Only shipments a
+ * partner created through the public API have one; customer requests don't.
+ */
+export type ShipmentBranch = {
+  id: string;
+  name: string;
+};
+
 export type AdminShipment = Shipment & {
   client: ShipmentClient;
+  organization: ShipmentBranch | null;
   createdAt: string;
 };
 
 /** GET /admin/shipments/:trackingId (backend AdminShipmentDetailDto); also what every admin status change returns. */
 export type AdminShipmentDetail = ShipmentDetail & {
   client: ShipmentClient;
+  organization: ShipmentBranch | null;
   createdAt: string;
 };
 
@@ -375,6 +386,8 @@ export type AdminShipmentFilters = {
   /** Part of a tracking ID, any case (up to 50 characters). */
   q?: string;
   status?: ShipmentState;
+  /** One branch's shipments only. Customer requests have no branch, so they never match. */
+  organizationId?: string;
   page?: number;
   /** 1–100, 20 by default. */
   limit?: number;

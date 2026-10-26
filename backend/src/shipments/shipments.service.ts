@@ -21,6 +21,7 @@ import { ShipmentOffer } from './entities/shipment-offer.entity';
 import { ShipmentPayment } from './entities/shipment-payment.entity';
 import { CreateShipmentDto } from './dto/create-shipment.dto';
 import { ListShipmentsQueryDto } from './dto/list-shipments-query.dto';
+import { ListAdminShipmentsQueryDto } from './dto/list-admin-shipments-query.dto';
 import { SubmitPaymentDto } from './dto/submit-payment.dto';
 import {
   ShipmentDetailDto,
@@ -256,16 +257,27 @@ export class ShipmentsService {
    * Shared with AdminShipmentsService
    * ------------------------------------------------------------------- */
 
-  /** clientId given: only that client's shipments. Omitted (admin): everyone's, with the client joined. */
+  /**
+   * clientId given: only that client's shipments. Omitted (admin): everyone's,
+   * with the client and the branch joined, optionally one branch's only.
+   */
   listQuery(
-    query: ListShipmentsQueryDto,
+    query: ListAdminShipmentsQueryDto,
     clientId?: string,
   ): Promise<[Shipment[], number]> {
     const qb = this.shipmentRepository.createQueryBuilder('shipment');
     if (clientId) {
       qb.andWhere('shipment.clientId = :clientId', { clientId });
     } else {
-      qb.innerJoinAndSelect('shipment.client', 'client');
+      qb.innerJoinAndSelect('shipment.client', 'client').leftJoinAndSelect(
+        'shipment.organization',
+        'organization',
+      );
+    }
+    if (query.organizationId) {
+      qb.andWhere('shipment.organizationId = :organizationId', {
+        organizationId: query.organizationId,
+      });
     }
     const q = query.q?.trim();
     if (q) {
@@ -295,7 +307,7 @@ export class ShipmentsService {
     return shipment;
   }
 
-  /** With everything the detail view needs: offers, files, payment (and the client, for admin access). */
+  /** With everything the detail view needs: offers, files, payment (and the client and branch, for admin access). */
   async findWithDetail(
     trackingId: string,
     clientId?: string,
@@ -307,6 +319,7 @@ export class ShipmentsService {
         files: true,
         payment: true,
         client: !clientId,
+        organization: !clientId,
       },
     });
     if (!shipment) {

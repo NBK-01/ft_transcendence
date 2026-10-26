@@ -22,6 +22,7 @@ import type {
   ImageRef,
   Money,
   PaymentSummary,
+  ShipmentBranch,
   ShipmentClient,
   ShipmentEvent,
   ShipmentFile,
@@ -30,7 +31,7 @@ import type {
   SupplierOffer,
   TrackingEventStatus,
 } from "../types";
-import { MOCK_USER } from "./data";
+import { isUuid, MOCK_USER, ORGANIZATIONS } from "./data";
 import { notifyAction, notifyShipmentEvent } from "./notification-store";
 import { error, ok, paginated } from "./respond";
 
@@ -41,11 +42,13 @@ import { error, ok, paginated } from "./respond";
  * backend's order: the body (400), the shipment (404, 3001), its status (409,
  * 3002), the files (400, 3004 / 9001 / 9002).
  *
- * Forty shipments from seven clients over the last six weeks; at least eleven
- * changed today, three of them new requests. Every status has some except
- * "requested", which nothing sets. Amina (MOCK_USER, the client app's
- * customer) has the same tracking IDs and statuses as in the client's own
- * mocks. In-memory: changes stick until the page reloads.
+ * Forty-six shipments from seven clients over the last six weeks; at least
+ * fifteen changed today, three of them new requests. Every status has some
+ * except "requested", which nothing sets. Six were created by a branch through
+ * the public API, so only they have a branch (`organization`), like on the
+ * real API. Amina (MOCK_USER, the client app's customer) has the same tracking
+ * IDs and statuses as in the client's own mocks, and none of the branch ones.
+ * In-memory: changes stick until the page reloads.
  *
  * The client app mocks /api/shipments itself (apps/client/src/features/shipments/mocks.ts);
  * these handlers only answer /api/admin/shipments.
@@ -75,6 +78,8 @@ type Row = {
   id: string;
   trackingId: string;
   client: ShipmentClient;
+  /** Only on shipments a branch created through the public API. */
+  organization: ShipmentBranch | null;
   status: ShipmentState;
   request: ShipmentRequest;
   /** Every offer made, oldest first. The client sees the newest one not rejected. */
@@ -271,6 +276,11 @@ type Seed = {
   /** Cancelled from this status, for this reason. */
   cancelled?: [ShipmentState, string];
   files?: AttachmentKind[];
+  /**
+   * Created by this branch (an index into ORGANIZATIONS) through the public
+   * API: it starts at confirmed, with no request, offer or payment.
+   */
+  partner?: number;
 };
 
 const SEEDS: Seed[] = [
@@ -321,6 +331,13 @@ const SEEDS: Seed[] = [
   { trackingId: "TRK-61E7C4", client: 6, supplier: 9, status: "out_for_delivery", created: ago(17 * DAY), updated: ago(5 * HOUR), quantity: 2 },
   { trackingId: "TRK-8A2D6F", client: 6, supplier: 1, status: "delivered", created: ago(27 * DAY), updated: ago(19 * DAY), quantity: 2 },
   { trackingId: "TRK-F49C1B", client: 6, supplier: 8, status: "delivered", created: ago(13 * DAY), updated: ago(30 * HOUR), files: ["proof_of_delivery", "other"] },
+  // Created by a branch through the public API
+  { trackingId: "TRK-0F6A5D", client: 2, supplier: 3, status: "confirmed", created: today(0.45), updated: today(0.45), partner: 1 },
+  { trackingId: "TRK-4C1D9A", client: 1, supplier: 5, status: "in_transit", created: ago(2 * DAY), updated: today(0.65), partner: 0 },
+  { trackingId: "TRK-D2794E", client: 2, supplier: 6, status: "out_for_delivery", created: ago(3 * DAY), updated: today(0.75), partner: 1 },
+  { trackingId: "TRK-93AC4F", client: 4, supplier: 7, status: "delivered", created: ago(4 * DAY), updated: today(0.55), partner: 3 },
+  { trackingId: "TRK-B83E27", client: 3, supplier: 4, status: "delivered", created: ago(9 * DAY), updated: ago(5 * DAY), partner: 0 },
+  { trackingId: "TRK-6E05B1", client: 6, supplier: 10, status: "cancelled", created: ago(6 * DAY), updated: ago(2 * DAY), partner: 2, cancelled: ["in_transit", "Customer refused the parcel"] },
 ];
 
 type Step = [ShipmentState, string];
@@ -330,20 +347,25 @@ function build(seed: Seed, index: number): Row {
   const { client, home } = CLIENTS[seed.client]!;
   const supplier = SUPPLIERS[seed.supplier]!;
   const quantity = seed.quantity ?? 1;
+  const branch = seed.partner === undefined ? null : ORGANIZATIONS[seed.partner]!;
 
-  // Every step it would take, cut where it is now.
-  const path: Step[] = [["pending_sourcing", "Request received"]];
-  if (seed.rejected !== undefined) {
+  // Every step it would take, cut where it is now. A branch's starts at confirmed (PartnerShipmentsService.create).
+  const path: Step[] = branch ? [["confirmed", `Created by ${branch.name}`]] : [["pending_sourcing", "Request received"]];
+  if (!branch) {
+    if (seed.rejected !== undefined) {
+      path.push(
+        ["pending_client_decision", `Offer from ${SUPPLIERS[seed.rejected]!.address.name}`],
+        ["pending_sourcing", "Offer rejected, finding another supplier"],
+      );
+    }
     path.push(
-      ["pending_client_decision", `Offer from ${SUPPLIERS[seed.rejected]!.address.name}`],
-      ["pending_sourcing", "Offer rejected, finding another supplier"],
+      ["pending_client_decision", `Offer from ${supplier.address.name}`],
+      ["pending_payment", "Offer approved"],
+      ["pending_payment_confirmation", "Payment submitted"],
+      ["confirmed", "Payment confirmed"],
     );
   }
   path.push(
-    ["pending_client_decision", `Offer from ${supplier.address.name}`],
-    ["pending_payment", "Offer approved"],
-    ["pending_payment_confirmation", "Payment submitted"],
-    ["confirmed", "Payment confirmed"],
     ["in_transit", supplier.address.city],
     ["in_transit", `${home.city} hub`],
     ["out_for_delivery", home.city],
@@ -399,8 +421,11 @@ function build(seed: Seed, index: number): Row {
     id: `00000000-0000-4000-9000-${String(index + 1).padStart(12, "0")}`,
     trackingId: seed.trackingId,
     client,
+    organization: branch && { id: branch.id, name: branch.name },
     status: steps.at(-1)![0],
-    request: seed.photos
+    request: branch
+      ? { productUrl: null, images: [] }
+      : seed.photos
       ? { productUrl: null, images: [1, 2].map((n) => image(`${supplier.product} photo ${n}`, supplier.hue + 20)) }
       : { productUrl: `https://shop.example.com/products/${supplier.product.toLowerCase().replaceAll(" ", "-")}`, images: [] },
     offers,
@@ -421,11 +446,17 @@ const shipments: Row[] = SEEDS.map(build);
 // these timelines and attachments (notification-store.ts); anything older
 // than a day has been read.
 for (const row of shipments) {
-  for (const event of row.events.toReversed()) {
+  for (const [step, event] of row.events.toReversed().entries()) {
     const at = Date.parse(event.occurredAt);
     if (at < ago(7 * DAY)) continue;
     notifyShipmentEvent(
-      { trackingId: row.trackingId, clientId: row.client.id, status: event.status, occurredAt: event.occurredAt },
+      {
+        trackingId: row.trackingId,
+        clientId: row.client.id,
+        status: event.status,
+        occurredAt: event.occurredAt,
+        isNew: row.organization !== null && step === 0,
+      },
       { read: at < ago(DAY) },
     );
   }
@@ -451,6 +482,7 @@ const toRow = (row: Row): AdminShipment => ({
   status: row.status,
   updatedAt: row.updatedAt,
   client: row.client,
+  organization: row.organization,
   createdAt: row.createdAt,
 });
 
@@ -515,7 +547,7 @@ const isCurrency = (value: unknown) =>
 
 const ADDRESS_FIELDS = ["name", "street", "city", "postalCode", "country", "phone"];
 
-/** AddressDto, nested. Missing altogether is a 400 here; ConfirmPaymentDto has no @IsDefined, so the real API likely fails later with a 500. */
+/** AddressDto, nested and required (@IsDefined): missing altogether is a 400. */
 function addressChecks(field: string, value: unknown): Check[] {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return [`${field} is required`];
   const input = value as Record<string, unknown>;
@@ -580,18 +612,25 @@ export const shipmentHandlers = [
     const limit = Number(params.get("limit") ?? 20);
     const q = params.get("q");
     const status = params.get("status");
+    const organizationId = params.get("organizationId");
     const problem = invalid([
       !(Number.isInteger(page) && page >= 1) && "page must be a whole number, at least 1",
       !(Number.isInteger(limit) && limit >= 1 && limit <= 100) && "limit must be a whole number, from 1 to 100",
       text("q", q, 50, true),
       status !== null && oneOf("status", status, STATES),
+      organizationId !== null && !isUuid(organizationId) && "organizationId must be a UUID",
     ]);
     if (problem) return problem;
 
     // ILIKE '%q%' on the tracking ID, with % and _ taken literally.
     const search = q?.trim().toUpperCase();
     const rows = shipments
-      .filter((row) => (!search || row.trackingId.includes(search)) && (!status || row.status === status))
+      .filter(
+        (row) =>
+          (!search || row.trackingId.includes(search)) &&
+          (!status || row.status === status) &&
+          (!organizationId || row.organization?.id === organizationId),
+      )
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id));
     return paginated(rows.map(toRow), page, limit);
   }),

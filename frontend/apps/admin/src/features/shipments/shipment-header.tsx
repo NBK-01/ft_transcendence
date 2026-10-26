@@ -1,20 +1,24 @@
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router";
 
 import type { AdminShipmentDetail } from "@trans/api";
 import { ShipmentStateBadge } from "@trans/ui/blocks/shipment-state";
 import { CopyButton } from "@trans/ui/components/copy-button";
 
+import { useBranchFilter } from "../branches/use-branch-filter";
 import { DetailItem } from "./detail-parts";
 import { useDetailFormat } from "./use-detail-format";
 
 /**
  * The shared PageHeader's frame, but the title is the tracking ID in mono with
- * a copy button and the status, and under it who ordered it and when.
+ * a copy button and the status, and under it who ordered it, which branch
+ * has it (only partner-created shipments do) and when.
  */
 export function ShipmentHeader({ shipment }: { shipment: AdminShipmentDetail }) {
   const { t } = useTranslation("app");
   const format = useDetailFormat();
-  const { trackingId, client, createdAt, updatedAt } = shipment;
+  const { withBranch } = useBranchFilter();
+  const { trackingId, client, organization, createdAt, updatedAt } = shipment;
 
   return (
     <header className="flex flex-col gap-5 border-b border-gray-alpha-400 pb-6">
@@ -39,6 +43,18 @@ export function ShipmentHeader({ shipment }: { shipment: AdminShipmentDetail }) 
               {client.email}
             </a>
           </span>
+        </DetailItem>
+        <DetailItem label={t("shipment.branch")}>
+          {organization ? (
+            <Link
+              to={withBranch(`/branches/${encodeURIComponent(organization.id)}`)}
+              className="focus-ring block truncate rounded-sm hover:underline"
+            >
+              <bdi>{organization.name}</bdi>
+            </Link>
+          ) : (
+            <span className="block text-gray-900">{t("shipment.noBranch")}</span>
+          )}
         </DetailItem>
         <DetailItem label={t("shipment.created")}>
           <time dateTime={createdAt}>{format.dateTime(createdAt)}</time>

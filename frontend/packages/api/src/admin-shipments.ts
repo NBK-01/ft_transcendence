@@ -87,12 +87,12 @@ const shipmentPath = (trackingId: string, suffix = "") => `/admin/shipments/${en
  */
 export function useAdminShipments(filters: AdminShipmentFilters = {}, { enabled = true }: { enabled?: boolean } = {}) {
   // The backend ignores a blank search, so it shares a cache entry with no search.
-  const { page = 1, limit = 20, status } = filters;
+  const { page = 1, limit = 20, status, organizationId } = filters;
   const q = filters.q?.trim() || undefined;
   return useQuery({
-    queryKey: keys.adminShipments.list({ q, status, page, limit }),
+    queryKey: keys.adminShipments.list({ q, status, organizationId, page, limit }),
     queryFn: ({ signal }) =>
-      api.getPage<AdminShipment>("/admin/shipments", { query: { q, status, page, limit }, signal }),
+      api.getPage<AdminShipment>("/admin/shipments", { query: { q, status, organizationId, page, limit }, signal }),
     placeholderData: keepPreviousData,
     enabled,
   });
