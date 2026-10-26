@@ -70,7 +70,7 @@ export class PartnerShipmentsController {
   @ApiResponse({ status: 201, type: PartnerShipmentDetailDto })
   @ApiResponse({
     status: 404,
-    description: 'No customer account with that email (15008)',
+    description: 'No customer account with that email (16008)',
   })
   async create(
     @CurrentPartner() partner: PartnerContext,

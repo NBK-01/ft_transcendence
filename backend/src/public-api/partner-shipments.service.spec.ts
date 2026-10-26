@@ -206,7 +206,7 @@ describe('PartnerShipmentsService.create', () => {
     expect(detail.trackingId).toBe('TRK-NEW001');
   });
 
-  it('is a 404 (15008) for an unknown or deactivated customer, and creates nothing', async () => {
+  it('is a 404 (16008) for an unknown or deactivated customer, and creates nothing', async () => {
     const { service, saved } = setup({
       users: [
         { ...customer, email: 'gone@example.com', isActive: false } as User,

@@ -2,14 +2,14 @@ import { HttpStatus } from '@nestjs/common';
 import { DomainException } from '../../common/exceptions/base/error-types';
 
 export enum PublicApiErrorCodes {
-  ApiKeyNotFound = 15001,
-  ApiKeyBranchInactive = 15002,
-  ApiKeyMissing = 15003,
-  ApiKeyInvalid = 15004,
-  ApiKeyRevoked = 15005,
-  ApiKeyBranchDeactivated = 15006,
-  ApiKeyRateLimited = 15007,
-  PartnerCustomerNotFound = 15008,
+  ApiKeyNotFound = 16001,
+  ApiKeyBranchInactive = 16002,
+  ApiKeyMissing = 16003,
+  ApiKeyInvalid = 16004,
+  ApiKeyRevoked = 16005,
+  ApiKeyBranchDeactivated = 16006,
+  ApiKeyRateLimited = 16007,
+  PartnerCustomerNotFound = 16008,
 }
 
 export enum PublicApiErrorMessages {

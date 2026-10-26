@@ -11,9 +11,9 @@ import type { ApiKey, CreateApiKeyInput, CreatedApiKey } from "./types";
  */
 
 /** Backend PublicApiErrorCodes the admin screens react to. */
-export const API_KEY_NOT_FOUND = 15001;
+export const API_KEY_NOT_FOUND = 16001;
 /** 400: the branch is deactivated, so a key for it would be refused on every call. */
-export const API_KEY_BRANCH_INACTIVE = 15002;
+export const API_KEY_BRANCH_INACTIVE = 16002;
 
 /** GET /api-keys: every key, masked, newest first, revoked ones included. Optionally one branch's. */
 export function useApiKeys(

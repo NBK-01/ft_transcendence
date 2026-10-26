@@ -121,7 +121,7 @@ beforeEach(() => {
 afterEach(() => jest.restoreAllMocks());
 
 describe('ApiKeyGuard: the key', () => {
-  it('is a 401 (15003) without X-API-Key, and checks nothing else', async () => {
+  it('is a 401 (16003) without X-API-Key, and checks nothing else', async () => {
     const { call, apiKeysService } = setup();
     expect(await refusal(call())).toEqual({
       status: HttpStatus.UNAUTHORIZED,
@@ -188,7 +188,7 @@ describe('ApiKeyGuard: the rate limit', () => {
     });
   });
 
-  it('is a 429 (15007) past the limit, and says when to come back', async () => {
+  it('is a 429 (16007) past the limit, and says when to come back', async () => {
     const { call, lastRequest, lastResponseHeaders } = setup({
       rateLimit: {
         limit: 60,

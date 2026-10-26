@@ -13,8 +13,8 @@ import { staffCaller } from "./staff-auth";
  */
 
 /** Backend error codes. */
-const API_KEY_NOT_FOUND = 15001;
-const API_KEY_BRANCH_INACTIVE = 15002;
+const API_KEY_NOT_FOUND = 16001;
+const API_KEY_BRANCH_INACTIVE = 16002;
 const ORGANIZATION_NOT_FOUND = 4001;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

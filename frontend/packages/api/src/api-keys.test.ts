@@ -87,7 +87,7 @@ describe("API key mocks match the backend", () => {
     expect(dates).toEqual([...dates].sort().reverse());
   });
 
-  it("refuses a bad body (400), an unknown branch (404, 4001) and an inactive one (400, 15002)", async () => {
+  it("refuses a bad body (400), an unknown branch (404, 4001) and an inactive one (400, 16002)", async () => {
     await signInAs(nadia.email);
     await expect(create("   ")).rejects.toMatchObject({ status: 400 });
     await expect(create("x", "not-a-uuid")).rejects.toMatchObject({ status: 400 });
@@ -104,7 +104,7 @@ describe("API key mocks match the backend", () => {
     }
   });
 
-  it("revoke is idempotent: the first date stays; an unknown id is 404 (15001)", async () => {
+  it("revoke is idempotent: the first date stays; an unknown id is 404 (16001)", async () => {
     await signInAs(nadia.email);
     const created = await create("To revoke");
     const first = await api.delete<ApiKey>(`/api-keys/${created.id}`);
