@@ -30,7 +30,7 @@ const INVALID_CREDENTIALS = 2002;
 const INVALID_RESET_TOKEN = 2004;
 const ACCOUNT_NOT_VERIFIED = 2005;
 const OAUTH_CODE_INVALID = 2010;
-const OTP_INVALID = 4003;
+const OTP_INVALID = 15003;
 
 const ACCESS_PREFIX = "mock-access-";
 const REFRESH_PREFIX = "mock-refresh-";

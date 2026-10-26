@@ -15,7 +15,7 @@ export class OtpProgressiveBlockException extends DomainException {
     super(
       { key: 'errors.OTP_PROGRESSIVE_BLOCK', params: { ...details } },
       HttpStatus.TOO_MANY_REQUESTS,
-      4100,
+      15100, // reassigned from 4100 along with the rest of OTP's codes
     );
   }
 }

@@ -24,6 +24,7 @@ import {
   RequireRole,
 } from '../common/decorators/access-control.decorator';
 import { RequestUser } from '../common/context/auth-context.types';
+import { MissingRequiredDataException } from '../common/exceptions/validation-exceptions';
 
 @ApiTags('Users')
 @ApiBearerAuth()
@@ -70,9 +71,12 @@ export class UsersController {
   @ApiResponse({ status: 201, description: 'Avatar uploaded' })
   @ApiResponse({ status: 400, description: 'Invalid file type or too large' })
   async uploadAvatar(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: Express.Multer.File | undefined,
     @CurrentUser() currentUser: RequestUser,
   ) {
+    if (!file) {
+      throw new MissingRequiredDataException('file');
+    }
     const { url, key } = await this.fileStorageService.uploadAvatar(
       file.buffer,
       currentUser.id,
