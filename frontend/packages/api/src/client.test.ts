@@ -400,23 +400,23 @@ describe("contacts", () => {
 
   it("adding: your own branch or an admin; not yourself, not someone already connected", async () => {
     await signInAsStaff(rami.email);
-    await expect(request(omar.id)).rejects.toMatchObject({ status: 403, errorCode: 12003 });
-    await expect(request(rami.id)).rejects.toMatchObject({ status: 400, errorCode: 12004 });
-    await expect(request(karim.id)).rejects.toMatchObject({ status: 409, errorCode: 12002 });
+    await expect(request(omar.id)).rejects.toMatchObject({ status: 403, errorCode: 14003 });
+    await expect(request(rami.id)).rejects.toMatchObject({ status: 400, errorCode: 14004 });
+    await expect(request(karim.id)).rejects.toMatchObject({ status: 409, errorCode: 14002 });
 
     const sent = await request(youssef.id);
     expect(sent).toMatchObject({ status: "pending", requesterName: rami.name, addresseeName: youssef.name });
     await api.delete(`/contacts/${sent.id}`);
   });
 
-  it("only the addressee accepts; accepting twice is 409 (12005)", async () => {
+  it("only the addressee accepts; accepting twice is 409 (14005)", async () => {
     await signInAsStaff(rami.email);
     const sent = await request(youssef.id);
-    await expect(api.patch(`/contacts/${sent.id}/accept`)).rejects.toMatchObject({ status: 404, errorCode: 12001 });
+    await expect(api.patch(`/contacts/${sent.id}/accept`)).rejects.toMatchObject({ status: 404, errorCode: 14001 });
 
     await signInAsStaff(youssef.email);
     await expect(api.patch<Contact>(`/contacts/${sent.id}/accept`)).resolves.toMatchObject({ status: "accepted" });
-    await expect(api.patch(`/contacts/${sent.id}/accept`)).rejects.toMatchObject({ status: 409, errorCode: 12005 });
+    await expect(api.patch(`/contacts/${sent.id}/accept`)).rejects.toMatchObject({ status: 409, errorCode: 14005 });
     await api.delete(`/contacts/${sent.id}`);
   });
 
@@ -436,7 +436,7 @@ describe("contacts", () => {
     await expect(api.patch<Contact>(`/contacts/${sent.id}/block`)).resolves.toMatchObject({ status: "blocked" });
 
     await signInAsStaff(); // Nadia: not a party
-    await expect(api.delete(`/contacts/${sent.id}`)).rejects.toMatchObject({ status: 404, errorCode: 12001 });
+    await expect(api.delete(`/contacts/${sent.id}`)).rejects.toMatchObject({ status: 404, errorCode: 14001 });
 
     await signInAsStaff(youssef.email);
     await api.delete(`/contacts/${sent.id}`);

@@ -1,4 +1,5 @@
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { JwtService } from '@nestjs/jwt';
 import Redis from 'ioredis';
 import { Repository } from 'typeorm';
@@ -185,6 +186,8 @@ function setup(env: Record<string, string> = {}) {
     users as unknown as Repository<User>,
     new CryptoService(),
     {} as FileStorageService,
+    // Nothing listens in these tests: the notification signals it sends go nowhere.
+    new EventEmitter2(),
   );
   const refreshTokens = new RefreshTokenService(
     sessions as unknown as Repository<RefreshToken>,

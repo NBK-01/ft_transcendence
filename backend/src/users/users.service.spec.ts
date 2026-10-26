@@ -1,4 +1,5 @@
 import { HttpStatus } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { plainToInstance } from 'class-transformer';
 import { validate, ValidationError } from 'class-validator';
 import { Repository } from 'typeorm';
@@ -69,6 +70,7 @@ function setup() {
     users as unknown as Repository<User>,
     {} as CryptoService,
     {} as FileStorageService,
+    new EventEmitter2(),
   );
   return { users, service };
 }

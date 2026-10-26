@@ -1,4 +1,4 @@
-import type { AdminShipmentFilters } from "./types";
+import type { AdminShipmentFilters, NotificationFilters } from "./types";
 
 /**
  * Query keys, in one place so invalidation can't drift out of sync.
@@ -46,5 +46,13 @@ export const keys = {
     detail: (trackingId: string) => [...keys.adminShipments.all, "detail", trackingId] as const,
     events: (trackingId: string) => [...keys.adminShipments.detail(trackingId), "events"] as const,
     files: (trackingId: string) => [...keys.adminShipments.detail(trackingId), "files"] as const,
+  },
+  // Whoever is signed in: sign-out clears the whole cache, so one account never sees another's.
+  notifications: {
+    all: ["notifications"] as const,
+    lists: () => [...keys.notifications.all, "list"] as const,
+    // No page: a list holds every page loaded so far (useInfiniteQuery).
+    list: (filters: Omit<NotificationFilters, "page">) => [...keys.notifications.lists(), filters] as const,
+    unreadCount: () => [...keys.notifications.all, "unread-count"] as const,
   },
 };

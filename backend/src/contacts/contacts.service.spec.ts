@@ -1,4 +1,5 @@
 import { HttpStatus } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { QueryFailedError, Repository } from 'typeorm';
 import { AccessControlService } from '../access-control/access-control.service';
 import { RolePermission } from '../access-control/entities/role-permission.entity';
@@ -155,6 +156,8 @@ function setup() {
     staff.userRepository as unknown as Repository<InternalUser>,
     {} as Repository<Role>,
     {} as CryptoService,
+    // Nothing listens in these tests: the notification signals it sends go nowhere.
+    new EventEmitter2(),
   );
   const accessControl = new AccessControlService(
     staff.userRepository as unknown as Repository<InternalUser>,
@@ -265,14 +268,14 @@ describe('send a request', () => {
     ['the sender has no organization (and is not admin)', 'nora', 'alice'],
     ['the receiver has no organization (and is not admin)', 'alice', 'nora'],
     ['the receiver does not exist', 'alice', 'ghost'],
-  ])('is refused (403, 12003) when %s', async (_l, from, to) => {
+  ])('is refused (403, 14003) when %s', async (_l, from, to) => {
     const { service, contacts } = setup();
 
     await expectOutOfScope(service.sendRequest(from, to));
     expect(contacts).toHaveLength(0);
   });
 
-  it('to yourself is refused (400, 12004)', async () => {
+  it('to yourself is refused (400, 14004)', async () => {
     const { service } = setup();
 
     await expectError(
@@ -287,7 +290,7 @@ describe('send a request', () => {
     ['the same direction', 'alice', 'bob'],
     ['the opposite direction', 'bob', 'alice'],
   ])(
-    'is refused (409, 12002) when a contact already exists in %s',
+    'is refused (409, 14002) when a contact already exists in %s',
     async (_l, from, to) => {
       const { service, contactBetween, contacts } = setup();
       await contactBetween('alice', 'bob');
@@ -344,7 +347,7 @@ describe('accept', () => {
   );
 
   it.each([ContactStatus.ACCEPTED, ContactStatus.BLOCKED])(
-    'a contact that is already %s cannot be accepted (409, 12005)',
+    'a contact that is already %s cannot be accepted (409, 14005)',
     async (status) => {
       const { service, contactBetween } = setup();
       const id = await contactBetween('alice', 'bob', status);
@@ -353,7 +356,7 @@ describe('accept', () => {
     },
   );
 
-  it('an unknown id is 404 (12001)', async () => {
+  it('an unknown id is 404 (14001)', async () => {
     const { service } = setup();
 
     await expectNotFound(service.acceptRequest('contact-404', 'bob'));
@@ -384,7 +387,7 @@ describe('reject', () => {
     expect(contacts).toHaveLength(1);
   });
 
-  it('an accepted contact cannot be rejected (409, 12005), it has to be removed', async () => {
+  it('an accepted contact cannot be rejected (409, 14005), it has to be removed', async () => {
     const { service, contactBetween } = setup();
     const id = await contactBetween('alice', 'bob', ContactStatus.ACCEPTED);
 
@@ -437,7 +440,7 @@ describe('block', () => {
     await expect(service.areConnected('alice', 'bob')).resolves.toBe(true);
   });
 
-  it('an unknown id is 404 (12001)', async () => {
+  it('an unknown id is 404 (14001)', async () => {
     const { service } = setup();
 
     await expectNotFound(service.blockContact('contact-404', 'alice'));

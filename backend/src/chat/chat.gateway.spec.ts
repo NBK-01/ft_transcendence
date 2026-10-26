@@ -1,4 +1,5 @@
 import { ArgumentsHost } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import { Repository } from 'typeorm';
@@ -74,11 +75,13 @@ function setup() {
     usersRepository as unknown as Repository<User>,
     {} as CryptoService,
     {} as FileStorageService,
+    new EventEmitter2(),
   );
   const internalUsersService = new InternalUsersService(
     internalUsersRepository as unknown as Repository<InternalUser>,
     {} as Repository<Role>,
     {} as CryptoService,
+    new EventEmitter2(),
   );
   const jwtService = new JwtService({ secret: JWT_SECRET });
   const connectionAuthenticator = new ConnectionAuthenticator(

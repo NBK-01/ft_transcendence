@@ -13,6 +13,7 @@ import { Skeleton } from "@trans/ui/components/skeleton";
 import { useOrganizations } from "../features/branches/api";
 import { tabOf, useContacts } from "../features/contacts/api";
 import { useBranchFilter } from "../features/branches/use-branch-filter";
+import { NotificationBell } from "../features/notifications/notification-bell";
 
 const ALL = "all";
 
@@ -108,6 +109,8 @@ export function AdminLayout() {
       // RequireStaff takes it from here: it shows /login once the session is gone.
       onSignOut={signOut}
       topbarStart={<BranchFilter />}
+      // Every role gets notifications; the backend decides which.
+      topbarEnd={<NotificationBell />}
     >
       {/* Pages load their code on first visit (see router.tsx). */}
       <Suspense fallback={<PageSkeleton />}>

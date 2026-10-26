@@ -418,3 +418,123 @@ export type UploadShipmentFileInput = {
   /** An image or a PDF, up to 10 MB. */
   file: File;
 };
+
+/**
+ * Where a notification stands (backend NotificationStatus): PENDING when it's
+ * created, SENT once it's in the feed (FAILED if delivery gave up), READ once
+ * read, from any of them.
+ */
+export type NotificationStatus = "PENDING" | "SENT" | "FAILED" | "READ";
+
+/**
+ * What a notification is about (backend NotificationType). SHIPMENT_UPDATE is
+ * a new step on a shipment's timeline; the others say that something was
+ * created, changed or deleted, and go to whoever it affects, never to whoever
+ * did it (PASSWORD_CHANGED, a security notice, is the exception).
+ */
+export type NotificationType =
+  | "SHIPMENT_UPDATE"
+  /** To the other admins. */
+  | "BRANCH_CREATED"
+  /** Details changed or reactivated. To the other admins and the branch's staff. */
+  | "BRANCH_UPDATED"
+  /** Deactivated (PATCH isActive false, or DELETE). To the other admins and the branch's staff. */
+  | "BRANCH_DEACTIVATED"
+  /** To the staff member added. */
+  | "BRANCH_STAFF_ADDED"
+  /** To the staff member removed. */
+  | "BRANCH_STAFF_REMOVED"
+  /** To the other admins. */
+  | "STAFF_ACCOUNT_CREATED"
+  /** Role, branch or name changed, or reactivated. To that staff member and the other admins. */
+  | "STAFF_ACCOUNT_UPDATED"
+  /** To the other admins. */
+  | "STAFF_ACCOUNT_DEACTIVATED"
+  /** To the addressee. */
+  | "CONTACT_REQUEST_RECEIVED"
+  /** To the requester. */
+  | "CONTACT_REQUEST_ACCEPTED"
+  /** To staff with chat:support:access. */
+  | "SUPPORT_CONVERSATION_STARTED"
+  /** To the shipment's customer. */
+  | "SHIPMENT_FILE_ADDED"
+  /** To the account's owner, even when they did it. */
+  | "PASSWORD_CHANGED";
+
+/** SHIPMENT_UPDATE: a new step on a shipment's timeline. Link to the shipment, and word it from its status. */
+export type ShipmentUpdatePayload = { trackingId: string; status: ShipmentState };
+
+/** A branch, by its name when it happened. */
+export type BranchPayload = { organizationId: string; name: string };
+
+/** A staff account. */
+export type StaffAccountPayload = { internalUserId: string; name: string };
+
+/** What a staff account update changed (backend StaffChange). */
+export type StaffChange = "role" | "branch" | "name" | "reactivated";
+
+/** Also the account as it is now, to say e.g. "your role is now Dispatcher". */
+export type StaffAccountUpdatedPayload = StaffAccountPayload & {
+  changed: StaffChange[];
+  roleName: string | null;
+  organizationId: string | null;
+  organizationName: string | null;
+};
+
+/** The other person: who sent the request, or who accepted it. */
+export type ContactNotificationPayload = { contactId: string; internalUserId: string; name: string };
+
+export type SupportConversationPayload = { conversationId: string; customerName: string };
+
+export type ShipmentFilePayload = { trackingId: string; kind: AttachmentKind; fileName: string };
+
+/** What each notification type carries in `payload` (backend NotificationPayloads). */
+export type NotificationPayloads = {
+  SHIPMENT_UPDATE: ShipmentUpdatePayload;
+  BRANCH_CREATED: BranchPayload;
+  BRANCH_UPDATED: BranchPayload;
+  BRANCH_DEACTIVATED: BranchPayload;
+  BRANCH_STAFF_ADDED: BranchPayload;
+  BRANCH_STAFF_REMOVED: BranchPayload;
+  STAFF_ACCOUNT_CREATED: StaffAccountPayload;
+  STAFF_ACCOUNT_UPDATED: StaffAccountUpdatedPayload;
+  STAFF_ACCOUNT_DEACTIVATED: StaffAccountPayload;
+  CONTACT_REQUEST_RECEIVED: ContactNotificationPayload;
+  CONTACT_REQUEST_ACCEPTED: ContactNotificationPayload;
+  SUPPORT_CONVERSATION_STARTED: SupportConversationPayload;
+  SHIPMENT_FILE_ADDED: ShipmentFilePayload;
+  PASSWORD_CHANGED: Record<string, never>;
+};
+
+/**
+ * A notification (backend NotificationDto), narrowed by `type` so `payload`
+ * has the right shape. `title` and `message` are English only: the apps word
+ * it in the reader's language from `type` + `payload`, and can fall back to
+ * them. Named AppNotification so it doesn't hide the browser's Notification.
+ */
+export type AppNotification = {
+  [T in NotificationType]: {
+    id: string;
+    type: T;
+    status: NotificationStatus;
+    title: string;
+    message: string;
+    payload: NotificationPayloads[T];
+    createdAt: string;
+    /** Null until read. */
+    readAt: string | null;
+  };
+}[NotificationType];
+
+/** GET /notifications query (backend ListNotificationsQueryDto). */
+export type NotificationFilters = {
+  /** true: only the ones not read yet. */
+  unreadOnly?: boolean;
+  type?: NotificationType;
+  page?: number;
+  /** 1–100, 20 by default. */
+  limit?: number;
+};
+
+/** GET /notifications/unread-count, and PATCH /notifications/read-all (how many it marked). */
+export type NotificationCount = { count: number };

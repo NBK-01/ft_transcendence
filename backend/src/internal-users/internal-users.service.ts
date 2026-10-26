@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
 import { InternalUser } from './internal-user.entity';
 import { Role } from '../access-control/entities/role.entity';
@@ -14,6 +15,8 @@ import {
   CannotRemoveLastAdminException,
 } from './exceptions';
 import { RoleNotFoundException } from '../access-control/exceptions';
+import { AccountType } from '../common/context/auth-context.types';
+import { ActionSignals } from '../notifications/action-signals';
 
 const ADMIN_ROLE_NAME = 'admin';
 
@@ -24,6 +27,7 @@ export class InternalUsersService {
     private readonly internalUserRepository: Repository<InternalUser>,
     @InjectRepository(Role) private readonly roleRepository: Repository<Role>,
     private readonly cryptoService: CryptoService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async create(dto: CreateInternalUserDto): Promise<InternalUser> {
@@ -173,6 +177,10 @@ export class InternalUsersService {
 
   async updatePasswordHash(id: string, hashedPassword: string): Promise<void> {
     await this.internalUserRepository.update(id, { password: hashedPassword });
+    this.eventEmitter.emit(ActionSignals.PASSWORD_CHANGED, {
+      accountType: AccountType.STAFF,
+      accountId: id,
+    });
   }
 
   async hashPassword(password: string): Promise<string> {
