@@ -562,6 +562,14 @@ const ar: AdminResources = {
         title: "تم تغيير كلمة المرور",
         message: "إن لم تكن أنت من غيّرها، فغيّرها الآن وأبلغ أحد المسؤولين.",
       },
+      apiKeyCreated: {
+        title: "مفتاح API جديد: {{name}}",
+        message: "أُنشئ لفرع {{branch}}. يمكن للشركاء استخدامه مع واجهة API العامة.",
+      },
+      apiKeyRevoked: {
+        title: "أُلغي مفتاح API: {{name}}",
+        message: "لم يعد مفتاح فرع {{branch}} يعمل.",
+      },
     },
   },
   route: {

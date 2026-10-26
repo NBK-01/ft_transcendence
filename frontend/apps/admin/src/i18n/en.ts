@@ -561,6 +561,8 @@ const en = {
       },
       supportStarted: { title: "New support conversation", message: "{{name}} is waiting for an answer." },
       passwordChanged: { title: "Password changed", message: "If this wasn't you, change it now and tell an admin." },
+      apiKeyCreated: { title: "New API key: {{name}}", message: "Created for {{branch}}. Partners can use it with the public API." },
+      apiKeyRevoked: { title: "API key revoked: {{name}}", message: "The key for {{branch}} no longer works." },
     },
   },
   route: {

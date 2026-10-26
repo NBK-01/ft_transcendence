@@ -568,6 +568,14 @@ const fr: AdminResources = {
         title: "Mot de passe modifié",
         message: "Si ce n'était pas vous, changez-le maintenant et prévenez un administrateur.",
       },
+      apiKeyCreated: {
+        title: "Nouvelle clé d'API : {{name}}",
+        message: "Créée pour {{branch}}. Les partenaires peuvent l'utiliser avec l'API publique.",
+      },
+      apiKeyRevoked: {
+        title: "Clé d'API révoquée : {{name}}",
+        message: "La clé de {{branch}} ne fonctionne plus.",
+      },
     },
   },
   route: {

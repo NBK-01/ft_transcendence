@@ -1,3 +1,4 @@
+import { apiKeyHandlers } from "./api-keys";
 import { authHandlers } from "./auth";
 import { chatHandlers } from "./chat";
 import { contactHandlers } from "./contacts";
@@ -30,4 +31,5 @@ export const handlers = [
   ...contactHandlers,
   ...chatHandlers,
   ...shipmentHandlers,
+  ...apiKeyHandlers,
 ];
