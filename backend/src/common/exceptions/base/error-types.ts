@@ -18,6 +18,9 @@ import { HttpException, HttpStatus } from '@nestjs/common';
  *   13000-13999  Queues
  *   14000-14999  Contacts (reassigned from 10000-10999, then from 12000-12999
  *                after colliding with Notifications on merge with main)
+ *   15000-15999  OTP (reassigned from 4000-4999, where it collided with
+ *                Organizations — OTP was never listed in this reserved-range
+ *                comment in the first place)
  *   16000-16999  Public API (API keys, partner endpoints)
  */
 

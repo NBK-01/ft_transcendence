@@ -1,4 +1,5 @@
 import { HttpStatus } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   DeleteObjectCommand,
   GetObjectCommand,
@@ -6,8 +7,18 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl as presign } from '@aws-sdk/s3-request-presigner';
+import { Repository } from 'typeorm';
+import { AccountType, RequestUser } from '../common/context/auth-context.types';
 import { DomainException } from '../common/exceptions/base/error-types';
+import {
+  MissingRequiredDataException,
+  ValidationErrorCodes,
+} from '../common/exceptions/validation-exceptions';
+import { CryptoService } from '../common/services/crypto.service';
 import { S3Config } from '../config/s3.config';
+import { User } from '../users/user.entity';
+import { UsersController } from '../users/users.controller';
+import { UsersService } from '../users/users.service';
 import { FileStorageService } from './file-storage.service';
 import { S3StorageProvider } from './providers/s3-storage.provider';
 import {
@@ -419,6 +430,102 @@ describe('signed URL generation (getAvatarUrl / getFileUrl)', () => {
     presignMock.mockRejectedValueOnce(new Error('presign blew up'));
 
     await expectFailedUpload(service.getAvatarUrl('avatars/user-1-123.png'));
+  });
+});
+
+/** The real UsersController + UsersService over one in-memory user, storing into the real FileStorageService/S3StorageProvider above. */
+function avatarRoute() {
+  const { service } = setup();
+  const users: Partial<User>[] = [
+    { id: 'user-1', email: 'maria@example.com', avatarKey: null },
+  ];
+  const userRepository = {
+    findOne: ({ where }: { where: { id: string } }) =>
+      Promise.resolve(users.find((u) => u.id === where.id) ?? null),
+    update: (id: string, values: Partial<User>) => {
+      Object.assign(
+        users.find((u) => u.id === id)!,
+        values,
+      );
+      return Promise.resolve({ affected: 1 });
+    },
+  };
+  const usersService = new UsersService(
+    userRepository as unknown as Repository<User>,
+    {} as CryptoService,
+    service,
+    new EventEmitter2(),
+  );
+  const controller = new UsersController(usersService, service);
+  const me: RequestUser = {
+    id: 'user-1',
+    email: 'maria@example.com',
+    accountType: AccountType.CUSTOMER,
+  };
+  const upload = (file?: Express.Multer.File) =>
+    controller.uploadAvatar(file, me);
+  const avatarFile = (
+    name: string,
+    mimetype = 'image/png',
+    size = 100,
+  ): Express.Multer.File =>
+    ({
+      buffer: Buffer.alloc(size, 1),
+      originalname: name,
+      mimetype,
+    }) as Express.Multer.File;
+  return { users, controller, usersService, upload, avatarFile };
+}
+
+describe('POST /users/profile/avatar (route, end to end)', () => {
+  it('stores the file, saves only its key on the user, and returns a signed URL', async () => {
+    const { users, upload, avatarFile } = avatarRoute();
+
+    const { avatarUrl } = await upload(avatarFile('me.png'));
+
+    expect(users[0].avatarKey).toMatch(/^avatars\/user-1-\d+\.png$/);
+    expect(avatarUrl).toBe('https://signed.example/object');
+  });
+
+  it('replacing the avatar deletes the old file, so only one is kept', async () => {
+    const { users, upload, avatarFile } = avatarRoute();
+    await upload(avatarFile('first.png'));
+    const firstKey = users[0].avatarKey;
+
+    await upload(avatarFile('second.webp', 'image/webp'));
+
+    expect(users[0].avatarKey).not.toBe(firstKey);
+  });
+
+  it('an invalid new avatar is refused and the old one is untouched', async () => {
+    const { users, upload, avatarFile } = avatarRoute();
+    await upload(avatarFile('first.png'));
+    const firstKey = users[0].avatarKey;
+
+    await expectInvalidType(upload(avatarFile('cv.pdf', 'application/pdf')));
+
+    expect(users[0].avatarKey).toBe(firstKey);
+  });
+
+  it('no file at all is a clean 400 (5001), not a crash', async () => {
+    const { upload } = avatarRoute();
+
+    const error = (await upload(undefined).catch(
+      (reason: unknown) => reason,
+    )) as DomainException;
+
+    expect(error).toBeInstanceOf(MissingRequiredDataException);
+    expect(error.getStatus()).toBe(HttpStatus.BAD_REQUEST);
+    expect(error.code).toBe(ValidationErrorCodes.MissingRequiredData);
+  });
+
+  it('the profile serves a freshly signed URL for the stored key', async () => {
+    const { upload, avatarFile, usersService } = avatarRoute();
+    await upload(avatarFile('me.png'));
+
+    const profile = await usersService.getProfile('user-1');
+
+    expect(profile.avatarUrl).toBe('https://signed.example/object');
   });
 });
 

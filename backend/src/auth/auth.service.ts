@@ -324,6 +324,9 @@ export class AuthService {
     if (!user) {
       throw new UserNotFoundException(userId);
     }
+    if (!user.isActive) {
+      throw new AccountDeactivatedException();
+    }
 
     const tokens = await this.refreshTokenService.generateTokenPair(
       user,

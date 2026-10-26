@@ -242,6 +242,17 @@ describe('create', () => {
     ).resolves.toBe(true);
   });
 
+  it('stores the email lowercased and trimmed, so login can find it', async () => {
+    const { create, service } = setup();
+
+    const user = await create({ email: '  Jane.Doe@Example.COM ' });
+
+    expect(user.email).toBe('jane.doe@example.com');
+    await expect(service.findByEmail('JANE.DOE@example.com')).resolves.toBe(
+      user,
+    );
+  });
+
   it('refuses an email already in use, whatever its case (409, 8002)', async () => {
     const { create, users } = setup();
     await create({ email: 'jane@example.com' });

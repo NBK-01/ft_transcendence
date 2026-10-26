@@ -169,6 +169,7 @@ function setup(env: Record<string, string> = {}) {
   const outbox = new Outbox();
   const mail = outbox as unknown as CommunicationService;
   const jwt = new JwtService({ secret: JWT_SECRET });
+  const oauthCodes = new OAuthCodeService(redis);
   // deactivateAccount()/changePassword() read the acting user from here —
   // real AuthContextService is request-scoped (nestjs-cls), so tests set it
   // directly via `context.user` instead of threading a request through.
@@ -205,12 +206,12 @@ function setup(env: Record<string, string> = {}) {
     new PasswordResetService(redis),
     refreshTokens,
     {} as AuthProviderUserService,
-    {} as OAuthCodeService,
+    oauthCodes,
     mail,
     config,
     authContext,
   );
-  return { auth, jwt, users, sessions, outbox, context };
+  return { auth, jwt, users, sessions, outbox, oauthCodes, context };
 }
 
 type Harness = ReturnType<typeof setup>;
@@ -691,6 +692,22 @@ describe('deactivateAccount', () => {
     );
   });
 
+  it('a wrong password on a deactivated account still gets the generic error (2002), so it does not reveal the account is deactivated', async () => {
+    const harness = setup();
+    const session = await verifiedAccount(harness);
+    harness.context.user = {
+      id: session.user.id,
+      email: EMAIL,
+      accountType: AccountType.CUSTOMER,
+    };
+    await harness.auth.deactivateAccount();
+
+    await expectCode(
+      harness.auth.login({ email: EMAIL, password: 'WrongPass123!' }),
+      AuthErrorCodes.InvalidCredentials,
+    );
+  });
+
   it('revokes every session, not only the one that asked to deactivate', async () => {
     const harness = setup();
     const phone = await verifiedAccount(harness);
@@ -712,5 +729,23 @@ describe('deactivateAccount', () => {
         AuthErrorCodes.InvalidRefreshToken,
       );
     }
+    expect(harness.sessions.rows).toHaveLength(0);
+  });
+
+  it('signing in with Google is refused for a deactivated account too (2012)', async () => {
+    const harness = setup();
+    const session = await verifiedAccount(harness);
+    harness.context.user = {
+      id: session.user.id,
+      email: EMAIL,
+      accountType: AccountType.CUSTOMER,
+    };
+    await harness.auth.deactivateAccount();
+    const code = await harness.oauthCodes.generateCode(session.user.id);
+
+    await expectCode(
+      harness.auth.exchangeOAuthCode(code),
+      AuthErrorCodes.AccountDeactivated,
+    );
   });
 });

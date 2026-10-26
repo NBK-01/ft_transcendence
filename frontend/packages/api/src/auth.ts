@@ -27,7 +27,7 @@ export const WRONG_AUTH_PROVIDER = 2009;
 export const OAUTH_CODE_INVALID = 2010;
 export const GOOGLE_EMAIL_NOT_VERIFIED = 2011;
 export const EMAIL_ALREADY_REGISTERED = 1002;
-export const OTP_INVALID = 4003;
+export const OTP_INVALID = 15003;
 export const ACCOUNT_DEACTIVATED = 2012;
 
 /** GET /auth/me — the signed-in user. Only runs when there's a session to use. */
