@@ -1,6 +1,8 @@
 import { randomBytes, randomUUID } from 'crypto';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { ActionSignals } from '../notifications/action-signals';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { FindOperator, Repository } from 'typeorm';
@@ -191,6 +193,7 @@ let admin: InternalUser;
 let branches: Map<string, Organization>;
 let apiKeys: FakeApiKeyRepository;
 let service: ApiKeysService;
+let events: { emit: jest.Mock };
 
 /** A stored key without a real hash: for the tests that never check one (no bcrypt cost). */
 function seedKey(overrides: Partial<ApiKey> = {}): ApiKey {
@@ -234,6 +237,7 @@ beforeEach(async () => {
   paris = makeBranch('Paris', false);
   branches = new Map([lyon, marseille, paris].map((b) => [b.id, b]));
   apiKeys = new FakeApiKeyRepository(branches, new Map([[admin.id, admin]]));
+  events = { emit: jest.fn() };
 
   const moduleRef = await Test.createTestingModule({
     providers: [
@@ -247,6 +251,7 @@ beforeEach(async () => {
         },
       },
       { provide: ConfigService, useValue: configWith(HMAC_SECRET) },
+      { provide: EventEmitter2, useValue: events },
     ],
   }).compile();
   service = moduleRef.get(ApiKeysService);
@@ -267,6 +272,7 @@ describe('ApiKeysService setup', () => {
             repository,
             {} as Repository<Organization>,
             configWith(secret),
+            {} as EventEmitter2,
           ),
       ).toThrow(/API_KEY_HMAC_SECRET/);
     },
@@ -571,5 +577,40 @@ describe('ApiKeysService.touchLastUsed', () => {
 
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0][0]).not.toContain('stk_');
+  });
+});
+
+describe('ApiKeysService: telling the other admins', () => {
+  it('signals a new key once, masked: never the key itself', async () => {
+    const created = await createKey('Carrier sync');
+
+    expect(events.emit).toHaveBeenCalledTimes(1);
+    expect(events.emit).toHaveBeenCalledWith(ActionSignals.API_KEY_CREATED, {
+      apiKeyId: created.id,
+      name: 'Carrier sync',
+      organizationId: lyon.id,
+      branchName: 'Lyon',
+      maskedKey: created.maskedKey,
+    });
+    expect(JSON.stringify(events.emit.mock.calls)).not.toContain(created.key);
+  });
+
+  it('signals a revoke once: revoking again tells no one', async () => {
+    const row = seedKey();
+
+    await service.revoke(row.id);
+    await service.revoke(row.id);
+
+    expect(events.emit).toHaveBeenCalledTimes(1);
+    expect(events.emit).toHaveBeenCalledWith(
+      ActionSignals.API_KEY_REVOKED,
+      expect.objectContaining({ apiKeyId: row.id, branchName: 'Lyon' }),
+    );
+  });
+
+  it('signals nothing when the create or revoke fails', async () => {
+    await expect(createKey('X', paris.id)).rejects.toThrow();
+    await expect(service.revoke(randomUUID())).rejects.toThrow();
+    expect(events.emit).not.toHaveBeenCalled();
   });
 });

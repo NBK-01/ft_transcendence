@@ -50,6 +50,10 @@ export enum NotificationType {
   SHIPMENT_FILE_ADDED = 'SHIPMENT_FILE_ADDED',
   /** A security notice to the account's owner, even when they did it themselves. */
   PASSWORD_CHANGED = 'PASSWORD_CHANGED',
+  /** An admin created a partner API key. To the other admins. */
+  API_KEY_CREATED = 'API_KEY_CREATED',
+  /** An admin revoked one. To the other admins. */
+  API_KEY_REVOKED = 'API_KEY_REVOKED',
 }
 
 export interface ShipmentUpdatePayload {
@@ -103,6 +107,15 @@ export interface ShipmentFilePayload {
  * notification in its own language and link to the thing it's about. The
  * stored title/message are English only (the backend has no other locale).
  */
+/** A partner API key, as the admins' list shows it (masked: never the key itself). */
+export interface ApiKeyPayload {
+  apiKeyId: string;
+  name: string;
+  organizationId: string;
+  branchName: string;
+  maskedKey: string;
+}
+
 export interface NotificationPayloads {
   [NotificationType.SHIPMENT_UPDATE]: ShipmentUpdatePayload;
   [NotificationType.BRANCH_CREATED]: BranchPayload;
@@ -118,6 +131,8 @@ export interface NotificationPayloads {
   [NotificationType.SUPPORT_CONVERSATION_STARTED]: SupportConversationPayload;
   [NotificationType.SHIPMENT_FILE_ADDED]: ShipmentFilePayload;
   [NotificationType.PASSWORD_CHANGED]: Record<string, never>;
+  [NotificationType.API_KEY_CREATED]: ApiKeyPayload;
+  [NotificationType.API_KEY_REVOKED]: ApiKeyPayload;
 }
 
 export type NotificationPayload = NotificationPayloads[NotificationType];

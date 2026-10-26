@@ -146,6 +146,14 @@ beforeEach(() => {
 const run = (event: ActionNotificationEvent) =>
   handler.run({ data: event } as Job<ActionNotificationEvent>, services);
 
+const API_KEY = {
+  apiKeyId: 'key-1',
+  name: 'Carrier sync',
+  organizationId: 'org-1',
+  branchName: 'Beirut Central',
+  maskedKey: 'stk_9f3a…c4d2',
+};
+
 /** One event of each type, acted on by ADMIN (the password change by MEMBER, on their own account). */
 const EVENTS: { [T in ActionType]: ActionNotificationEvent & { type: T } } = {
   [NotificationType.BRANCH_CREATED]: {
@@ -250,6 +258,18 @@ const EVENTS: { [T in ActionType]: ActionNotificationEvent & { type: T } } = {
     actor: MEMBER,
     data: { account: MEMBER },
   },
+  [NotificationType.API_KEY_CREATED]: {
+    type: NotificationType.API_KEY_CREATED,
+    occurrence: 'key-1',
+    actor: ADMIN,
+    data: API_KEY,
+  },
+  [NotificationType.API_KEY_REVOKED]: {
+    type: NotificationType.API_KEY_REVOKED,
+    occurrence: 'key-1-revoked',
+    actor: ADMIN,
+    data: API_KEY,
+  },
 };
 
 /** Who each action reaches, given EVENTS: never the actor (but for the password notice), never an inactive account. */
@@ -267,6 +287,8 @@ const EXPECTED: Record<ActionType, NotificationRecipient[]> = {
   [NotificationType.SUPPORT_CONVERSATION_STARTED]: [SUPPORT, ADMIN],
   [NotificationType.SHIPMENT_FILE_ADDED]: [CUSTOMER],
   [NotificationType.PASSWORD_CHANGED]: [MEMBER],
+  [NotificationType.API_KEY_CREATED]: [OTHER_ADMIN],
+  [NotificationType.API_KEY_REVOKED]: [OTHER_ADMIN],
 };
 
 describe('actionNotificationHandler: who gets what', () => {

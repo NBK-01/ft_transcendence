@@ -144,5 +144,17 @@
       "title": "Password changed",
       "message": "Your password was changed. If this wasn't you, reset it now and contact support."
     }
+  },
+  "API_KEY_CREATED": {
+    "admins": {
+      "title": "New API key",
+      "message": "{name} was created for {branch}. Partners can use it with the public API."
+    }
+  },
+  "API_KEY_REVOKED": {
+    "admins": {
+      "title": "API key revoked",
+      "message": "{name} for {branch} was revoked. It no longer works."
+    }
   }
 }

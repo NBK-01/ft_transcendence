@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, LessThanOrEqual, Or, Repository } from 'typeorm';
 import { createHmac, randomBytes } from 'crypto';
@@ -18,6 +19,7 @@ import {
   ApiKeyBranchInactiveException,
   ApiKeyNotFoundException,
 } from './exceptions';
+import { ActionSignals, ApiKeySignal } from '../notifications/action-signals';
 import {
   API_KEY_BCRYPT_ROUNDS,
   API_KEY_HMAC_SECRET_MIN_LENGTH,
@@ -63,6 +65,8 @@ export class ApiKeysService {
     @InjectRepository(Organization)
     private readonly organizationRepository: Repository<Organization>,
     configService: ConfigService,
+    // The other admins hear about a key created or revoked (notifications).
+    private readonly eventEmitter: EventEmitter2,
   ) {
     this.hmacSecret = readHmacSecret(configService);
   }
@@ -102,7 +106,9 @@ export class ApiKeysService {
     if (!apiKey) {
       throw new ApiKeyNotFoundException(saved.id);
     }
-    return { ...ApiKeyFactory.toDto(apiKey), key };
+    const record = ApiKeyFactory.toDto(apiKey);
+    this.signal(ActionSignals.API_KEY_CREATED, record);
+    return { ...record, key };
   }
 
   /** Newest first, revoked ones included. */
@@ -124,7 +130,7 @@ export class ApiKeysService {
    */
   async revoke(id: string): Promise<ApiKeyDto> {
     // Conditional, so two revokes at once can't overwrite the first date.
-    await this.apiKeyRepository.update(
+    const result = await this.apiKeyRepository.update(
       { id, revokedAt: IsNull() },
       { revokedAt: new Date() },
     );
@@ -132,7 +138,12 @@ export class ApiKeysService {
     if (!apiKey) {
       throw new ApiKeyNotFoundException(id);
     }
-    return ApiKeyFactory.toDto(apiKey);
+    const dto = ApiKeyFactory.toDto(apiKey);
+    // Only the revoke that changed it: revoking again tells no one.
+    if (result.affected) {
+      this.signal(ActionSignals.API_KEY_REVOKED, dto);
+    }
+    return dto;
   }
 
   /* ---------------------------------------------------------------------
@@ -223,6 +234,21 @@ export class ApiKeysService {
       relations: { organization: true, createdBy: true },
     });
     return apiKey as ApiKeyWithRelations | null;
+  }
+
+  /** Emitted once the write is done (save and update commit on their own). */
+  private signal(
+    name: (typeof ActionSignals)['API_KEY_CREATED' | 'API_KEY_REVOKED'],
+    dto: ApiKeyDto,
+  ): void {
+    const signal: ApiKeySignal = {
+      apiKeyId: dto.id,
+      name: dto.name,
+      organizationId: dto.organization.id,
+      branchName: dto.organization.name,
+      maskedKey: dto.maskedKey,
+    };
+    this.eventEmitter.emit(name, signal);
   }
 
   private hmac(key: string): string {

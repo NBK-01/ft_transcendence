@@ -116,3 +116,45 @@ describe('ActionSignalsListener', () => {
     expect(built).toEqual([null, null]);
   });
 });
+
+describe('ActionSignalsListener: API keys', () => {
+  it('an API key created or revoked: the masked key as it was then, an occurrence each', async () => {
+    const built: Array<ActionNotificationEvent | null> = [];
+    const notifier = {
+      actor: () => ADMIN,
+      notify: (build: () => Promise<ActionNotificationEvent | null>) => {
+        void build().then((event) => built.push(event));
+      },
+    } as unknown as ActionNotifier;
+    const listener = new ActionSignalsListener(
+      notifier,
+      {} as ActionLookupService,
+    );
+    const key = {
+      apiKeyId: 'key-1',
+      name: 'Carrier sync',
+      organizationId: 'org-1',
+      branchName: 'Beirut Central',
+      maskedKey: 'stk_9f3a…c4d2',
+    };
+
+    listener.onApiKeyCreated(key);
+    listener.onApiKeyRevoked(key);
+    await new Promise(setImmediate);
+
+    expect(built).toEqual([
+      {
+        type: NotificationType.API_KEY_CREATED,
+        occurrence: 'key-1',
+        actor: ADMIN,
+        data: key,
+      },
+      {
+        type: NotificationType.API_KEY_REVOKED,
+        occurrence: 'key-1-revoked',
+        actor: ADMIN,
+        data: key,
+      },
+    ]);
+  });
+});

@@ -4,6 +4,7 @@ import { AccountType } from '../../common/context/auth-context.types';
 import { NotificationType } from '../../notifications/constants/notification.constants';
 import {
   ActionSignals,
+  ApiKeySignal,
   OrganizationDeactivatedSignal,
   OrganizationStaffSignal,
   PasswordChangedSignal,
@@ -81,6 +82,34 @@ export class ActionSignalsListener {
         data: { account },
       };
     });
+  }
+
+  /** A key is created once: its id is the occurrence. */
+  @OnEvent(ActionSignals.API_KEY_CREATED)
+  onApiKeyCreated(signal: ApiKeySignal): void {
+    const actor = this.notifier.actor();
+    this.notifier.notify(() =>
+      Promise.resolve({
+        type: NotificationType.API_KEY_CREATED,
+        occurrence: signal.apiKeyId,
+        actor,
+        data: signal,
+      }),
+    );
+  }
+
+  /** And revoked at most once (ApiKeysService only signals the revoke that changed it). */
+  @OnEvent(ActionSignals.API_KEY_REVOKED)
+  onApiKeyRevoked(signal: ApiKeySignal): void {
+    const actor = this.notifier.actor();
+    this.notifier.notify(() =>
+      Promise.resolve({
+        type: NotificationType.API_KEY_REVOKED,
+        occurrence: `${signal.apiKeyId}-revoked`,
+        actor,
+        data: signal,
+      }),
+    );
   }
 
   private membership(

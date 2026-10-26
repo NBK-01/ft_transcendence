@@ -1,5 +1,6 @@
 import { AttachmentKind } from '../../shipments/constants/shipment-state';
 import {
+  ApiKeyPayload,
   NotificationType,
   StaffChange,
 } from '../../notifications/constants/notification.constants';
@@ -63,6 +64,8 @@ export interface ActionDataMap {
     fileName: string;
   };
   [NotificationType.PASSWORD_CHANGED]: { account: NotificationRecipient };
+  [NotificationType.API_KEY_CREATED]: ApiKeyPayload;
+  [NotificationType.API_KEY_REVOKED]: ApiKeyPayload;
 }
 
 /**

@@ -1,6 +1,7 @@
 import { I18nService } from 'nestjs-i18n';
 import { AccountType } from '../../common/context/auth-context.types';
 import {
+  ApiKeyPayload,
   BranchPayload,
   NotificationPayloads,
   NotificationType,
@@ -88,6 +89,21 @@ async function toAdmins(
   return {
     payload: { internalUserId: data.internalUserId, name: data.name },
     args: { name: data.name },
+    audiences: [{ copy: 'admins', recipients: await lookup.findAdmins() }],
+  };
+}
+
+async function apiKeyToAdmins(
+  {
+    data,
+  }: ActionEventOf<
+    NotificationType.API_KEY_CREATED | NotificationType.API_KEY_REVOKED
+  >,
+  lookup: ActionLookupService,
+): Promise<Resolution<ApiKeyPayload>> {
+  return {
+    payload: data,
+    args: { name: data.name, branch: data.branchName },
     audiences: [{ copy: 'admins', recipients: await lookup.findAdmins() }],
   };
 }
@@ -194,6 +210,8 @@ export const RESOLVERS: { [T in ActionType]: Resolver<T> } = {
       args: {},
       audiences: [{ copy: 'self', recipients: [data.account] }],
     }),
+  [NotificationType.API_KEY_CREATED]: apiKeyToAdmins,
+  [NotificationType.API_KEY_REVOKED]: apiKeyToAdmins,
 };
 
 /** The one notice that also reaches the person who acted: if it wasn't them, they need to know. */
