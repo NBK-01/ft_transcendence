@@ -23,7 +23,8 @@
     "migration:run": "npm run typeorm -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
     "migration:show": "npm run typeorm -- migration:show",
-    "seed:bootstrap": "NODE_OPTIONS=\"--require ts-node/register\" ts-node -r tsconfig-paths/register src/database/seeds/bootstrap-admin.seed.ts"
+    "seed:bootstrap": "NODE_OPTIONS=\"--require ts-node/register\" ts-node -r tsconfig-paths/register src/database/seeds/bootstrap-admin.seed.ts",
+    "webhook:carrier": "ts-node scripts/send-carrier-webhook.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",

@@ -6,7 +6,8 @@ import { setupSwagger } from './config/swagger.config';
 import { RedisIoAdapter } from './chat/redis-io.adapter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody: webhook signatures are checked over the exact bytes received (req.rawBody).
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   // On SIGTERM/SIGINT, runs onApplicationShutdown hooks: BullMQ workers finish
   // their current job and close instead of leaving it stalled.
   app.enableShutdownHooks();

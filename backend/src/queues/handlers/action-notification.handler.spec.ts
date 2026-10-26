@@ -19,6 +19,7 @@ import {
   NotificationsService,
 } from '../../notifications/notifications.service';
 import { ActionLookupService } from '../../notifications/action-lookup.service';
+import { WebhooksService } from '../../webhooks/webhooks.service';
 import { ShipmentLookupService } from '../../notifications/shipment-lookup.service';
 import {
   ActionNotificationEvent,
@@ -139,6 +140,7 @@ beforeEach(() => {
     notificationsService: notifications as unknown as NotificationsService,
     shipmentLookupService: {} as ShipmentLookupService,
     actionLookupService: lookup as unknown as ActionLookupService,
+    webhooksService: {} as WebhooksService,
     i18n,
   };
 });

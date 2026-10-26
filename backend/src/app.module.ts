@@ -27,6 +27,7 @@ import { ShipmentsModule } from './shipments/shipments.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { QueuesModule } from './queues/queues.module';
 import { PublicApiModule } from './public-api/public-api.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
@@ -71,6 +72,7 @@ import { AccessControlGuard } from './access-control/guards/access-control.guard
     NotificationsModule,
     QueuesModule,
     PublicApiModule,
+    WebhooksModule,
     // Domain modules land here as they're built.
   ],
   providers: [
