@@ -587,6 +587,7 @@ const en = {
       passwordChanged: { title: "Password changed", message: "If this wasn't you, change it now and tell an admin." },
       apiKeyCreated: { title: "New API key: {{name}}", message: "Created for {{branch}}. Partners can use it with the public API." },
       apiKeyRevoked: { title: "API key revoked: {{name}}", message: "The key for {{branch}} no longer works." },
+      shipmentBranch: { title: "New order for your branch", message: "{{trackingId}} is now handled by {{branch}}." },
       customerRegistered: { title: "New customer: {{name}}", message: "They created an account in the customer app." },
       customerDeactivated: {
         title: "Customer account closed: {{name}}",
@@ -627,6 +628,11 @@ const en = {
       fileAdded: { title: "File added to {{trackingId}}", message: "You added {{fileName}}." },
       apiKeyCreated: { title: "API key created: {{name}}", message: "You created it for {{branchName}}." },
       apiKeyRevoked: { title: "API key revoked: {{name}}", message: "You revoked the key for {{branchName}}. It no longer works." },
+      shipmentBranch: {
+        title: "Branch changed: {{trackingId}}",
+        assigned: "You handed it to {{branch}}.",
+        removed: "You took it off its branch.",
+      },
       contactDeclined: { title: "Contact request declined", message: "You declined {{name}}'s request." },
       contactCancelled: { title: "Contact request withdrawn", message: "You withdrew your request to {{name}}." },
       contactRemoved: { title: "Contact removed", message: "You removed {{name}} from your contacts." },

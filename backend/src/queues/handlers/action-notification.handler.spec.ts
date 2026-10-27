@@ -156,6 +156,11 @@ beforeEach(() => {
         : (STAFF_NAMES[account.id] ?? 'Rami Khoury'),
     ),
     findConversation: jest.fn(async (id: string) => CONVERSATIONS[id] ?? null),
+    findOrganization: jest.fn(async (id: string) => ({
+      id,
+      name: 'Beirut Central',
+    })),
+    findBranchStaffIds: jest.fn(async () => [MEMBER.id, INACTIVE_MEMBER.id]),
     findContact: jest.fn(async () => ({
       requester: { id: MEMBER.id, name: 'Rami Khoury' },
       addressee: { id: OTHER_ADMIN.id, name: 'Youssef Benali' },
@@ -324,6 +329,12 @@ const EVENTS: { [T in ActionType]: ActionNotificationEvent & { type: T } } = {
       fileName: 'proof.pdf',
     },
   },
+  [NotificationType.SHIPMENT_BRANCH_ASSIGNED]: {
+    type: NotificationType.SHIPMENT_BRANCH_ASSIGNED,
+    occurrence: 'shipment-1-1',
+    actor: ADMIN,
+    data: { shipmentId: 'shipment-1', organizationId: 'org-1' },
+  },
   [NotificationType.PASSWORD_CHANGED]: {
     type: NotificationType.PASSWORD_CHANGED,
     occurrence: 'member-1-5',
@@ -428,6 +439,8 @@ const EXPECTED: Record<ActionType, NotificationRecipient[]> = {
   [NotificationType.CONTACT_REQUEST_ACCEPTED]: [MEMBER],
   [NotificationType.SUPPORT_CONVERSATION_STARTED]: [SUPPORT, ADMIN],
   [NotificationType.SHIPMENT_FILE_ADDED]: [CUSTOMER],
+  // The branch's active staff.
+  [NotificationType.SHIPMENT_BRANCH_ASSIGNED]: [MEMBER],
   [NotificationType.PASSWORD_CHANGED]: [MEMBER],
   [NotificationType.API_KEY_CREATED]: [OTHER_ADMIN],
   [NotificationType.API_KEY_REVOKED]: [OTHER_ADMIN],

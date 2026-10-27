@@ -244,6 +244,23 @@ const KINDS: { [T in NotificationType]: Kind<T> } = {
     own: own("fileAdded"),
     href: ({ payload }, reader) => shipmentPath(payload.trackingId, reader),
   },
+  SHIPMENT_BRANCH_ASSIGNED: {
+    icon: Package,
+    wording: ({ payload }, t) => ({
+      title: t("notifications.types.shipmentBranch.title"),
+      message: t("notifications.types.shipmentBranch.message", {
+        trackingId: payload.trackingId,
+        branch: payload.branchName ?? "",
+      }),
+    }),
+    own: ({ payload }, t) => ({
+      title: t("notifications.own.shipmentBranch.title", { trackingId: payload.trackingId }),
+      message: payload.branchName
+        ? t("notifications.own.shipmentBranch.assigned", { branch: payload.branchName })
+        : t("notifications.own.shipmentBranch.removed"),
+    }),
+    href: ({ payload }, reader) => shipmentPath(payload.trackingId, reader),
+  },
   PASSWORD_CHANGED: {
     icon: KeyRound,
     wording: (_, t) => ({

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { useStaffSession } from "./staff-auth";
+import { useStaffMe, useStaffSession } from "./staff-auth";
 
 /**
  * Which staff role may do what: a copy of the backend's ROLE_PERMISSION_MATRIX
@@ -46,15 +46,24 @@ export function roleCan(roleName: string | null | undefined, permission: Permiss
 }
 
 /**
- * What the signed-in staff member may see and do, from the role they signed
- * in with. `isAdmin` is for the endpoints the backend limits to the admin role
- * (staff accounts, roles); `can` is for permission checks (e.g. "organizations:manage").
+ * What the signed-in staff member may see and do: from GET /staff-auth/me once
+ * it's loaded, from the role they signed in with until then. `isAdmin` is for
+ * the endpoints the backend limits to the admin role (staff accounts, roles);
+ * `can` is for permission checks (e.g. "organizations:manage").
  */
 export function useStaffAccess() {
   const { user } = useStaffSession();
-  const roleName = user?.roleName ?? null;
-  return useMemo(
-    () => ({ isAdmin: roleName === "admin", can: (permission: Permission) => roleCan(roleName, permission) }),
-    [roleName],
-  );
+  const me = useStaffMe({ enabled: user !== null }).data;
+  const roleName = me?.roleName ?? user?.roleName ?? null;
+  return useMemo(() => {
+    const can = (permission: Permission) => (me ? me.permissions.includes(permission) : roleCan(roleName, permission));
+    return {
+      isAdmin: roleName === "admin",
+      can,
+      /** Works on their own branch's shipments only (a dispatcher): `shipments:read:org` without `:read:all`. */
+      branchScoped: !can("shipments:read:all") && can("shipments:read:org"),
+      /** Their branch: null when they're in none, undefined until /staff-auth/me has loaded. */
+      organization: me ? me.organization : undefined,
+    };
+  }, [me, roleName]);
 }

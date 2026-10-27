@@ -54,6 +54,8 @@ export enum NotificationType {
   SUPPORT_CONVERSATION_STARTED = 'SUPPORT_CONVERSATION_STARTED',
   /** Staff attached a file to a shipment. To its customer. */
   SHIPMENT_FILE_ADDED = 'SHIPMENT_FILE_ADDED',
+  /** An admin handed a customer's order to a branch (or took it off one). To that branch's staff. */
+  SHIPMENT_BRANCH_ASSIGNED = 'SHIPMENT_BRANCH_ASSIGNED',
   /** A security notice to the account's owner, even when they did it themselves. */
   PASSWORD_CHANGED = 'PASSWORD_CHANGED',
   /** An admin created a partner API key. To the other admins. */
@@ -136,6 +138,13 @@ export interface ShipmentFilePayload {
   fileName: string;
 }
 
+/** The branch an order now belongs to; null when it was taken off one. */
+export interface ShipmentBranchPayload {
+  trackingId: string;
+  organizationId: string | null;
+  branchName: string | null;
+}
+
 export interface CustomerPayload {
   customerId: string;
   name: string;
@@ -190,6 +199,7 @@ export interface NotificationPayloads {
   [NotificationType.CONTACT_REQUEST_ACCEPTED]: ContactPayload;
   [NotificationType.SUPPORT_CONVERSATION_STARTED]: SupportConversationPayload;
   [NotificationType.SHIPMENT_FILE_ADDED]: ShipmentFilePayload;
+  [NotificationType.SHIPMENT_BRANCH_ASSIGNED]: ShipmentBranchPayload;
   [NotificationType.PASSWORD_CHANGED]: Record<string, never>;
   [NotificationType.API_KEY_CREATED]: ApiKeyPayload;
   [NotificationType.API_KEY_REVOKED]: ApiKeyPayload;

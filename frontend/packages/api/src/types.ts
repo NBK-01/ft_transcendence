@@ -98,6 +98,14 @@ export type StaffUser = {
   roleName: string | null;
 };
 
+/** GET /staff-auth/me (backend StaffMeDto): the signed-in staff member as they are now. */
+export type StaffMe = StaffUser & {
+  organizationId: string | null;
+  organization: { id: string; name: string; isActive: boolean } | null;
+  /** Their role's permissions (an admin passes every check anyway). */
+  permissions: string[];
+};
+
 /** POST /staff-auth/login body. */
 export type StaffLoginInput = { email: string; password: string };
 
@@ -524,6 +532,8 @@ export type NotificationType =
   | "SUPPORT_CONVERSATION_STARTED"
   /** To the shipment's customer. */
   | "SHIPMENT_FILE_ADDED"
+  /** An admin handed a customer's order to a branch (or took it off one). To that branch's staff. */
+  | "SHIPMENT_BRANCH_ASSIGNED"
   /** To the account's owner, even when they did it. */
   | "PASSWORD_CHANGED"
   /** An admin created a partner API key. To the other admins. */
@@ -602,6 +612,9 @@ export type SupportConversationPayload = { conversationId: string; customerName:
 
 export type ShipmentFilePayload = { trackingId: string; kind: AttachmentKind; fileName: string };
 
+/** The branch an order now belongs to; null when it was taken off one. */
+export type ShipmentBranchPayload = { trackingId: string; organizationId: string | null; branchName: string | null };
+
 /** A partner API key, masked: never the key itself. */
 export type ApiKeyPayload = {
   apiKeyId: string;
@@ -627,6 +640,7 @@ export type NotificationPayloads = {
   CONTACT_REQUEST_ACCEPTED: ContactNotificationPayload;
   SUPPORT_CONVERSATION_STARTED: SupportConversationPayload;
   SHIPMENT_FILE_ADDED: ShipmentFilePayload;
+  SHIPMENT_BRANCH_ASSIGNED: ShipmentBranchPayload;
   PASSWORD_CHANGED: Record<string, never>;
   API_KEY_CREATED: ApiKeyPayload;
   API_KEY_REVOKED: ApiKeyPayload;

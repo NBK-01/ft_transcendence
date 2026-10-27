@@ -64,6 +64,14 @@ export class InternalUsersService {
     });
   }
 
+  /** With the role and the branch, for GET /staff-auth/me. */
+  async findWithBranch(id: string): Promise<InternalUser | null> {
+    return this.internalUserRepository.findOne({
+      where: { id },
+      relations: ['role', 'organization'],
+    });
+  }
+
   async findByEmail(email: string): Promise<InternalUser | null> {
     return this.internalUserRepository.findOne({
       where: { email: email.toLowerCase().trim() },

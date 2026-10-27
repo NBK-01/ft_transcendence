@@ -594,6 +594,7 @@ const ar: AdminResources = {
         title: "أُلغي مفتاح API: {{name}}",
         message: "لم يعد مفتاح فرع {{branch}} يعمل.",
       },
+      shipmentBranch: { title: "طلب جديد لفرعك", message: "أصبحت {{trackingId}} من مسؤولية {{branch}}." },
       customerRegistered: { title: "عميل جديد: {{name}}", message: "أنشأ حسابًا في تطبيق العملاء." },
       customerDeactivated: { title: "تم إغلاق حساب عميل: {{name}}", message: "أغلق حسابه. تبقى شحناته محفوظة." },
       profileUpdated: {
@@ -630,6 +631,11 @@ const ar: AdminResources = {
       fileAdded: { title: "تمت إضافة ملف إلى {{trackingId}}", message: "أضفت {{fileName}}." },
       apiKeyCreated: { title: "تم إنشاء مفتاح API: {{name}}", message: "أنشأته لفرع {{branchName}}." },
       apiKeyRevoked: { title: "تم إلغاء مفتاح API: {{name}}", message: "ألغيت مفتاح فرع {{branchName}}. لم يعد يعمل." },
+      shipmentBranch: {
+        title: "تم تغيير الفرع: {{trackingId}}",
+        assigned: "أسندتها إلى {{branch}}.",
+        removed: "أزلتها من فرعها.",
+      },
       contactDeclined: { title: "تم رفض طلب الاتصال", message: "رفضت طلب {{name}}." },
       contactCancelled: { title: "تم سحب طلب الاتصال", message: "سحبت طلبك إلى {{name}}." },
       contactRemoved: { title: "تمت إزالة جهة الاتصال", message: "أزلت {{name}} من جهات اتصالك." },

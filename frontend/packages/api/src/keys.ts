@@ -15,6 +15,9 @@ export const keys = {
   auth: {
     me: ["auth", "me"] as const,
   },
+  staffAuth: {
+    me: ["staff-auth", "me"] as const,
+  },
   internalUsers: {
     all: ["internal-users"] as const,
     list: () => [...keys.internalUsers.all, "list"] as const,

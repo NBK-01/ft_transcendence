@@ -306,6 +306,35 @@ export const RESOLVERS: { [T in ActionType]: Resolver<T> } = {
       ],
     };
   },
+  [NotificationType.SHIPMENT_BRANCH_ASSIGNED]: async ({ data }, lookup) => {
+    const [shipment, branch] = await Promise.all([
+      lookup.findShipment(data.shipmentId),
+      data.organizationId ? lookup.findOrganization(data.organizationId) : null,
+    ]);
+    if (!shipment) {
+      return null;
+    }
+    const branchName = branch?.name ?? null;
+    return {
+      payload: {
+        trackingId: shipment.trackingId,
+        organizationId: data.organizationId,
+        branchName,
+      },
+      args: { trackingId: shipment.trackingId, branch: branchName ?? '' },
+      // Taken off a branch: only the admin's record.
+      audiences: branch
+        ? [
+            {
+              copy: 'staff',
+              recipients: staff(
+                ...(await lookup.findBranchStaffIds(branch.id)),
+              ),
+            },
+          ]
+        : [],
+    };
+  },
   [NotificationType.PASSWORD_CHANGED]: ({ data }) =>
     Promise.resolve({
       payload: {},

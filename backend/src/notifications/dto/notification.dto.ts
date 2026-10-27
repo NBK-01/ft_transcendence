@@ -37,6 +37,7 @@ export class NotificationDto {
       'CONTACT_REQUEST_*: { contactId, internalUserId, name } (the other person).',
       'SUPPORT_CONVERSATION_STARTED: { conversationId, customerName }.',
       'SHIPMENT_FILE_ADDED: { trackingId, kind, fileName }.',
+      'SHIPMENT_BRANCH_ASSIGNED: { trackingId, organizationId, branchName } (null when taken off a branch).',
       'PASSWORD_CHANGED: {}.',
       'API_KEY_*: { apiKeyId, name, organizationId, branchName, maskedKey }.',
       'CUSTOMER_REGISTERED / CUSTOMER_ACCOUNT_DEACTIVATED: { customerId, name }.',

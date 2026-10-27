@@ -66,6 +66,10 @@ export interface ActionDataMap {
     fileName: string;
   };
   [NotificationType.PASSWORD_CHANGED]: { account: NotificationRecipient };
+  [NotificationType.SHIPMENT_BRANCH_ASSIGNED]: {
+    shipmentId: string;
+    organizationId: string | null;
+  };
   [NotificationType.API_KEY_CREATED]: ApiKeyPayload;
   [NotificationType.API_KEY_REVOKED]: ApiKeyPayload;
   [NotificationType.CUSTOMER_REGISTERED]: { customerId: string; name: string };

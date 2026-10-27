@@ -1,8 +1,8 @@
 import { http } from "msw/http";
 
-import { INSUFFICIENT_PERMISSIONS, roleCan } from "../permissions";
-import type { MessageResponse, StaffAuthResponse, TokenPair } from "../types";
-import { internalUsers, staffPasswords } from "./data";
+import { INSUFFICIENT_PERMISSIONS, ROLE_PERMISSIONS, roleCan, type StaffRole } from "../permissions";
+import type { MessageResponse, StaffAuthResponse, StaffMe, TokenPair } from "../types";
+import { internalUsers, ORGANIZATIONS, staffPasswords } from "./data";
 import { notifyAction } from "./notification-store";
 import { error, ok } from "./respond";
 
@@ -67,8 +67,11 @@ export const staffCaller = (request: Request) => {
 function roleAllows(roleName: string | null, method: string, pathname: string) {
   if (/\/api\/(internal-users|access-control|api-keys)(\/|$)/.test(pathname)) return roleName === "admin";
   if (/\/api\/organizations(\/|$)/.test(pathname)) return method === "GET" || roleCan(roleName, "organizations:manage");
+  if (/\/api\/admin\/shipments\/[^/]+\/branch$/.test(pathname)) return roleCan(roleName, "organizations:manage");
   if (/\/api\/admin\/shipments(\/|$)/.test(pathname)) {
-    return roleCan(roleName, method === "GET" ? "shipments:read:all" : "shipments:update:org");
+    if (method !== "GET") return roleCan(roleName, "shipments:update:org");
+    // Which shipments they then see is the handlers' business (scopeOf in shipments.ts).
+    return roleCan(roleName, "shipments:read:all") || roleCan(roleName, "shipments:read:org");
   }
   if (/\/api\/admin\/stats(\/|$)/.test(pathname)) return roleCan(roleName, "shipments:read:all");
   return true;
@@ -84,7 +87,9 @@ function roleAllows(roleName: string | null, method: string, pathname: string) {
  *  - Branches: any staff member may read; changes need "organizations:manage".
  *  - Contacts: any staff member.
  *  - Shipments (/admin/shipments): reading needs "shipments:read:all" (admin,
- *    support), every change "shipments:update:org" (admin, dispatcher).
+ *    support) or "shipments:read:org" (a dispatcher, their branch's only),
+ *    every change "shipments:update:org" (admin, dispatcher), assigning a
+ *    branch "organizations:manage".
  *  - Stats (/admin/stats): "shipments:read:all", like reading shipments.
  */
 export const requireStaffAccess = http.all(
@@ -136,6 +141,26 @@ export const staffAuthHandlers = [
     const { refreshToken } = (await request.json()) as { refreshToken?: string };
     if (refreshToken) revoked.add(refreshToken);
     return ok<MessageResponse>({ message: "Logged out" });
+  }),
+
+  // StaffAuthService.me: the account as it is now, with its branch and its role's permissions.
+  http.get("*/api/staff-auth/me", ({ request }) => {
+    const { caller, response } = staffCaller(request);
+    if (!caller) return response;
+    const branch = ORGANIZATIONS.find((org) => org.id === caller.organizationId);
+    const permissions =
+      caller.roleName && Object.hasOwn(ROLE_PERMISSIONS, caller.roleName)
+        ? [...ROLE_PERMISSIONS[caller.roleName as StaffRole]]
+        : [];
+    return ok<StaffMe>({
+      id: caller.id,
+      email: caller.email,
+      name: caller.name,
+      roleName: caller.roleName,
+      organizationId: caller.organizationId,
+      organization: branch ? { id: branch.id, name: branch.name, isActive: branch.isActive } : null,
+      permissions,
+    });
   }),
 
   http.post("*/api/staff-auth/logout-all", ({ request }) => {

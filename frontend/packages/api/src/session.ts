@@ -79,6 +79,11 @@ export const tokens = {
     if (user !== undefined) write(userKey(), JSON.stringify(user));
     emit();
   },
+  /** Replaces the stored user, keeping the tokens (e.g. after a rename). */
+  setUser(user: unknown) {
+    write(userKey(), JSON.stringify(user));
+    emit();
+  },
   clear() {
     accessToken = null;
     write(refreshKey, null);

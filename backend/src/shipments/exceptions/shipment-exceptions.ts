@@ -8,6 +8,8 @@ export enum ShipmentErrorCodes {
   LinkOrPhotosRequired = 3003,
   TooManyImages = 3004,
   CardExpired = 3005,
+  // 3006 and 3007 are taken by file deletion.
+  ShipmentBranchLocked = 3008,
 }
 
 export enum ShipmentErrorMessages {
@@ -16,6 +18,7 @@ export enum ShipmentErrorMessages {
   LinkOrPhotosRequired = 'errors.SHIPMENT_LINK_OR_PHOTOS',
   TooManyImages = 'errors.SHIPMENT_TOO_MANY_IMAGES',
   CardExpired = 'errors.CARD_EXPIRED',
+  ShipmentBranchLocked = 'errors.SHIPMENT_BRANCH_LOCKED',
 }
 
 /** Also thrown when the shipment exists but belongs to another client — never reveal that it exists. */
@@ -67,6 +70,20 @@ export class CardExpiredException extends DomainException {
       { key: ShipmentErrorMessages.CardExpired },
       HttpStatus.BAD_REQUEST,
       ShipmentErrorCodes.CardExpired,
+    );
+  }
+}
+
+/** A partner's shipment stays with the branch whose API key created it. */
+export class ShipmentBranchLockedException extends DomainException {
+  constructor(trackingId: string) {
+    super(
+      {
+        key: ShipmentErrorMessages.ShipmentBranchLocked,
+        params: { trackingId },
+      },
+      HttpStatus.CONFLICT,
+      ShipmentErrorCodes.ShipmentBranchLocked,
     );
   }
 }

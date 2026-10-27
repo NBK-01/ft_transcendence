@@ -1,13 +1,15 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useSyncExternalStore } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 
 import { api } from "./client";
+import { keys } from "./keys";
 import { tokens } from "./session";
 import type {
   MessageResponse,
   StaffAuthResponse,
   StaffChangePasswordInput,
   StaffLoginInput,
+  StaffMe,
   StaffUser,
 } from "./types";
 
@@ -40,6 +42,29 @@ export function useStaffSession(): StaffSessionState {
   return session === "active" && user
     ? { status: "authenticated", user }
     : { status: "anonymous", user: null, signedOut: session === "signed-out" };
+}
+
+/**
+ * GET /staff-auth/me: the signed-in staff member as they are now, with their
+ * branch and permissions. It also brings the stored session user up to date,
+ * so a rename or a new role shows in the account menu without signing in again.
+ */
+export function useStaffMe({ enabled = true }: { enabled?: boolean } = {}) {
+  const query = useQuery({
+    queryKey: keys.staffAuth.me,
+    queryFn: ({ signal }) => api.get<StaffMe>("/staff-auth/me", { signal }),
+    enabled,
+    staleTime: 60_000,
+  });
+  const me = query.data;
+  useEffect(() => {
+    const stored = tokens.getUser<StaffUser>();
+    if (!me || !stored || stored.id !== me.id) return;
+    if (stored.name !== me.name || stored.email !== me.email || stored.roleName !== me.roleName) {
+      tokens.setUser({ id: me.id, email: me.email, name: me.name, roleName: me.roleName });
+    }
+  }, [me]);
+  return query;
 }
 
 /** POST /staff-auth/login. On success the session starts; errors are ApiErrors (8003, 7003). */

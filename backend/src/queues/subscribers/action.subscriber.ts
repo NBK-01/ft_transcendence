@@ -18,6 +18,7 @@ import {
 } from '../../chat/entities/conversation.entity';
 import { Message } from '../../chat/entities/message.entity';
 import { ShipmentFile } from '../../shipments/entities/shipment-file.entity';
+import { Shipment } from '../../shipments/entities/shipment.entity';
 import { User } from '../../users/user.entity';
 import { ATTACHMENT_KINDS } from '../../shipments/constants/shipment-state';
 import {
@@ -58,6 +59,7 @@ const contactParties = ({ id, requesterId, addresseeId }: Contact) => ({
  *    removed (ContactsService)
  *  - support conversation or staff DM started, message sent (ChatService)
  *  - an attachment added to a shipment (AdminShipmentsService.uploadFile)
+ *  - a customer's order handed to a branch (AdminShipmentsService.assignBranch)
  */
 @Injectable()
 export class ActionSubscriber implements EntitySubscriberInterface {
@@ -207,7 +209,24 @@ export class ActionSubscriber implements EntitySubscriberInterface {
     if (target === Contact) {
       return this.contactChanged(before as Contact, after as Contact, actor);
     }
+    if (target === Shipment) {
+      return this.branchAssigned(before as Shipment, after as Shipment, actor);
+    }
     return null;
+  }
+
+  /** A customer's order handed to a branch, or taken off one (AdminShipmentsService.assignBranch). */
+  private branchAssigned(before: Shipment, after: Shipment, actor: Actor) {
+    const organizationId = after.organizationId ?? null;
+    if ((before.organizationId ?? null) === organizationId) {
+      return null;
+    }
+    return async (): Promise<ActionNotificationEvent> => ({
+      type: NotificationType.SHIPMENT_BRANCH_ASSIGNED,
+      occurrence: occurrenceOf(after.id, after.updatedAt),
+      actor,
+      data: { shipmentId: after.id, organizationId },
+    });
   }
 
   /** A customer's SUPPORT conversation, or a staff DM. */

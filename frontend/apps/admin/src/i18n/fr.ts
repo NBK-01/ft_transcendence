@@ -603,6 +603,10 @@ const fr: AdminResources = {
         title: "Clé d'API révoquée : {{name}}",
         message: "La clé de {{branch}} ne fonctionne plus.",
       },
+      shipmentBranch: {
+        title: "Nouvelle commande pour votre agence",
+        message: "{{trackingId}} est désormais prise en charge par {{branch}}.",
+      },
       customerRegistered: {
         title: "Nouveau client : {{name}}",
         message: "La personne a créé un compte dans l'application client.",
@@ -651,6 +655,11 @@ const fr: AdminResources = {
       apiKeyRevoked: {
         title: "Clé d'API révoquée : {{name}}",
         message: "Vous avez révoqué la clé de {{branchName}}. Elle ne fonctionne plus.",
+      },
+      shipmentBranch: {
+        title: "Agence modifiée : {{trackingId}}",
+        assigned: "Vous l'avez confiée à {{branch}}.",
+        removed: "Vous l'avez retirée de son agence.",
       },
       contactDeclined: { title: "Demande de contact refusée", message: "Vous avez refusé la demande de {{name}}." },
       contactCancelled: { title: "Demande de contact retirée", message: "Vous avez retiré votre demande à {{name}}." },

@@ -259,6 +259,16 @@
       "message": "You added {fileName} to {trackingId}."
     }
   },
+  "SHIPMENT_BRANCH_ASSIGNED": {
+    "staff": {
+      "title": "New order for your branch",
+      "message": "{trackingId} is now handled by {branch}."
+    },
+    "actor": {
+      "title": "Branch changed",
+      "message": "You changed the branch of {trackingId}."
+    }
+  },
   "PASSWORD_CHANGED": {
     "self": {
       "title": "Password changed",

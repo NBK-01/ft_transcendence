@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AccessControlModule } from '../access-control/access-control.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { FileStorageModule } from '../file-storage/file-storage.module';
 import { Shipment } from './entities/shipment.entity';
@@ -21,6 +22,7 @@ import { AdminShipmentsController } from './admin-shipments.controller';
       ShipmentPayment,
     ]),
     FileStorageModule,
+    AccessControlModule,
   ],
   controllers: [ShipmentsController, AdminShipmentsController],
   providers: [ShipmentsService, AdminShipmentsService],

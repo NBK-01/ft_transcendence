@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Req } from '@nestjs/common';
 import { Request } from 'express';
 import {
   ApiTags,
@@ -11,6 +11,7 @@ import { TokenMetadata } from './services/internal-refresh-token.service';
 import { StaffLoginDto } from './dto/staff-login.dto';
 import { StaffRefreshTokenDto } from './dto/staff-refresh-token.dto';
 import { StaffChangePasswordDto } from './dto/staff-change-password.dto';
+import { StaffMeDto } from './dto/staff-me.dto';
 import { Public, RequireStaff } from '../common/decorators';
 import { AuthContextService } from '../common/context';
 
@@ -62,6 +63,18 @@ export class StaffAuthController {
   @ApiResponse({ status: 200, description: 'Logged out' })
   async logout(@Body() dto: StaffRefreshTokenDto) {
     return this.staffAuthService.logout(dto.refreshToken);
+  }
+
+  @RequireStaff()
+  @Get('me')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'The signed-in staff member: role, branch and permissions',
+  })
+  @ApiResponse({ status: 200, type: StaffMeDto })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async me() {
+    return this.staffAuthService.me();
   }
 
   @RequireStaff()

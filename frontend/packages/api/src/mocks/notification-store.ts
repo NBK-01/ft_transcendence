@@ -243,6 +243,7 @@ export type ActionNotice =
     }
   | { type: "SUPPORT_CONVERSATION_STARTED"; conversationId: string; customerName: string }
   | { type: "SHIPMENT_FILE_ADDED"; trackingId: string; clientId: string; kind: AttachmentKind; fileName: string }
+  | { type: "SHIPMENT_BRANCH_ASSIGNED"; trackingId: string; branch: Branch | null }
   | { type: "PASSWORD_CHANGED" | "SESSIONS_REVOKED"; account: Who }
   | { type: "API_KEY_CREATED" | "API_KEY_REVOKED"; apiKey: ApiKeyPayload }
   | { type: "CUSTOMER_REGISTERED"; customerId: string; name: string }
@@ -321,6 +322,10 @@ const ACTION_COPY = {
     proof_of_delivery: ["Proof of delivery", "The proof of delivery for {trackingId} is ready."],
     other: ["New document", "{fileName} was added to {trackingId}."],
     actor: ["File added", "You added {fileName} to {trackingId}."],
+  },
+  SHIPMENT_BRANCH_ASSIGNED: {
+    staff: ["New order for your branch", "{trackingId} is now handled by {branch}."],
+    actor: ["Branch changed", "You changed the branch of {trackingId}."],
   },
   PASSWORD_CHANGED: {
     self: ["Password changed", "Your password was changed. If this wasn't you, reset it now and contact support."],
@@ -460,6 +465,16 @@ function resolve(notice: ActionNotice): Resolution {
           },
         ],
       };
+    case "SHIPMENT_BRANCH_ASSIGNED": {
+      const { branch } = notice;
+      const members = branch ? internalUsers.filter((user) => user.organizationId === branch.id).map((user) => user.id) : [];
+      return {
+        payload: { trackingId: notice.trackingId, organizationId: branch?.id ?? null, branchName: branch?.name ?? null },
+        args: { trackingId: notice.trackingId, branch: branch?.name ?? "" },
+        // Taken off a branch: only the admin's record.
+        audiences: branch ? [{ copy: ACTION_COPY.SHIPMENT_BRANCH_ASSIGNED.staff, recipients: staffIds(...members) }] : [],
+      };
+    }
     case "PASSWORD_CHANGED":
     case "SESSIONS_REVOKED":
       return { payload: {}, args: {}, audiences: [{ copy: ACTION_COPY[notice.type].self, recipients: [notice.account] }] };

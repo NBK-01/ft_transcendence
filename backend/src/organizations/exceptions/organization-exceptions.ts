@@ -6,6 +6,7 @@ export enum OrganizationErrorCodes {
   OrganizationAlreadyExists = 4002,
   OrganizationInUse = 4003,
   StaffNotInOrganization = 4004,
+  OrganizationInactive = 4005,
 }
 
 export enum OrganizationErrorMessages {
@@ -13,6 +14,7 @@ export enum OrganizationErrorMessages {
   OrganizationAlreadyExists = 'errors.ORGANIZATION_ALREADY_EXISTS',
   OrganizationInUse = 'errors.ORGANIZATION_IN_USE',
   StaffNotInOrganization = 'errors.STAFF_NOT_IN_ORGANIZATION',
+  OrganizationInactive = 'errors.ORGANIZATION_INACTIVE',
 }
 
 export class OrganizationNotFoundException extends DomainException {
@@ -62,6 +64,17 @@ export class StaffNotInOrganizationException extends DomainException {
       },
       HttpStatus.NOT_FOUND,
       OrganizationErrorCodes.StaffNotInOrganization,
+    );
+  }
+}
+
+/** A deactivated branch takes no new work: reactivate it first. */
+export class OrganizationInactiveException extends DomainException {
+  constructor(name: string) {
+    super(
+      { key: OrganizationErrorMessages.OrganizationInactive, params: { name } },
+      HttpStatus.CONFLICT,
+      OrganizationErrorCodes.OrganizationInactive,
     );
   }
 }

@@ -12,6 +12,8 @@ import {
 import { AuthContextService } from '../common/context';
 import { StaffLoginDto } from './dto/staff-login.dto';
 import { StaffChangePasswordDto } from './dto/staff-change-password.dto';
+import { StaffMeDto } from './dto/staff-me.dto';
+import { AccessControlService } from '../access-control/access-control.service';
 import { InternalUserNotFoundException } from '../internal-users/exceptions';
 import {
   InvalidStaffCredentialsException,
@@ -21,13 +23,43 @@ import { InternalUserInactiveException } from '../access-control/exceptions';
 
 @Injectable()
 export class StaffAuthService {
+  // eslint-disable-next-line max-params
   constructor(
     private readonly jwtService: JwtService,
     private readonly internalUsersService: InternalUsersService,
     private readonly internalRefreshTokenService: InternalRefreshTokenService,
     private readonly authContext: AuthContextService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly accessControlService: AccessControlService,
   ) {}
+
+  /** The signed-in staff member as they are now: a rename, a new role or branch shows without signing in again. */
+  async me(): Promise<StaffMeDto> {
+    const { id } = this.authContext.requireUser();
+    const [staff, permissions] = await Promise.all([
+      this.internalUsersService.findWithBranch(id),
+      this.accessControlService.getEffectivePermissions(id),
+    ]);
+    if (!staff) {
+      throw new InternalUserNotFoundException(id);
+    }
+    const { organization } = staff;
+    return {
+      id: staff.id,
+      email: staff.email,
+      name: staff.name,
+      roleName: staff.role?.name ?? null,
+      organizationId: staff.organizationId,
+      organization: organization
+        ? {
+            id: organization.id,
+            name: organization.name,
+            isActive: organization.isActive,
+          }
+        : null,
+      permissions,
+    };
+  }
 
   async login(dto: StaffLoginDto, metadata?: TokenMetadata) {
     const staff = await this.internalUsersService.findByEmail(dto.email);
