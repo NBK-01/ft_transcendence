@@ -1,3 +1,4 @@
+import { ConversationType } from '../../chat/entities/conversation.entity';
 import { ShipmentActorType } from '../../shipments/constants/shipment-actor';
 import {
   AttachmentKind,
@@ -20,7 +21,9 @@ export enum NotificationStatus {
 /**
  * What the notification is about. Frontends pick their own wording from this
  * plus `payload`. Everything but SHIPMENT_UPDATE comes from the
- * ACTION_NOTIFICATION job: something was created, changed or deleted.
+ * ACTION_NOTIFICATION job: something was created, changed or deleted. Who's
+ * told is noted on each; whoever acted also gets a record of it
+ * (ownAction), except for the security notices and messages.
  */
 export enum NotificationType {
   /** A new step on a shipment's timeline (any ShipmentEvent). */
@@ -55,6 +58,30 @@ export enum NotificationType {
   API_KEY_CREATED = 'API_KEY_CREATED',
   /** An admin revoked one. To the other admins. */
   API_KEY_REVOKED = 'API_KEY_REVOKED',
+  /** A customer signed up (email or Google). A welcome to them, and to the admins. */
+  CUSTOMER_REGISTERED = 'CUSTOMER_REGISTERED',
+  /** Profile details or photo changed. To the account's owner. */
+  PROFILE_UPDATED = 'PROFILE_UPDATED',
+  /** A customer closed their account. To the admins. */
+  CUSTOMER_ACCOUNT_DEACTIVATED = 'CUSTOMER_ACCOUNT_DEACTIVATED',
+  /** "Sign out everywhere": a security notice to the account's owner. */
+  SESSIONS_REVOKED = 'SESSIONS_REVOKED',
+  /** The addressee declined a request. Only a record for them: the requester isn't told. */
+  CONTACT_REQUEST_DECLINED = 'CONTACT_REQUEST_DECLINED',
+  /** The requester withdrew a request. Only a record for them. */
+  CONTACT_REQUEST_CANCELLED = 'CONTACT_REQUEST_CANCELLED',
+  /** A contact (or a block) was removed. Only a record for whoever removed it. */
+  CONTACT_REMOVED = 'CONTACT_REMOVED',
+  /** A contact was blocked. Only a record for whoever blocked it. */
+  CONTACT_BLOCKED = 'CONTACT_BLOCKED',
+  /** A staff member opened a direct conversation. To the other one. */
+  CONVERSATION_STARTED = 'CONVERSATION_STARTED',
+  /**
+   * New messages in a conversation: to the other participant, or for a
+   * support conversation, the customer or the support staff. At most one
+   * per sender, conversation and recipient every 10 minutes.
+   */
+  MESSAGE_RECEIVED = 'MESSAGE_RECEIVED',
 }
 
 export interface ShipmentUpdatePayload {
@@ -89,7 +116,7 @@ export interface StaffAccountUpdatedPayload extends StaffAccountPayload {
   organizationName: string | null;
 }
 
-/** The other person: who sent the request, or who accepted it. */
+/** The other person, for the reader: who sent the request, who accepted it, who they declined… */
 export interface ContactPayload {
   contactId: string;
   internalUserId: string;
@@ -107,11 +134,31 @@ export interface ShipmentFilePayload {
   fileName: string;
 }
 
-/**
- * What each type carries in `payload`: enough for a frontend to word the
- * notification in its own language and link to the thing it's about. The
- * stored title/message are English only (the backend has no other locale).
- */
+export interface CustomerPayload {
+  customerId: string;
+  name: string;
+}
+
+/** What changed on a profile. */
+export type ProfileChange = 'details' | 'avatar';
+
+export interface ProfilePayload {
+  change: ProfileChange;
+}
+
+/** A direct conversation, and the other person in it for the reader. */
+export interface ConversationPayload {
+  conversationId: string;
+  internalUserId: string;
+  name: string;
+}
+
+export interface MessagePayload {
+  conversationId: string;
+  conversationType: ConversationType;
+  senderName: string;
+}
+
 /** A partner API key, as the admins' list shows it (masked: never the key itself). */
 export interface ApiKeyPayload {
   apiKeyId: string;
@@ -121,6 +168,11 @@ export interface ApiKeyPayload {
   maskedKey: string;
 }
 
+/**
+ * What each type carries in `payload`: enough for a frontend to word the
+ * notification in its own language and link to the thing it's about. The
+ * stored title/message are English only (the backend has no other locale).
+ */
 export interface NotificationPayloads {
   [NotificationType.SHIPMENT_UPDATE]: ShipmentUpdatePayload;
   [NotificationType.BRANCH_CREATED]: BranchPayload;
@@ -138,6 +190,16 @@ export interface NotificationPayloads {
   [NotificationType.PASSWORD_CHANGED]: Record<string, never>;
   [NotificationType.API_KEY_CREATED]: ApiKeyPayload;
   [NotificationType.API_KEY_REVOKED]: ApiKeyPayload;
+  [NotificationType.CUSTOMER_REGISTERED]: CustomerPayload;
+  [NotificationType.PROFILE_UPDATED]: ProfilePayload;
+  [NotificationType.CUSTOMER_ACCOUNT_DEACTIVATED]: CustomerPayload;
+  [NotificationType.SESSIONS_REVOKED]: Record<string, never>;
+  [NotificationType.CONTACT_REQUEST_DECLINED]: ContactPayload;
+  [NotificationType.CONTACT_REQUEST_CANCELLED]: ContactPayload;
+  [NotificationType.CONTACT_REMOVED]: ContactPayload;
+  [NotificationType.CONTACT_BLOCKED]: ContactPayload;
+  [NotificationType.CONVERSATION_STARTED]: ConversationPayload;
+  [NotificationType.MESSAGE_RECEIVED]: MessagePayload;
 }
 
 export type NotificationPayload = NotificationPayloads[NotificationType];

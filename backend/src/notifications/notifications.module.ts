@@ -6,6 +6,7 @@ import { InternalUser } from '../internal-users/internal-user.entity';
 import { Organization } from '../organizations/organization.entity';
 import { Contact } from '../contacts/contact.entity';
 import { User } from '../users/user.entity';
+import { Conversation } from '../chat/entities/conversation.entity';
 import { Notification } from './entities/notification.entity';
 import { NotificationsService } from './notifications.service';
 import { NotificationsController } from './notifications.controller';
@@ -23,6 +24,7 @@ import { ActionLookupService } from './action-lookup.service';
       Organization,
       Contact,
       User,
+      Conversation,
     ]),
   ],
   controllers: [NotificationsController],

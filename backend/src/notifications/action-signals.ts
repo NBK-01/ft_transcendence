@@ -1,4 +1,5 @@
 import { AccountType } from '../common/context/auth-context.types';
+import { ProfileChange } from './constants/notification.constants';
 
 /**
  * Events a few services emit (EventEmitter2) right after a write that a
@@ -20,6 +21,12 @@ export const ActionSignals = {
   API_KEY_CREATED: 'api-key.created',
   /** ApiKeysService.revoke, only when it actually revoked the key. */
   API_KEY_REVOKED: 'api-key.revoked',
+  /** UsersService.updateProfile (only when something changed) and updateAvatar. */
+  PROFILE_UPDATED: 'profile.updated',
+  /** UsersService.deactivate: a customer closed their account (DELETE /auth/account). */
+  CUSTOMER_DEACTIVATED: 'customer.deactivated',
+  /** AuthService / StaffAuthService.logoutAll. */
+  SESSIONS_REVOKED: 'sessions.revoked',
 } as const;
 
 export interface OrganizationDeactivatedSignal {
@@ -32,6 +39,21 @@ export interface OrganizationStaffSignal {
 }
 
 export interface PasswordChangedSignal {
+  accountType: AccountType;
+  accountId: string;
+}
+
+export interface ProfileUpdatedSignal {
+  accountType: AccountType;
+  accountId: string;
+  change: ProfileChange;
+}
+
+export interface CustomerDeactivatedSignal {
+  customerId: string;
+}
+
+export interface SessionsRevokedSignal {
   accountType: AccountType;
   accountId: string;
 }

@@ -13,6 +13,7 @@ import {
   NotificationType,
 } from '../../notifications/constants/notification.constants';
 import { Notification } from '../../notifications/entities/notification.entity';
+import { ConversationType } from '../../chat/entities/conversation.entity';
 import {
   CreateNotificationInput,
   NotificationRecipient,
@@ -143,11 +144,17 @@ beforeEach(() => {
     ),
     findStaff: jest.fn(async (id: string) => ({
       id,
-      name: 'Rami Khoury',
+      name: STAFF_NAMES[id] ?? 'Rami Khoury',
       roleName: 'dispatcher',
       organizationId: 'org-1',
       organizationName: 'Beirut Central',
     })),
+    findName: jest.fn(async (account: NotificationRecipient) =>
+      account.accountType === AccountType.CUSTOMER
+        ? 'Amina El Idrissi'
+        : (STAFF_NAMES[account.id] ?? 'Rami Khoury'),
+    ),
+    findConversation: jest.fn(async (id: string) => CONVERSATIONS[id] ?? null),
     findContact: jest.fn(async () => ({
       requester: { id: MEMBER.id, name: 'Rami Khoury' },
       addressee: { id: OTHER_ADMIN.id, name: 'Youssef Benali' },
@@ -167,6 +174,30 @@ beforeEach(() => {
   };
 });
 
+const STAFF_NAMES: Record<string, string> = {
+  'admin-1': 'Nadia Haddad',
+  'admin-2': 'Youssef Benali',
+  'member-1': 'Rami Khoury',
+};
+
+/** A DM between MEMBER and OTHER_ADMIN, and CUSTOMER's support conversation. */
+const CONVERSATIONS: Record<string, object> = {
+  'dm-1': {
+    id: 'dm-1',
+    type: ConversationType.STAFF_DM,
+    participantAId: 'member-1',
+    participantBId: 'admin-2',
+    customerId: null,
+  },
+  'support-1': {
+    id: 'support-1',
+    type: ConversationType.SUPPORT,
+    participantAId: null,
+    participantBId: null,
+    customerId: 'customer-1',
+  },
+};
+
 const run = (event: ActionNotificationEvent) =>
   handler.run({ data: event } as Job<ActionNotificationEvent>, services);
 
@@ -178,7 +209,14 @@ const API_KEY = {
   maskedKey: 'stk_9f3a…c4d2',
 };
 
-/** One event of each type, acted on by ADMIN (the password change by MEMBER, on their own account). */
+/** MEMBER asked OTHER_ADMIN. */
+const CONTACT_PARTIES = {
+  contactId: 'contact-1',
+  requesterId: 'member-1',
+  addresseeId: 'admin-2',
+};
+
+/** One event of each type, mostly acted on by ADMIN (the password change by MEMBER, on their own account). */
 const EVENTS: { [T in ActionType]: ActionNotificationEvent & { type: T } } = {
   [NotificationType.BRANCH_CREATED]: {
     type: NotificationType.BRANCH_CREATED,
@@ -294,6 +332,71 @@ const EVENTS: { [T in ActionType]: ActionNotificationEvent & { type: T } } = {
     actor: ADMIN,
     data: API_KEY,
   },
+  [NotificationType.CUSTOMER_REGISTERED]: {
+    type: NotificationType.CUSTOMER_REGISTERED,
+    occurrence: 'customer-1',
+    // Signing up isn't done signed in.
+    actor: null,
+    data: { customerId: CUSTOMER.id, name: 'Amina El Idrissi' },
+  },
+  [NotificationType.PROFILE_UPDATED]: {
+    type: NotificationType.PROFILE_UPDATED,
+    occurrence: 'customer-1-1',
+    actor: CUSTOMER,
+    data: { account: CUSTOMER, change: 'avatar' },
+  },
+  [NotificationType.CUSTOMER_ACCOUNT_DEACTIVATED]: {
+    type: NotificationType.CUSTOMER_ACCOUNT_DEACTIVATED,
+    occurrence: 'customer-2-deactivated',
+    actor: INACTIVE_CUSTOMER,
+    data: { customerId: INACTIVE_CUSTOMER.id },
+  },
+  [NotificationType.SESSIONS_REVOKED]: {
+    type: NotificationType.SESSIONS_REVOKED,
+    occurrence: 'member-1-1',
+    actor: MEMBER,
+    data: { account: MEMBER },
+  },
+  [NotificationType.CONTACT_REQUEST_DECLINED]: {
+    type: NotificationType.CONTACT_REQUEST_DECLINED,
+    occurrence: 'contact-1-removed',
+    actor: OTHER_ADMIN,
+    data: CONTACT_PARTIES,
+  },
+  [NotificationType.CONTACT_REQUEST_CANCELLED]: {
+    type: NotificationType.CONTACT_REQUEST_CANCELLED,
+    occurrence: 'contact-1-removed',
+    actor: MEMBER,
+    data: CONTACT_PARTIES,
+  },
+  [NotificationType.CONTACT_REMOVED]: {
+    type: NotificationType.CONTACT_REMOVED,
+    occurrence: 'contact-1-removed',
+    actor: MEMBER,
+    data: CONTACT_PARTIES,
+  },
+  [NotificationType.CONTACT_BLOCKED]: {
+    type: NotificationType.CONTACT_BLOCKED,
+    occurrence: 'contact-1-blocked',
+    actor: OTHER_ADMIN,
+    data: CONTACT_PARTIES,
+  },
+  [NotificationType.CONVERSATION_STARTED]: {
+    type: NotificationType.CONVERSATION_STARTED,
+    occurrence: 'dm-1',
+    actor: MEMBER,
+    data: {
+      conversationId: 'dm-1',
+      participantIds: [MEMBER.id, OTHER_ADMIN.id],
+    },
+  },
+  [NotificationType.MESSAGE_RECEIVED]: {
+    type: NotificationType.MESSAGE_RECEIVED,
+    occurrence: 'dm-1-member-1-1',
+    // A socket message has no request context.
+    actor: null,
+    data: { conversationId: 'dm-1', sender: MEMBER },
+  },
 };
 
 /**
@@ -317,7 +420,30 @@ const EXPECTED: Record<ActionType, NotificationRecipient[]> = {
   [NotificationType.PASSWORD_CHANGED]: [MEMBER],
   [NotificationType.API_KEY_CREATED]: [OTHER_ADMIN],
   [NotificationType.API_KEY_REVOKED]: [OTHER_ADMIN],
+  [NotificationType.CUSTOMER_REGISTERED]: [CUSTOMER, ADMIN, OTHER_ADMIN],
+  // The owner did it: they only get their record.
+  [NotificationType.PROFILE_UPDATED]: [],
+  [NotificationType.CUSTOMER_ACCOUNT_DEACTIVATED]: [ADMIN, OTHER_ADMIN],
+  [NotificationType.SESSIONS_REVOKED]: [MEMBER],
+  // Only the one who did it gets a record: the other person isn't told.
+  [NotificationType.CONTACT_REQUEST_DECLINED]: [],
+  [NotificationType.CONTACT_REQUEST_CANCELLED]: [],
+  [NotificationType.CONTACT_REMOVED]: [],
+  [NotificationType.CONTACT_BLOCKED]: [],
+  [NotificationType.CONVERSATION_STARTED]: [OTHER_ADMIN],
+  [NotificationType.MESSAGE_RECEIVED]: [OTHER_ADMIN],
 };
+
+/**
+ * Who gets a record of their own action: the actor, but for the security
+ * notices and messages, and an actor whose account is no longer active.
+ */
+const NO_RECORD: ReadonlySet<ActionType> = new Set([
+  NotificationType.PASSWORD_CHANGED,
+  NotificationType.SESSIONS_REVOKED,
+  NotificationType.MESSAGE_RECEIVED,
+  NotificationType.CUSTOMER_ACCOUNT_DEACTIVATED,
+]);
 
 describe('actionNotificationHandler: who gets what', () => {
   it.each(Object.values(EVENTS).map((event) => [event.type, event] as const))(
@@ -330,9 +456,7 @@ describe('actionNotificationHandler: who gets what', () => {
       );
       expect(
         notifications.own().map((row) => `${row.accountType}:${row.userId}`),
-      ).toEqual(
-        type === NotificationType.PASSWORD_CHANGED ? [] : [key(event.actor!)],
-      );
+      ).toEqual(NO_RECORD.has(type) || !event.actor ? [] : [key(event.actor)]);
       for (const row of notifications.rows.values()) {
         expect(row).toMatchObject({
           type,
@@ -517,6 +641,80 @@ describe('actionNotificationHandler: the actor’s own record', () => {
         expect(row.message).toMatch(/^(You|Our) /);
       }
     }
+  });
+});
+
+describe('actionNotificationHandler: contacts, conversations and messages', () => {
+  it('a declined request is a record for the one who declined, about the requester', async () => {
+    await run(EVENTS[NotificationType.CONTACT_REQUEST_DECLINED]);
+
+    expect(notifications.newsRecipients()).toEqual([]);
+    expect(notifications.own()).toEqual([
+      expect.objectContaining({
+        userId: OTHER_ADMIN.id,
+        message: "You declined Rami Khoury's contact request.",
+        payload: {
+          contactId: 'contact-1',
+          internalUserId: MEMBER.id,
+          name: 'Rami Khoury',
+        },
+      }),
+    ]);
+  });
+
+  it('a new DM tells the other person who opened it, and gives the opener a record naming them', async () => {
+    await run(EVENTS[NotificationType.CONVERSATION_STARTED]);
+
+    const [news] = notifications.news();
+    const [own] = notifications.own();
+    expect(news).toMatchObject({
+      userId: OTHER_ADMIN.id,
+      message: 'Rami Khoury started a conversation with you.',
+      payload: { conversationId: 'dm-1', internalUserId: MEMBER.id },
+    });
+    expect(own).toMatchObject({
+      userId: MEMBER.id,
+      message: 'You started a conversation with Youssef Benali.',
+      payload: { conversationId: 'dm-1', internalUserId: OTHER_ADMIN.id },
+    });
+  });
+
+  it('a customer’s support message goes to the support staff; a staff reply to the customer', async () => {
+    await run({
+      ...EVENTS[NotificationType.MESSAGE_RECEIVED],
+      occurrence: 'support-1-customer-1-1',
+      data: { conversationId: 'support-1', sender: CUSTOMER },
+    });
+    expect(notifications.newsRecipients()).toEqual(
+      [key(ADMIN), key(SUPPORT)].sort(),
+    );
+    expect(notifications.news()[0]).toMatchObject({
+      title: 'New support message',
+      payload: {
+        conversationId: 'support-1',
+        conversationType: ConversationType.SUPPORT,
+        senderName: 'Amina El Idrissi',
+      },
+    });
+
+    notifications = new FakeNotifications();
+    services.notificationsService =
+      notifications as unknown as NotificationsService;
+    await run({
+      ...EVENTS[NotificationType.MESSAGE_RECEIVED],
+      occurrence: 'support-1-admin-1-1',
+      data: { conversationId: 'support-1', sender: ADMIN },
+    });
+    expect(notifications.newsRecipients()).toEqual([key(CUSTOMER)]);
+  });
+
+  it('never tells the sender about their own message', async () => {
+    await run({
+      ...EVENTS[NotificationType.MESSAGE_RECEIVED],
+      data: { conversationId: 'dm-1', sender: OTHER_ADMIN },
+    });
+
+    expect(notifications.recipients()).toEqual([key(MEMBER)]);
   });
 });
 

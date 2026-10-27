@@ -4,6 +4,7 @@ import {
   ApiKeyPayload,
   BranchPayload,
   ContactPayload,
+  MessagePayload,
   NotificationPayloads,
   NotificationType,
   StaffAccountPayload,
@@ -13,6 +14,7 @@ import {
   NotificationRecipient,
 } from '../../notifications/notifications.service';
 import { ActionLookupService } from '../../notifications/action-lookup.service';
+import { ConversationType } from '../../chat/entities/conversation.entity';
 import {
   ActionEventOf,
   ActionNotificationEvent,
@@ -49,6 +51,11 @@ type Resolver<T extends ActionType> = (
 
 const staff = (...ids: string[]): NotificationRecipient[] =>
   ids.map((id) => ({ id, accountType: AccountType.STAFF }));
+
+const customer = (id: string): NotificationRecipient => ({
+  id,
+  accountType: AccountType.CUSTOMER,
+});
 
 // Shared by two action types each. Plain functions rather than Resolver<A | B>,
 // which TypeScript wouldn't accept as a Resolver<A>.
@@ -119,6 +126,74 @@ function aboutContact(
     payload: { contactId, internalUserId: other.id, name: other.name },
     args: { name: other.name },
   };
+}
+
+/**
+ * A contact declined, withdrawn, removed or blocked: only a record for
+ * whoever did it, about the other person. Nobody else is told.
+ */
+async function contactRecord(
+  {
+    data,
+    actor,
+  }: ActionEventOf<
+    | NotificationType.CONTACT_REQUEST_DECLINED
+    | NotificationType.CONTACT_REQUEST_CANCELLED
+    | NotificationType.CONTACT_REMOVED
+    | NotificationType.CONTACT_BLOCKED
+  >,
+  lookup: ActionLookupService,
+): Promise<Resolution<ContactPayload> | null> {
+  if (!actor) {
+    return null;
+  }
+  const otherId =
+    actor.id === data.requesterId ? data.addresseeId : data.requesterId;
+  const other = await lookup.findStaff(otherId);
+  return other && { ...aboutContact(data.contactId, other), audiences: [] };
+}
+
+/** New messages: to the other participant, or in a support conversation, the other side. Never the sender. */
+async function messageReceived(
+  { data }: ActionEventOf<NotificationType.MESSAGE_RECEIVED>,
+  lookup: ActionLookupService,
+): Promise<Resolution<MessagePayload> | null> {
+  const [conversation, senderName] = await Promise.all([
+    lookup.findConversation(data.conversationId),
+    lookup.findName(data.sender),
+  ]);
+  if (!conversation || senderName === null) {
+    return null;
+  }
+  const resolution = (audience: Audience): Resolution<MessagePayload> => ({
+    payload: {
+      conversationId: conversation.id,
+      conversationType: conversation.type,
+      senderName,
+    },
+    args: { senderName },
+    audiences: [audience],
+  });
+  if (conversation.type === ConversationType.STAFF_DM) {
+    const otherId = [conversation.participantAId, conversation.participantBId]
+      .filter((id): id is string => Boolean(id))
+      .find((id) => id !== data.sender.id);
+    return otherId
+      ? resolution({ copy: 'self', recipients: staff(otherId) })
+      : null;
+  }
+  if (data.sender.accountType === AccountType.CUSTOMER) {
+    return resolution({
+      copy: 'support',
+      recipients: await lookup.findSupportStaff(),
+    });
+  }
+  return conversation.customerId
+    ? resolution({
+        copy: 'self',
+        recipients: [customer(conversation.customerId)],
+      })
+    : null;
 }
 
 async function apiKeyToAdmins(
@@ -233,14 +308,80 @@ export const RESOLVERS: { [T in ActionType]: Resolver<T> } = {
     }),
   [NotificationType.API_KEY_CREATED]: apiKeyToAdmins,
   [NotificationType.API_KEY_REVOKED]: apiKeyToAdmins,
+  [NotificationType.CUSTOMER_REGISTERED]: async ({ data }, lookup) => ({
+    payload: { customerId: data.customerId, name: data.name },
+    args: { name: data.name },
+    audiences: [
+      { copy: 'self', recipients: [customer(data.customerId)] },
+      { copy: 'admins', recipients: await lookup.findAdmins() },
+    ],
+  }),
+  [NotificationType.PROFILE_UPDATED]: ({ data }) =>
+    Promise.resolve({
+      payload: { change: data.change },
+      args: {},
+      audiences: [{ copy: 'self', recipients: [data.account] }],
+    }),
+  [NotificationType.CUSTOMER_ACCOUNT_DEACTIVATED]: async ({ data }, lookup) => {
+    const name = await lookup.findCustomerName(data.customerId);
+    if (name === null) {
+      return null;
+    }
+    return {
+      payload: { customerId: data.customerId, name },
+      args: { name },
+      audiences: [{ copy: 'admins', recipients: await lookup.findAdmins() }],
+    };
+  },
+  [NotificationType.SESSIONS_REVOKED]: ({ data }) =>
+    Promise.resolve({
+      payload: {},
+      args: {},
+      audiences: [{ copy: 'self', recipients: [data.account] }],
+    }),
+  [NotificationType.CONTACT_REQUEST_DECLINED]: contactRecord,
+  [NotificationType.CONTACT_REQUEST_CANCELLED]: contactRecord,
+  [NotificationType.CONTACT_REMOVED]: contactRecord,
+  [NotificationType.CONTACT_BLOCKED]: contactRecord,
+  [NotificationType.CONVERSATION_STARTED]: async ({ data, actor }, lookup) => {
+    const otherId = data.participantIds.find((id) => id !== actor?.id);
+    if (!actor || !otherId) {
+      return null;
+    }
+    const [opener, other] = await Promise.all([
+      lookup.findStaff(actor.id),
+      lookup.findStaff(otherId),
+    ]);
+    if (!opener || !other) {
+      return null;
+    }
+    const about = (person: { id: string; name: string }) => ({
+      payload: {
+        conversationId: data.conversationId,
+        internalUserId: person.id,
+        name: person.name,
+      },
+      args: { name: person.name },
+    });
+    return {
+      ...about(opener),
+      audiences: [{ copy: 'self', recipients: staff(other.id) }],
+      forActor: about(other),
+    };
+  },
+  [NotificationType.MESSAGE_RECEIVED]: messageReceived,
 };
 
 /**
  * Notices that aren't kept as a record of the actor's own action: a password
- * change warns its owner the same way whoever made it.
+ * change or a sign-out everywhere warns its owner the same way whoever made
+ * it.
  */
 const NO_ACTOR_RECORD: ReadonlySet<ActionType> = new Set([
   NotificationType.PASSWORD_CHANGED,
+  NotificationType.SESSIONS_REVOKED,
+  // Sending a message is its own record.
+  NotificationType.MESSAGE_RECEIVED,
 ]);
 
 /** Every row for one occurrence starts with it, which is how onFinalFailure finds them. */

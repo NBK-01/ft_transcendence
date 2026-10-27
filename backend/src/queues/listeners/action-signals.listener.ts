@@ -5,9 +5,12 @@ import { NotificationType } from '../../notifications/constants/notification.con
 import {
   ActionSignals,
   ApiKeySignal,
+  CustomerDeactivatedSignal,
   OrganizationDeactivatedSignal,
   OrganizationStaffSignal,
   PasswordChangedSignal,
+  ProfileUpdatedSignal,
+  SessionsRevokedSignal,
 } from '../../notifications/action-signals';
 import { ActionLookupService } from '../../notifications/action-lookup.service';
 import {
@@ -82,6 +85,58 @@ export class ActionSignalsListener {
         data: { account },
       };
     });
+  }
+
+  /** Profile details or photo. The occurrence is the account and the updatedAt the write gave it. */
+  @OnEvent(ActionSignals.PROFILE_UPDATED)
+  onProfileUpdated({
+    accountType,
+    accountId,
+    change,
+  }: ProfileUpdatedSignal): void {
+    const actor = this.notifier.actor();
+    const account = { id: accountId, accountType };
+    this.notifier.notify(async () => {
+      const updatedAt = await this.lookup.findAccountUpdatedAt(account);
+      if (!updatedAt) {
+        return null;
+      }
+      return {
+        type: NotificationType.PROFILE_UPDATED,
+        occurrence: occurrenceOf(accountId, updatedAt),
+        actor,
+        data: { account, change },
+      };
+    });
+  }
+
+  /** A customer closed their account (it can't be reopened). */
+  @OnEvent(ActionSignals.CUSTOMER_DEACTIVATED)
+  onCustomerDeactivated({ customerId }: CustomerDeactivatedSignal): void {
+    const actor = this.notifier.actor();
+    this.notifier.notify(() =>
+      Promise.resolve({
+        type: NotificationType.CUSTOMER_ACCOUNT_DEACTIVATED,
+        occurrence: `${customerId}-deactivated`,
+        actor,
+        data: { customerId },
+      }),
+    );
+  }
+
+  /** Nothing on the account row changes: the time of the request names this one. */
+  @OnEvent(ActionSignals.SESSIONS_REVOKED)
+  onSessionsRevoked({ accountType, accountId }: SessionsRevokedSignal): void {
+    const actor = this.notifier.actor();
+    const occurrence = `${accountId}-${Date.now()}`;
+    this.notifier.notify(() =>
+      Promise.resolve({
+        type: NotificationType.SESSIONS_REVOKED,
+        occurrence,
+        actor,
+        data: { account: { id: accountId, accountType } },
+      }),
+    );
   }
 
   /** A key is created once: its id is the occurrence. */

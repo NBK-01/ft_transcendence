@@ -39,6 +39,11 @@ export class NotificationDto {
       'SHIPMENT_FILE_ADDED: { trackingId, kind, fileName }.',
       'PASSWORD_CHANGED: {}.',
       'API_KEY_*: { apiKeyId, name, organizationId, branchName, maskedKey }.',
+      'CUSTOMER_REGISTERED / CUSTOMER_ACCOUNT_DEACTIVATED: { customerId, name }.',
+      "PROFILE_UPDATED: { change: 'details' | 'avatar' }. SESSIONS_REVOKED: {}.",
+      'CONTACT_REQUEST_DECLINED / _CANCELLED, CONTACT_REMOVED, CONTACT_BLOCKED: as CONTACT_REQUEST_*.',
+      'CONVERSATION_STARTED: { conversationId, internalUserId, name } (the other person).',
+      'MESSAGE_RECEIVED: { conversationId, conversationType, senderName }.',
     ].join(' '),
   })
   payload!: NotificationPayload;

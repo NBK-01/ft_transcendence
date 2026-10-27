@@ -2,6 +2,7 @@ import {
   DataSource,
   InsertEvent,
   ObjectLiteral,
+  RemoveEvent,
   TransactionCommitEvent,
   TransactionRollbackEvent,
   UpdateEvent,
@@ -14,7 +15,9 @@ import {
   Conversation,
   ConversationType,
 } from '../../chat/entities/conversation.entity';
+import { Message } from '../../chat/entities/message.entity';
 import { ShipmentFile } from '../../shipments/entities/shipment-file.entity';
+import { User } from '../../users/user.entity';
 import { ShipmentFileKind } from '../../shipments/constants/shipment-state';
 import { NotificationType } from '../../notifications/constants/notification.constants';
 import { ActionLookupService } from '../../notifications/action-lookup.service';
@@ -67,6 +70,19 @@ const update = (
     entity,
     queryRunner,
   } as unknown as UpdateEvent<ObjectLiteral>);
+const remove = (
+  target: unknown,
+  databaseEntity: ObjectLiteral,
+  entityId: string,
+) =>
+  subscriber.afterRemove({
+    metadata: { target },
+    // TypeORM clears the id of a removed entity.
+    entity: { ...databaseEntity, id: undefined },
+    databaseEntity,
+    entityId,
+    queryRunner,
+  } as unknown as RemoveEvent<ObjectLiteral>);
 const commit = async () => {
   queryRunner.isTransactionActive = false;
   subscriber.afterTransactionCommit({
@@ -150,7 +166,7 @@ describe('ActionSubscriber: inserts and transactions', () => {
     expect(built).toEqual([expect.objectContaining({ type, actor: ADMIN })]);
   });
 
-  it('says nothing for a staff DM, a request photo or an offer photo', async () => {
+  it('says nothing for a DM without its two participants, a request photo or an offer photo', async () => {
     insert(Conversation, { id: 'c-2', type: ConversationType.STAFF_DM });
     for (const kind of [
       ShipmentFileKind.REQUEST_PHOTO,
@@ -161,6 +177,73 @@ describe('ActionSubscriber: inserts and transactions', () => {
     await commit();
 
     expect(notify).not.toHaveBeenCalled();
+  });
+});
+
+describe('ActionSubscriber: sign-ups, DMs and messages', () => {
+  it('a new customer', async () => {
+    insert(User, { id: 'customer-1', name: 'Amina El Idrissi' });
+    await commit();
+
+    expect(built).toEqual([
+      expect.objectContaining({
+        type: NotificationType.CUSTOMER_REGISTERED,
+        occurrence: 'customer-1',
+        data: { customerId: 'customer-1', name: 'Amina El Idrissi' },
+      }),
+    ]);
+  });
+
+  it('a new staff DM, with both participants', async () => {
+    insert(Conversation, {
+      id: 'dm-1',
+      type: ConversationType.STAFF_DM,
+      participantAId: 'admin-1',
+      participantBId: 'member-1',
+    });
+    await commit();
+
+    expect(built).toEqual([
+      {
+        type: NotificationType.CONVERSATION_STARTED,
+        occurrence: 'dm-1',
+        actor: ADMIN,
+        data: {
+          conversationId: 'dm-1',
+          participantIds: ['admin-1', 'member-1'],
+        },
+      },
+    ]);
+  });
+
+  it('a message: the sender from the row, one occurrence per sender and 10 minutes', async () => {
+    const message = (id: string, minute: number) => ({
+      id,
+      conversationId: 'dm-1',
+      senderId: 'member-1',
+      senderType: AccountType.STAFF,
+      createdAt: new Date(Date.UTC(2026, 9, 27, 10, minute)),
+    });
+    insert(Message, message('m-1', 1));
+    insert(Message, message('m-2', 9));
+    insert(Message, message('m-3', 11));
+    await commit();
+
+    const window = (minute: number) =>
+      Math.floor(Date.UTC(2026, 9, 27, 10, minute) / 600_000);
+    expect(built.map((event) => event?.occurrence)).toEqual([
+      `dm-1-member-1-${window(1)}`,
+      `dm-1-member-1-${window(1)}`,
+      `dm-1-member-1-${window(11)}`,
+    ]);
+    expect(built[0]).toMatchObject({
+      type: NotificationType.MESSAGE_RECEIVED,
+      actor: null,
+      data: {
+        conversationId: 'dm-1',
+        sender: { id: 'member-1', accountType: AccountType.STAFF },
+      },
+    });
   });
 });
 
@@ -256,10 +339,17 @@ describe('ActionSubscriber: staff account changes', () => {
 });
 
 describe('ActionSubscriber: contacts', () => {
-  const contact = (status: ContactStatus) => ({
+  const contact = (status: ContactStatus, requesterId = 'member-1') => ({
     id: 'contact-1',
+    requesterId,
+    addresseeId: requesterId === 'member-1' ? 'admin-1' : 'member-1',
     status,
     updatedAt: UPDATED_AT,
+  });
+  const parties = (requesterId = 'member-1') => ({
+    contactId: 'contact-1',
+    requesterId,
+    addresseeId: requesterId === 'member-1' ? 'admin-1' : 'member-1',
   });
 
   it('an accepted request', async () => {
@@ -280,17 +370,61 @@ describe('ActionSubscriber: contacts', () => {
     ]);
   });
 
-  it('a block notifies nobody (declines and removals delete the row: no update at all)', async () => {
-    update(
-      Contact,
-      contact(ContactStatus.PENDING),
-      contact(ContactStatus.BLOCKED),
-    );
-    update(
-      Contact,
-      contact(ContactStatus.ACCEPTED),
-      contact(ContactStatus.BLOCKED),
-    );
+  it.each([ContactStatus.PENDING, ContactStatus.ACCEPTED])(
+    'blocking a %s contact',
+    async (status) => {
+      update(Contact, contact(status), contact(ContactStatus.BLOCKED));
+      await commit();
+
+      expect(built).toEqual([
+        {
+          type: NotificationType.CONTACT_BLOCKED,
+          occurrence: 'contact-1-blocked',
+          actor: ADMIN,
+          data: parties(),
+        },
+      ]);
+    },
+  );
+
+  it('removing a pending request: declined by the addressee, withdrawn by the requester', async () => {
+    // ADMIN (admin-1) is the addressee of the first, the requester of the second.
+    remove(Contact, contact(ContactStatus.PENDING), 'contact-1');
+    remove(Contact, contact(ContactStatus.PENDING, 'admin-1'), 'contact-1');
+    await commit();
+
+    expect(built).toEqual([
+      expect.objectContaining({
+        type: NotificationType.CONTACT_REQUEST_DECLINED,
+        occurrence: 'contact-1-removed',
+        data: parties(),
+      }),
+      expect.objectContaining({
+        type: NotificationType.CONTACT_REQUEST_CANCELLED,
+        data: parties('admin-1'),
+      }),
+    ]);
+  });
+
+  it.each([ContactStatus.ACCEPTED, ContactStatus.BLOCKED])(
+    'removing a %s contact, read from its id (cleared on the entity)',
+    async (status) => {
+      remove(Contact, contact(status), 'contact-1');
+      await commit();
+
+      expect(built).toEqual([
+        {
+          type: NotificationType.CONTACT_REMOVED,
+          occurrence: 'contact-1-removed',
+          actor: ADMIN,
+          data: parties(),
+        },
+      ]);
+    },
+  );
+
+  it('ignores removals of anything else', async () => {
+    remove(Organization, org(), 'org-1');
     await commit();
 
     expect(notify).not.toHaveBeenCalled();

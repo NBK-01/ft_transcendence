@@ -274,5 +274,85 @@
       "title": "API key revoked",
       "message": "You revoked {name} for {branch}. It no longer works."
     }
+  },
+  "CUSTOMER_REGISTERED": {
+    "self": {
+      "title": "Welcome to ShipTrack",
+      "message": "Your account is ready. Request a shipment whenever you like."
+    },
+    "admins": {
+      "title": "New customer",
+      "message": "{name} created an account."
+    }
+  },
+  "PROFILE_UPDATED": {
+    "self": {
+      "title": "Profile updated",
+      "message": "Your profile was changed."
+    },
+    "actor": {
+      "title": "Profile updated",
+      "message": "You updated your profile."
+    }
+  },
+  "CUSTOMER_ACCOUNT_DEACTIVATED": {
+    "admins": {
+      "title": "Customer account closed",
+      "message": "{name} closed their account."
+    },
+    "actor": {
+      "title": "Account closed",
+      "message": "You closed your account."
+    }
+  },
+  "SESSIONS_REVOKED": {
+    "self": {
+      "title": "Signed out everywhere",
+      "message": "Every session on your account was ended. If this wasn't you, change your password now."
+    }
+  },
+  "CONTACT_REQUEST_DECLINED": {
+    "actor": {
+      "title": "Contact request declined",
+      "message": "You declined {name}'s contact request."
+    }
+  },
+  "CONTACT_REQUEST_CANCELLED": {
+    "actor": {
+      "title": "Contact request withdrawn",
+      "message": "You withdrew your contact request to {name}."
+    }
+  },
+  "CONTACT_REMOVED": {
+    "actor": {
+      "title": "Contact removed",
+      "message": "You removed {name} from your contacts."
+    }
+  },
+  "CONTACT_BLOCKED": {
+    "actor": {
+      "title": "Contact blocked",
+      "message": "You blocked {name}."
+    }
+  },
+  "CONVERSATION_STARTED": {
+    "self": {
+      "title": "New conversation",
+      "message": "{name} started a conversation with you."
+    },
+    "actor": {
+      "title": "Conversation started",
+      "message": "You started a conversation with {name}."
+    }
+  },
+  "MESSAGE_RECEIVED": {
+    "self": {
+      "title": "New message",
+      "message": "{senderName} sent you a message."
+    },
+    "support": {
+      "title": "New support message",
+      "message": "{senderName} wrote to support."
+    }
   }
 }

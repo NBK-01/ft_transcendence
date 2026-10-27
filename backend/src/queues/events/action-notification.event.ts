@@ -2,6 +2,7 @@ import { AttachmentKind } from '../../shipments/constants/shipment-state';
 import {
   ApiKeyPayload,
   NotificationType,
+  ProfileChange,
   StaffChange,
 } from '../../notifications/constants/notification.constants';
 import { NotificationRecipient } from '../../notifications/notifications.service';
@@ -66,6 +67,32 @@ export interface ActionDataMap {
   [NotificationType.PASSWORD_CHANGED]: { account: NotificationRecipient };
   [NotificationType.API_KEY_CREATED]: ApiKeyPayload;
   [NotificationType.API_KEY_REVOKED]: ApiKeyPayload;
+  [NotificationType.CUSTOMER_REGISTERED]: { customerId: string; name: string };
+  [NotificationType.PROFILE_UPDATED]: {
+    account: NotificationRecipient;
+    change: ProfileChange;
+  };
+  [NotificationType.CUSTOMER_ACCOUNT_DEACTIVATED]: { customerId: string };
+  [NotificationType.SESSIONS_REVOKED]: { account: NotificationRecipient };
+  [NotificationType.CONTACT_REQUEST_DECLINED]: ContactParties;
+  [NotificationType.CONTACT_REQUEST_CANCELLED]: ContactParties;
+  [NotificationType.CONTACT_REMOVED]: ContactParties;
+  [NotificationType.CONTACT_BLOCKED]: ContactParties;
+  [NotificationType.CONVERSATION_STARTED]: {
+    conversationId: string;
+    participantIds: [string, string];
+  };
+  [NotificationType.MESSAGE_RECEIVED]: {
+    conversationId: string;
+    sender: NotificationRecipient;
+  };
+}
+
+/** A contact's two staff members: the row may be gone by the time the job runs. */
+export interface ContactParties {
+  contactId: string;
+  requesterId: string;
+  addresseeId: string;
 }
 
 /**

@@ -210,6 +210,7 @@ function setup(env: Record<string, string> = {}) {
     mail,
     config,
     authContext,
+    new EventEmitter2(),
   );
   return { auth, jwt, users, sessions, outbox, oauthCodes, context };
 }
