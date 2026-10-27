@@ -38,15 +38,14 @@ The certificate is self-signed, so the browser warns the first time.
 
 **AI usage:**
 
-- **nkanaan** used Claude (Claude Code) to plan features, write and refactor code (staff app, shared packages, Notifications and Public API modules), review pull requests, resolve merge conflicts and draft documentation. Every change was read, checked (typecheck, lint, build) and committed by nkanaan.
-- **mabi-nak** and **mhabbal** used AI to assist in research, planning, pull request reviews and writing tests.
+- **mhabbal**, **mabi-nak** and **nkanaan** used AI to assist in research, planning, pull request reviews and writing tests.
 
 ## Team Information
 
 | Login | Role | Responsibilities |
 | --- | --- | --- |
-| mhabbal | Product Owner, Project Manager, Developer | Backend: auth, users, staff, roles and permissions, branches, shipments, chat and contacts, file storage, Docker |
-| mabi-nak | Developer | Customer app |
+| mhabbal | Product Owner, Project Manager, Developer | Backend: auth, users, staff, roles and permissions, branches, chat and contacts, file storage, Docker |
+| mabi-nak | Developer | Customer app, shipments (backend and frontend), test suite |
 | nkanaan | Tech Lead, Developer | Staff app, shared UI and API packages, backend Notifications and Public API modules |
 
 ## Project Management
@@ -101,10 +100,10 @@ notification → user or internal_user
 | Feature | Description | Who |
 | --- | --- | --- |
 | Customer accounts | Sign up with a one-time code, sign in (email or Google), reset password, profile and avatar | mhabbal, mabi-nak |
-| Shipments (customers) | Request, accept or reject the offer, demo checkout, timeline, files | mhabbal, mabi-nak |
+| Shipments (customers) | Request, accept or reject the offer, demo checkout, timeline, files | mabi-nak |
 | Staff accounts and roles | Staff login, create/edit/deactivate staff, screens per role | mhabbal, nkanaan |
 | Branches | Create, edit, deactivate, members, branch filter | mhabbal, nkanaan |
-| Shipments (staff) | Board with search and filters, offers, payment confirmation, tracking updates, files | mhabbal, nkanaan |
+| Shipments (staff) | Board with search and filters, offers, payment confirmation, tracking updates, files | mabi-nak, nkanaan |
 | Overview | Today against yesterday, every status, who did what | nkanaan |
 | Chat and contacts | Staff DMs, customer support, contact requests, live | mhabbal, nkanaan, mabi-nak |
 | Notifications | One for every create, update and delete; bell and page | nkanaan, mabi-nak |
@@ -136,8 +135,8 @@ Major = 2 points, Minor = 1 point; 14 required. [TODO: confirm the final list be
 
 ## Individual Contributions
 
-**mhabbal:** the backend: authentication (JWT, one-time codes, Google OAuth, password reset), users and staff, roles and permissions, branches, the shipment flow, chat and contacts over Socket.IO, file storage on S3, rate limiting, Docker and nginx. Challenges: working with frontend technologies and helping with the UI as a backend engineer.
+**mhabbal:** the backend: authentication (JWT, one-time codes, Google OAuth, password reset), users and staff, roles and permissions, branches, chat and contacts over Socket.IO, file storage on S3, rate limiting, Docker and nginx. Challenges: working with frontend technologies and helping with the UI as a backend engineer.
 
-**mabi-nak:** the customer app: sign-in screens, shipments list, detail, new shipment and checkout, profile, messages and notifications, plus the Timeline and CopyButton components. Challenges: learning new technologies and frameworks, and getting used to the folder structure, branches and pull requests.
+**mabi-nak:** the customer app (sign-in screens, shipments, new shipment and checkout, profile, messages, notifications), the shipments feature end to end (backend flow and API, and the customer screens), the test suite, and the Timeline and CopyButton components. Challenges: learning new technologies and frameworks, and getting used to the folder structure, branches and pull requests.
 
 **nkanaan:** the staff app (users, branches, shipments, overview, contacts, messages, API keys), the shared design system and API layer with mock data, and the backend Notifications (with queues) and Public API (API keys, partner endpoints, carrier webhook) modules. Challenges: error codes that clashed between features after merges, sending notifications only once a change is saved, and processing each carrier webhook only once.
