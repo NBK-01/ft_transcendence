@@ -17,6 +17,7 @@ import {
   ViolationRecord,
 } from './interfaces/progressive-policy.interface';
 import { OtpProgressiveBlockException } from './exceptions/progressive-block.exception';
+import { I18nService } from 'nestjs-i18n';
 import { CommunicationService } from '../communication/communication.service';
 import {
   OtpLog,
@@ -40,6 +41,7 @@ export class OtpService {
     @InjectRedis() private readonly redis: Redis,
     private readonly otpConfigService: OtpConfigService,
     private readonly communicationService: CommunicationService,
+    private readonly i18n: I18nService,
     @InjectRepository(OtpLog)
     private readonly otpLogRepository: Repository<OtpLog>,
   ) {}
@@ -48,6 +50,7 @@ export class OtpService {
     identifier: string,
     prefix: string,
     purpose: OtpPurpose = OtpPurpose.ACCOUNT_VERIFICATION,
+    lang = 'en',
   ): Promise<{ success: boolean; expiresIn: number }> {
     if (!this.otpConfigService.isEnabled()) {
       throw new Error('OTP system is currently disabled');
@@ -80,7 +83,7 @@ export class OtpService {
 
     try {
       await this.storeChallenge(identifier, challenge, prefix);
-      await this.sendOtpEmail(identifier, code, policy.ttl);
+      await this.sendOtpEmail(identifier, code, policy.ttl, lang);
       await this.recordProgressiveRequest(identifier, prefix);
       return { success: true, expiresIn: policy.ttl };
     } catch (error) {
@@ -383,9 +386,15 @@ export class OtpService {
     identifier: string,
     code: string,
     ttlSeconds: number,
+    lang: string,
   ): Promise<void> {
     const ttlMinutes = Math.floor(ttlSeconds / 60);
-    const { subject, html } = EmailTemplates.otpVerification(code, ttlMinutes);
+    const { subject, html } = EmailTemplates.otpVerification(
+      this.i18n,
+      lang,
+      code,
+      ttlMinutes,
+    );
     await this.communicationService.sendEmail(identifier, subject, html);
   }
 

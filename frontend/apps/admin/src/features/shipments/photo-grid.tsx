@@ -1,14 +1,19 @@
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ImageRef } from "@trans/api";
 
-/** Request or offer photos: thumbnails that open the full photo in a new tab. */
-export function PhotoGrid({ images }: { images: ImageRef[] }) {
+/**
+ * Request or offer photos: thumbnails that open the full photo in a new tab.
+ * `renderAction`, when given, overlays its result (e.g. a delete button) on
+ * each thumbnail — used for offer photos, never for the client's own request photos.
+ */
+export function PhotoGrid({ images, renderAction }: { images: ImageRef[]; renderAction?: (image: ImageRef) => ReactNode }) {
   const { t } = useTranslation("app");
   return (
     <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
       {images.map((image) => (
-        <li key={image.id}>
+        <li key={image.id} className="relative">
           <a
             href={image.url}
             target="_blank"
@@ -24,6 +29,7 @@ export function PhotoGrid({ images }: { images: ImageRef[] }) {
             />
             <span className="sr-only">{t("shipment.newTab")}</span>
           </a>
+          {renderAction && <div className="absolute end-1 top-1">{renderAction(image)}</div>}
         </li>
       ))}
     </ul>

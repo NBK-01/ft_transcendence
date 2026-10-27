@@ -1,4 +1,4 @@
-import { Building2, Contact, KeyRound, LayoutGrid, MessageSquare, Package, Users } from "lucide-react";
+import { Building2, Contact, KeyRound, LayoutGrid, MessageSquare, Package, ShieldCheck, Users } from "lucide-react";
 import { Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, Outlet } from "react-router";
@@ -86,6 +86,7 @@ export function AdminLayout() {
       // Staff accounts and API keys are admin-only; every role can read the branches.
       items: [
         ...(isAdmin ? [{ to: withBranch("/users"), label: t("nav.users"), icon: Users }] : []),
+        ...(isAdmin ? [{ to: withBranch("/roles"), label: t("nav.roles"), icon: ShieldCheck }] : []),
         { to: withBranch("/branches"), label: t("nav.branches"), icon: Building2 },
         ...(isAdmin ? [{ to: withBranch("/api-keys"), label: t("nav.apiKeys"), icon: KeyRound }] : []),
       ],

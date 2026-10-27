@@ -25,7 +25,11 @@ import {
   ShipmentActor,
   ShipmentActorType,
 } from './constants/shipment-actor';
-import { ListShipmentsQueryDto } from './dto/list-shipments-query.dto';
+import {
+  ListShipmentsQueryDto,
+  ShipmentSortField,
+  SortOrder,
+} from './dto/list-shipments-query.dto';
 import { ListAdminShipmentsQueryDto } from './dto/list-admin-shipments-query.dto';
 import { SubmitPaymentDto } from './dto/submit-payment.dto';
 import {
@@ -39,6 +43,8 @@ import {
   CardExpiredException,
   InvalidShipmentStateException,
   LinkOrPhotosRequiredException,
+  ShipmentFileNotDeletableException,
+  ShipmentFileNotFoundException,
   ShipmentNotFoundException,
   TooManyImagesException,
 } from './exceptions';
@@ -265,6 +271,37 @@ export class ShipmentsService {
     return files.map((file) => ShipmentFactory.toFile(file, urls));
   }
 
+  /**
+   * Remove one of your own request photos. Only while pending_sourcing, and
+   * never the last one if there's no product link to fall back on — a
+   * shipment always needs a link or at least one photo.
+   */
+  async deleteOwnFile(
+    clientId: string,
+    trackingId: string,
+    fileId: string,
+  ): Promise<void> {
+    const shipment = await this.findOne(trackingId, clientId);
+    const file = await this.findFile(shipment.id, fileId);
+    if (file.kind !== ShipmentFileKind.REQUEST_PHOTO) {
+      // Not a request photo (e.g. an offer photo) — from this client's
+      // perspective, this endpoint simply has nothing by that id.
+      throw new ShipmentFileNotFoundException();
+    }
+    if (shipment.status !== ShipmentState.PENDING_SOURCING) {
+      throw new ShipmentFileNotDeletableException();
+    }
+    if (!shipment.productUrl) {
+      const remaining = await this.fileRepository.count({
+        where: { shipmentId: shipment.id, kind: ShipmentFileKind.REQUEST_PHOTO },
+      });
+      if (remaining <= 1) {
+        throw new ShipmentFileNotDeletableException();
+      }
+    }
+    await this.removeFile(file);
+  }
+
   /* ---------------------------------------------------------------------
    * Shared with AdminShipmentsService
    * ------------------------------------------------------------------- */
@@ -300,9 +337,14 @@ export class ShipmentsService {
     if (query.status) {
       qb.andWhere('shipment.status = :status', { status: query.status });
     }
+    // `sort` is admin-only (ListAdminShipmentsQueryDto) and class-validator
+    // whitelists it to ShipmentSortField before this ever runs, so it's safe
+    // to interpolate directly into the column name.
+    const sort = query.sort ?? ShipmentSortField.UPDATED_AT;
+    const order = (query.order ?? SortOrder.DESC).toUpperCase() as 'ASC' | 'DESC';
     return qb
-      .orderBy('shipment.updatedAt', 'DESC')
-      .addOrderBy('shipment.id', 'DESC')
+      .orderBy(`shipment.${sort}`, order)
+      .addOrderBy('shipment.id', order)
       .skip((query.page - 1) * query.limit)
       .take(query.limit)
       .getManyAndCount();
@@ -380,11 +422,7 @@ export class ShipmentsService {
     category: ShipmentFileCategory,
   ): Promise<UploadedFile[]> {
     for (const file of files) {
-      this.fileStorageService.validateShipmentFile(
-        file.buffer,
-        file.mimetype,
-        category,
-      );
+      this.fileStorageService.validateShipmentFile(file.buffer, category);
     }
     const uploaded: UploadedFile[] = [];
     try {
@@ -446,6 +484,34 @@ export class ShipmentsService {
         }),
       ),
     );
+  }
+
+  /** A file by id, scoped to one shipment — never leaks whether a file with this id exists elsewhere. */
+  async findFile(shipmentId: string, fileId: string): Promise<ShipmentFile> {
+    const file = await this.fileRepository.findOne({
+      where: { id: fileId, shipmentId },
+    });
+    if (!file) {
+      throw new ShipmentFileNotFoundException();
+    }
+    return file;
+  }
+
+  /**
+   * Removes the file's row in a transaction via `manager.remove` (not a
+   * querybuilder delete), so entity-subscriber hooks — including the
+   * notification subscriber — see the removal. The storage object is only
+   * deleted after that commits, and only best-effort: a failure here just
+   * leaves an orphan object behind, which is preferable to masking a
+   * successful row delete as an error.
+   */
+  async removeFile(file: ShipmentFile): Promise<void> {
+    await this.dataSource.transaction((manager) => manager.remove(file));
+    await this.fileStorageService.deleteFile(file.storageKey).catch((error) => {
+      this.logger.warn(
+        `Could not delete storage object ${file.storageKey}: ${String(error)}`,
+      );
+    });
   }
 
   /** Every stored file goes back to the client as a fresh signed URL — keys never leave the server. */

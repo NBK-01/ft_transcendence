@@ -15,6 +15,7 @@ export enum AuthErrorCodes {
   OAuthCodeInvalid = 2010,
   GoogleEmailNotVerified = 2011,
   AccountDeactivated = 2012,
+  GoogleAuthFailed = 2013,
 }
 
 export enum AuthErrorMessages {
@@ -29,6 +30,7 @@ export enum AuthErrorMessages {
   OAuthCodeInvalid = 'errors.OAUTH_CODE_INVALID',
   GoogleEmailNotVerified = 'errors.GOOGLE_EMAIL_NOT_VERIFIED',
   AccountDeactivated = 'errors.ACCOUNT_DEACTIVATED',
+  GoogleAuthFailed = 'errors.GOOGLE_AUTH_FAILED',
 }
 
 export class InvalidCredentialsException extends DomainException {
@@ -142,6 +144,17 @@ export class AccountDeactivatedException extends DomainException {
       { key: AuthErrorMessages.AccountDeactivated },
       HttpStatus.UNAUTHORIZED,
       AuthErrorCodes.AccountDeactivated,
+    );
+  }
+}
+
+/** The Google round-trip itself failed: the user denied consent, or the provider errored — never a domain-specific reason. */
+export class GoogleAuthFailedException extends DomainException {
+  constructor() {
+    super(
+      { key: AuthErrorMessages.GoogleAuthFailed },
+      HttpStatus.UNAUTHORIZED,
+      AuthErrorCodes.GoogleAuthFailed,
     );
   }
 }

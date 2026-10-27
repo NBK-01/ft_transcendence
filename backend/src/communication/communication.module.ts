@@ -20,18 +20,10 @@ import { ConsoleEmailProvider } from './providers/console.provider';
         const smtpFromEmail = configService.get<string>('SMTP_FROM_EMAIL');
 
         const hasSendGrid = Boolean(apiKey && fromEmail);
-        const hasSmtp = Boolean(smtpHost && smtpPort && smtpFromEmail);
 
-        if (
-          configService.get<string>('NODE_ENV') === 'production' &&
-          !hasSendGrid &&
-          !hasSmtp
-        ) {
-          throw new Error(
-            'Either SENDGRID_API_KEY/SENDGRID_FROM_EMAIL or SMTP_HOST/SMTP_PORT/SMTP_FROM_EMAIL are required in production',
-          );
-        }
-
+        // Neither configured, even in production: log instead of refusing to
+        // boot — real mail delivery is an operational concern, not one that
+        // should take the whole API down (e.g. a fresh Docker/eval run).
         if (hasSendGrid) {
           return new SendGridProvider(apiKey as string, fromEmail as string);
         }

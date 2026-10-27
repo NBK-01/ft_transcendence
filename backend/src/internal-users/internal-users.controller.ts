@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -47,5 +55,17 @@ export class InternalUsersController {
   async update(@Param('id') id: string, @Body() dto: UpdateInternalUserDto) {
     const user = await this.internalUsersService.update(id, dto);
     return InternalUserFactory.toDto(user);
+  }
+
+  @Delete(':id')
+  @ApiOperation({
+    summary:
+      'Permanently delete a staff account (not the same as deactivating)',
+  })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 409, description: 'Would remove the last admin' })
+  async remove(@Param('id') id: string) {
+    await this.internalUsersService.delete(id);
+    return { message: 'Staff account deleted' };
   }
 }

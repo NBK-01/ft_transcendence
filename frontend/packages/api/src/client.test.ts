@@ -93,13 +93,71 @@ describe("api client", () => {
     expect(tokens.getAccess()).toMatch(/^mock-access-/);
   });
 
-  it("when refresh fails, clears the session and reports it", async () => {
+  it("when refresh fails on a genuinely dead token, clears the session and reports it", async () => {
     tokens.set({ accessToken: "stale-token", refreshToken: "revoked-token" });
 
     await expect(api.get("/auth/me")).rejects.toMatchObject({ status: 401 });
 
     expect(tokens.hasSession()).toBe(false);
     expect(onSessionExpired).toHaveBeenCalledOnce();
+  });
+
+  it("the losing tab of a two-tab refresh race doesn't sign out — it gets its own fresh token from what's now in storage", async () => {
+    const { refreshToken: staleToken } = await customerSession();
+    // A sibling tab's refresh, already completed for real: `staleToken` is now dead backend-side,
+    // and `winner` is a legitimate, still-unused pair the sibling hasn't written to storage yet.
+    const winner = await api.post<AuthResponse>("/auth/refresh", { refreshToken: staleToken }, { auth: false });
+
+    // This tab still has the pre-rotation state — the access token is stale, forcing a refresh.
+    tokens.set({ accessToken: "this-tab-stale-access", refreshToken: staleToken });
+
+    // The instant this tab's own refresh (using the now-dead staleToken) reaches the backend,
+    // simulate the sibling's write landing in shared storage just before the rejection comes back.
+    // The second call, using the sibling's (still-unused) token, is the real rotate-on-use
+    // backend behaviour — scripted directly rather than relying on multi-handler fallthrough.
+    server.use(
+      http.post("*/api/auth/refresh", async ({ request }) => {
+        const body = (await request.json()) as { refreshToken: string };
+        if (body.refreshToken === staleToken) {
+          tokens.set(winner);
+          return HttpResponse.json({ statusCode: 401, messages: ["revoked"] }, { status: 401 });
+        }
+        // A real access token (the prefix the mock /auth/me handler actually recognizes).
+        return HttpResponse.json(
+          { success: true, statusCode: 200, data: { accessToken: "mock-access-999999", refreshToken: "mock-refresh-999999" } },
+          { status: 200 },
+        );
+      }),
+    );
+
+    const me = await api.get<User>("/auth/me");
+
+    expect(me.email).toBe("amina@example.com");
+    expect(tokens.hasSession()).toBe(true);
+    expect(onSessionExpired).not.toHaveBeenCalled();
+  });
+
+  it("a network error during refresh leaves the session alone (only fails this one request)", async () => {
+    tokens.set({ accessToken: "stale-token", refreshToken: "mock-refresh-x" });
+    server.use(http.post("*/api/auth/refresh", () => HttpResponse.error()));
+
+    // The original /auth/me 401 is what the caller sees — not a synthetic network error.
+    await expect(api.get("/auth/me")).rejects.toMatchObject({ status: 401 });
+
+    expect(tokens.hasSession()).toBe(true);
+    expect(tokens.getRefresh()).toBe("mock-refresh-x");
+    expect(onSessionExpired).not.toHaveBeenCalled();
+  });
+
+  it("a 5xx from the refresh endpoint leaves the session alone (only fails this one request)", async () => {
+    tokens.set({ accessToken: "stale-token", refreshToken: "mock-refresh-x" });
+    server.use(http.post("*/api/auth/refresh", () => HttpResponse.json({ statusCode: 500 }, { status: 500 })));
+
+    await expect(api.get("/auth/me")).rejects.toMatchObject({ status: 401 });
+
+    expect(tokens.hasSession()).toBe(true);
+    expect(tokens.getRefresh()).toBe("mock-refresh-x");
+    expect(onSessionExpired).not.toHaveBeenCalled();
   });
 
   it("turns backend error bodies into ApiError with errorCode", async () => {

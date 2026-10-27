@@ -10,6 +10,8 @@ services:
       # so trust auth is mirrored here too rather than inventing a password
       # backend/.env doesn't have.
       POSTGRES_HOST_AUTH_METHOD: trust
+      TZ: UTC
+      PGTZ: UTC
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -39,6 +41,7 @@ services:
     env_file: ./backend/.env
     environment:
       DB_HOST: postgres
+      TZ: UTC
     command: ["npm", "run", "migration:run"]
     depends_on:
       postgres:
@@ -51,6 +54,7 @@ services:
     env_file: ./backend/.env
     environment:
       DB_HOST: postgres
+      TZ: UTC
     command: ["npm", "run", "seed:bootstrap"]
     depends_on:
       migrate:
@@ -64,6 +68,7 @@ services:
       DB_HOST: postgres
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      TZ: UTC
     depends_on:
       seed:
         condition: service_completed_successfully

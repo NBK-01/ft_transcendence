@@ -41,6 +41,7 @@ const ar: CommonResources = {
     profile: "الملف الشخصي",
     dashboard: "نظرة عامة",
     users: "المستخدمون",
+    roles: "الأدوار",
     branches: "الفروع",
     apiKeys: "مفاتيح API",
     signOut: "تسجيل الخروج",

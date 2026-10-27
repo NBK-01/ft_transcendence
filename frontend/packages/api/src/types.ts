@@ -431,6 +431,9 @@ export type ShipmentFile = {
   url: string;
 };
 
+/** Columns GET /admin/shipments can sort by (backend ShipmentSortField). */
+export type AdminShipmentSortField = "trackingId" | "status" | "createdAt" | "updatedAt";
+
 /** GET /admin/shipments query (backend ListShipmentsQueryDto). */
 export type AdminShipmentFilters = {
   /** Part of a tracking ID, any case (up to 50 characters). */
@@ -441,6 +444,10 @@ export type AdminShipmentFilters = {
   page?: number;
   /** 1–100, 20 by default. */
   limit?: number;
+  /** Defaults to updatedAt. */
+  sort?: AdminShipmentSortField;
+  /** Defaults to desc. */
+  order?: "asc" | "desc";
 };
 
 /** POST /admin/shipments/:trackingId/offer, sent as multipart (backend CreateOfferDto). */

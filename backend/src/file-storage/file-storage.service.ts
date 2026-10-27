@@ -7,6 +7,7 @@ import {
   InvalidFileTypeException,
   FileTooLargeException,
 } from './exceptions/file-storage-exceptions';
+import { detectFileType } from './utils/detect-file-type';
 
 const AVATAR_ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const AVATAR_MAX_SIZE_MB = 2;
@@ -40,7 +41,7 @@ export class FileStorageService {
     originalFilename: string,
     contentType: string,
   ): Promise<{ url: string; key: string }> {
-    this.validateAvatar(buffer, contentType);
+    this.validateAvatar(buffer);
     const key = this.generateAvatarKey(userId, originalFilename);
     await this.provider.uploadFile(buffer, key, { contentType });
     return { url: await this.provider.getSignedUrl(key), key };
@@ -52,16 +53,13 @@ export class FileStorageService {
   }
 
   /** Validate before uploading anything, so a batch never half-uploads because of its last file. */
-  validateShipmentFile(
-    buffer: Buffer,
-    contentType: string,
-    category: ShipmentFileCategory,
-  ): void {
+  validateShipmentFile(buffer: Buffer, category: ShipmentFileCategory): void {
     const allowed =
       category === 'image'
         ? SHIPMENT_IMAGE_MIME_TYPES
         : SHIPMENT_DOCUMENT_MIME_TYPES;
-    if (!allowed.includes(contentType)) {
+    const detected = detectFileType(buffer);
+    if (!detected || !allowed.includes(detected)) {
       throw new InvalidFileTypeException(allowed);
     }
     if (buffer.length > SHIPMENT_FILE_MAX_SIZE_MB * 1024 * 1024) {
@@ -77,7 +75,7 @@ export class FileStorageService {
     contentType: string,
     category: ShipmentFileCategory,
   ): Promise<{ key: string }> {
-    this.validateShipmentFile(buffer, contentType, category);
+    this.validateShipmentFile(buffer, category);
     const ext = extname(originalFilename);
     const key = `shipments/${trackingId}/${Date.now()}-${randomUUID()}${ext}`;
     await this.provider.uploadFile(buffer, key, { contentType });
@@ -93,8 +91,9 @@ export class FileStorageService {
     await this.provider.deleteFile(key);
   }
 
-  private validateAvatar(buffer: Buffer, contentType: string): void {
-    if (!AVATAR_ALLOWED_MIME_TYPES.includes(contentType)) {
+  private validateAvatar(buffer: Buffer): void {
+    const detected = detectFileType(buffer);
+    if (!detected || !AVATAR_ALLOWED_MIME_TYPES.includes(detected)) {
       throw new InvalidFileTypeException(AVATAR_ALLOWED_MIME_TYPES);
     }
     if (buffer.length > AVATAR_MAX_SIZE_BYTES) {

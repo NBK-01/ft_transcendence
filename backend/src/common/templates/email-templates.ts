@@ -1,10 +1,25 @@
+import { I18nService } from 'nestjs-i18n';
+
+/** Builds a `emails.KEY` translation, same convention as DomainException's `errors.KEY`. */
+function t(
+  i18n: I18nService,
+  lang: string,
+  key: string,
+  args?: Record<string, unknown>,
+): string {
+  return String(i18n.translate(`emails.${key}`, { lang, args }));
+}
+
 export class EmailTemplates {
   static otpVerification(
+    i18n: I18nService,
+    lang: string,
     otpCode: string,
     expiryMinutes: number = 5,
   ): { subject: string; html: string } {
+    const heading = t(i18n, lang, 'OTP_HEADING');
     return {
-      subject: 'Verify Your Email - OTP Code',
+      subject: t(i18n, lang, 'OTP_SUBJECT'),
       html: `
         <!DOCTYPE html>
         <html>
@@ -19,18 +34,18 @@ export class EmailTemplates {
         </head>
         <body>
           <div class="container">
-            <h2>Email Verification</h2>
-            <p>Thank you for registering! Please use the following OTP code to verify your email address:</p>
+            <h2>${heading}</h2>
+            <p>${t(i18n, lang, 'OTP_INTRO')}</p>
             <div class="otp-code">${otpCode}</div>
             <div class="info">
-              <strong>Important:</strong>
+              <strong>${t(i18n, lang, 'OTP_IMPORTANT_LABEL')}</strong>
               <ul>
-                <li>This code will expire in ${expiryMinutes} minutes</li>
-                <li>Do not share this code with anyone</li>
-                <li>If you didn't request this, please ignore this email</li>
+                <li>${t(i18n, lang, 'OTP_EXPIRES', { expiryMinutes })}</li>
+                <li>${t(i18n, lang, 'OTP_NO_SHARE')}</li>
+                <li>${t(i18n, lang, 'OTP_IGNORE')}</li>
               </ul>
             </div>
-            <div class="footer"><p>This is an automated email, please do not reply.</p></div>
+            <div class="footer"><p>${t(i18n, lang, 'FOOTER')}</p></div>
           </div>
         </body>
         </html>
@@ -40,12 +55,14 @@ export class EmailTemplates {
 
   /** `resetUrl` should already include the token as a query param, built by the caller from FRONTEND_URL. */
   static passwordReset(
+    i18n: I18nService,
+    lang: string,
     resetUrl: string,
     resetToken: string,
     expiryMinutes: number = 15,
   ): { subject: string; html: string } {
     return {
-      subject: 'Reset Your Password',
+      subject: t(i18n, lang, 'RESET_SUBJECT'),
       html: `
         <!DOCTYPE html>
         <html>
@@ -61,20 +78,20 @@ export class EmailTemplates {
         </head>
         <body>
           <div class="container">
-            <h2>Password Reset Request</h2>
-            <p>We received a request to reset your password. Click the button below to choose a new one:</p>
-            <div style="text-align: center;"><a href="${resetUrl}" class="button">Reset Password</a></div>
-            <p>Or copy this reset token:</p>
+            <h2>${t(i18n, lang, 'RESET_HEADING')}</h2>
+            <p>${t(i18n, lang, 'RESET_INTRO')}</p>
+            <div style="text-align: center;"><a href="${resetUrl}" class="button">${t(i18n, lang, 'RESET_BUTTON')}</a></div>
+            <p>${t(i18n, lang, 'RESET_COPY_TOKEN')}</p>
             <div class="token-box">${resetToken}</div>
             <div class="info">
-              <strong>Security Notice:</strong>
+              <strong>${t(i18n, lang, 'RESET_SECURITY_LABEL')}</strong>
               <ul>
-                <li>This token will expire in ${expiryMinutes} minutes</li>
-                <li>If you didn't request a password reset, please ignore this email</li>
-                <li>Your password won't change until you complete this flow</li>
+                <li>${t(i18n, lang, 'RESET_EXPIRES', { expiryMinutes })}</li>
+                <li>${t(i18n, lang, 'RESET_IGNORE')}</li>
+                <li>${t(i18n, lang, 'RESET_NO_CHANGE')}</li>
               </ul>
             </div>
-            <div class="footer"><p>This is an automated email, please do not reply.</p></div>
+            <div class="footer"><p>${t(i18n, lang, 'FOOTER')}</p></div>
           </div>
         </body>
         </html>

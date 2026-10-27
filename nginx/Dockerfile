@@ -18,7 +18,9 @@ RUN pnpm install --frozen-lockfile
 
 WORKDIR /app
 COPY frontend/ ./frontend/
-COPY .env ./.env
+# The fixed, committed build-time flags (see .env.production) — never the
+# developer's own .env, which could have VITE_API_MOCKS=true for local work.
+COPY .env.production ./.env.production
 
 WORKDIR /app/frontend
 RUN pnpm build

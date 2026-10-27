@@ -1,8 +1,8 @@
-import { MoreHorizontal, Pencil, Plus, UserCheck, UserX, Users as UsersIcon } from "lucide-react";
+import { MoreHorizontal, Pencil, Plus, Trash2, UserCheck, UserX, Users as UsersIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { InternalUser, Organization } from "@trans/api";
+import { isApiError, type InternalUser, type Organization } from "@trans/api";
 import { ConfirmDelete } from "@trans/ui/blocks/confirm-delete";
 import { DataTable } from "@trans/ui/blocks/data-table";
 import { DataTableColumnHeader } from "@trans/ui/blocks/data-table-column-header";
@@ -21,7 +21,7 @@ import { useReturnFocus } from "@trans/ui/hooks/use-return-focus";
 
 import { useOrganizations } from "../features/branches/api";
 import { useBranchFilter } from "../features/branches/use-branch-filter";
-import { useInternalUsers, useRoles, useSetStaffActive } from "../features/users/api";
+import { CANNOT_REMOVE_LAST_ADMIN, useDeleteInternalUser, useInternalUsers, useRoles, useSetStaffActive } from "../features/users/api";
 import { NO_ROLE, staffColumn, staffColumns } from "../features/users/columns";
 import { UserFormDialog } from "../features/users/user-form-dialog";
 
@@ -75,6 +75,34 @@ export function UsersPage() {
     },
     [setStaffActive, t],
   );
+
+  const { mutateAsync: deleteInternalUser } = useDeleteInternalUser();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletingUser, setDeletingUser] = useState<InternalUser | null>(null);
+  const [deleteError, setDeleteError] = useState<string>();
+  const askDelete = useCallback(
+    (user: InternalUser) => {
+      setDeleteError(undefined);
+      setDeletingUser(user);
+      setDeleteOpen(true);
+    },
+    [],
+  );
+
+  /** Throws when the request fails, so ConfirmDelete keeps the dialog open with its error. */
+  const deleteUser = async (user: InternalUser) => {
+    try {
+      await deleteInternalUser(user.id);
+    } catch (error) {
+      setDeleteError(
+        isApiError(error) && error.errorCode === CANNOT_REMOVE_LAST_ADMIN
+          ? t("app:users.lastAdminError")
+          : t("app:users.deleteError"),
+      );
+      throw error;
+    }
+    toast.success(t("app:users.deleted", { name: user.name }));
+  };
 
   const branchName = useMemo(() => {
     const names = new Map((organizations.data ?? []).map((org: Organization) => [org.id, org.name]));
@@ -136,6 +164,11 @@ export function UsersPage() {
                   {t("app:users.reactivate")}
                 </DropdownMenuItem>
               )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onSelect={() => askDelete(row.original)}>
+                <Trash2 aria-hidden="true" />
+                {t("app:users.delete")}
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         ),
@@ -143,7 +176,7 @@ export function UsersPage() {
         meta: { align: "end", className: "w-12" },
       }),
     ]);
-  }, [t, i18n.language, branchName, openDialog, rememberFocus, askDeactivate, reactivate]);
+  }, [t, i18n.language, branchName, openDialog, rememberFocus, askDeactivate, reactivate, askDelete]);
 
   const filters = useMemo(
     () => [
@@ -229,6 +262,17 @@ export function UsersPage() {
         actionLabel={t("app:users.deactivate")}
         errorText={t("app:users.statusError")}
         onConfirm={() => (deactivating ? deactivate(deactivating) : undefined)}
+        returnFocusTo={returnFocusRef}
+      />
+      <ConfirmDelete
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={t("app:users.deleteTitle", { name: deletingUser?.name ?? "" })}
+        description={t("app:users.deleteBody")}
+        confirmText={deletingUser?.name}
+        actionLabel={t("app:users.delete")}
+        errorText={deleteError}
+        onConfirm={() => (deletingUser ? deleteUser(deletingUser) : undefined)}
         returnFocusTo={returnFocusRef}
       />
     </div>

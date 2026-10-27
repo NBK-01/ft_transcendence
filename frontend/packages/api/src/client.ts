@@ -99,26 +99,52 @@ async function parseError(response: Response): Promise<ApiError> {
 /* ---------------------------------------------------------------------------
  * Refresh — single flight. If ten requests 401 at once, only one refresh call
  * goes out; the other nine wait for it, then retry with the new token.
+ *
+ * "ok": a fresh token pair is in storage (ours, or a sibling tab's — either
+ * way the caller should retry). "invalid": the refresh token is genuinely
+ * dead; only now is it safe to sign out. "network-error": the refresh call
+ * itself failed to reach the backend, or the backend had a server error —
+ * that's not proof the token is bad, so the session is left alone and the
+ * caller's request just fails; it'll succeed next time the network/backend recovers.
  * ------------------------------------------------------------------------ */
-let refreshing: Promise<boolean> | null = null;
+type RefreshOutcome = "ok" | "invalid" | "network-error";
 
-function refreshSession(): Promise<boolean> {
-  refreshing ??= (async () => {
-    const refreshToken = tokens.getRefresh();
-    if (!refreshToken) return false;
-    try {
-      const response = await fetch(buildUrl(config.refreshPath), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ refreshToken }),
-      });
-      if (!response.ok) return false;
-      tokens.set(unwrap<TokenPair>(await response.json()));
-      return true;
-    } catch {
-      return false;
+/**
+ * Two tabs can race to refresh around the same time; the backend rotates the
+ * refresh token on first use, so the loser's own attempt gets a real 401 even
+ * though the session is fine — the winner already wrote a fresh pair to
+ * storage (`tokens` reads localStorage live, so that's visible here
+ * immediately, no cross-tab messaging needed). Rather than sign out, try
+ * again with whatever's now in storage: it's almost certainly the winner's
+ * still-unused token, and this attempt gets its own fresh access token out
+ * of it — not just permission to reuse someone else's.
+ */
+async function attemptRefresh(): Promise<RefreshOutcome> {
+  const refreshToken = tokens.getRefresh();
+  if (!refreshToken) return "invalid";
+  try {
+    const response = await fetch(buildUrl(config.refreshPath), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (response.status >= 500) return "network-error";
+    if (!response.ok) {
+      if (tokens.getRefresh() !== refreshToken) return attemptRefresh();
+      return "invalid";
     }
-  })().finally(() => {
+    tokens.set(unwrap<TokenPair>(await response.json()));
+    return "ok";
+  } catch {
+    return "network-error";
+  }
+}
+
+let refreshing: Promise<RefreshOutcome> | null = null;
+
+/** Single flight. If ten requests 401 at once, only one refresh attempt runs; the other nine wait for it, then retry with the new token. */
+function refreshSession(): Promise<RefreshOutcome> {
+  refreshing ??= attemptRefresh().finally(() => {
     refreshing = null;
   });
   return refreshing;
@@ -137,14 +163,14 @@ export const socketPath = () => config.socketPath;
 /** Before connecting: after a reload there's only a refresh token, so get an access token first. */
 export async function ensureAccessToken(): Promise<boolean> {
   if (tokens.getAccess()) return true;
-  return tokens.getRefresh() ? refreshSession() : false;
+  return tokens.getRefresh() ? (await refreshSession()) === "ok" : false;
 }
 
 /** The handshake refused the token (expired): get a new one, or end the session like a failed request would. */
 export async function renewAccessToken(): Promise<boolean> {
-  const renewed = await refreshSession();
-  if (!renewed) expireSession();
-  return renewed;
+  const outcome = await refreshSession();
+  if (outcome === "invalid") expireSession();
+  return outcome === "ok";
 }
 
 /** A 401 that ends the session even though it carries a code: the staff account was deactivated (7003). */
@@ -198,8 +224,12 @@ async function send(method: string, path: string, options: RequestOptions = {}, 
   if (response.status === 401 && auth) {
     const error = await parseError(response);
     const action = on401(error.errorCode);
-    if (action === "refresh" && !isRetry && (await refreshSession())) {
-      return send(method, path, options, true);
+    if (action === "refresh" && !isRetry) {
+      const outcome = await refreshSession();
+      if (outcome === "ok") return send(method, path, options, true);
+      // A network/server error during refresh isn't proof the token is bad —
+      // leave the session alone and just fail this one request.
+      if (outcome === "network-error") throw error;
     }
     if (action !== "keep-session") expireSession();
     throw error;
@@ -262,8 +292,13 @@ async function upload<T>(path: string, form: FormData, options: UploadOptions = 
 
   if (status === 401) {
     const action = on401((data as Partial<ApiErrorBody> | undefined)?.errorCode);
-    if (action === "refresh" && !isRetry && (await refreshSession())) return upload<T>(path, form, options, true);
-    if (action !== "keep-session") expireSession();
+    if (action === "refresh" && !isRetry) {
+      const outcome = await refreshSession();
+      if (outcome === "ok") return upload<T>(path, form, options, true);
+      if (outcome === "invalid") expireSession();
+    } else if (action !== "keep-session") {
+      expireSession();
+    }
   }
   if (status < 200 || status >= 300) throw new ApiError("http", status, data as Partial<ApiErrorBody>);
   return unwrap<T>(data);

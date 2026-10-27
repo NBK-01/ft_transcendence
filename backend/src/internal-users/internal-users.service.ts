@@ -155,6 +155,30 @@ export class InternalUsersService {
     }
   }
 
+  /**
+   * Permanent removal, distinct from deactivate (PATCH isActive: false) — the
+   * row is gone, not just locked out. Refuses the last active admin, same
+   * invariant and error (8007) as demoting/deactivating one.
+   */
+  async delete(id: string): Promise<void> {
+    const user = await this.internalUserRepository.findOne({
+      where: { id },
+      relations: ['role'],
+    });
+    if (!user) {
+      throw new InternalUserNotFoundException(id);
+    }
+    if (user.role?.name === ADMIN_ROLE_NAME && user.isActive) {
+      const otherActiveAdmins = await this.internalUserRepository.find({
+        where: { roleId: user.roleId as string, isActive: true },
+      });
+      if (otherActiveAdmins.every((admin) => admin.id === user.id)) {
+        throw new CannotRemoveLastAdminException(user.id);
+      }
+    }
+    await this.internalUserRepository.remove(user);
+  }
+
   async setOrganization(
     id: string,
     organizationId: string | null,

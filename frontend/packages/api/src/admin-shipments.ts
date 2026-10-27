@@ -33,6 +33,9 @@ export const SHIPMENT_NOT_FOUND = 3001;
 /** 409: not allowed from the shipment's current status, or someone moved it first. */
 export const INVALID_SHIPMENT_STATE = 3002;
 export const TOO_MANY_SHIPMENT_IMAGES = 3004;
+export const SHIPMENT_FILE_NOT_FOUND = 3006;
+/** 409: the file exists but can't be deleted right now (wrong kind for this endpoint, or wrong shipment status). */
+export const SHIPMENT_FILE_NOT_DELETABLE = 3007;
 /** Backend FileStorageErrorCodes: a file of the wrong type, or over MAX_SHIPMENT_FILE_BYTES. */
 export const INVALID_FILE_TYPE = 9001;
 export const FILE_TOO_LARGE = 9002;
@@ -87,12 +90,15 @@ const shipmentPath = (trackingId: string, suffix = "") => `/admin/shipments/${en
  */
 export function useAdminShipments(filters: AdminShipmentFilters = {}, { enabled = true }: { enabled?: boolean } = {}) {
   // The backend ignores a blank search, so it shares a cache entry with no search.
-  const { page = 1, limit = 20, status, organizationId } = filters;
+  const { page = 1, limit = 20, status, organizationId, sort, order } = filters;
   const q = filters.q?.trim() || undefined;
   return useQuery({
-    queryKey: keys.adminShipments.list({ q, status, organizationId, page, limit }),
+    queryKey: keys.adminShipments.list({ q, status, organizationId, page, limit, sort, order }),
     queryFn: ({ signal }) =>
-      api.getPage<AdminShipment>("/admin/shipments", { query: { q, status, organizationId, page, limit }, signal }),
+      api.getPage<AdminShipment>("/admin/shipments", {
+        query: { q, status, organizationId, page, limit, sort, order },
+        signal,
+      }),
     placeholderData: keepPreviousData,
     enabled,
   });
@@ -157,18 +163,27 @@ function useShipmentChange<TInput extends { trackingId: string }>(
 /**
  * POST /admin/shipments/:trackingId/offer (multipart): pending_sourcing →
  * pending_client_decision, and the client sees the offer. 400 (3004) over
- * MAX_OFFER_IMAGES photos, 400 (9001/9002) for a photo of the wrong type or size.
+ * MAX_OFFER_IMAGES photos, 400 (9001/9002) for a photo of the wrong type or
+ * size. Sent with api.upload, so the photos' upload progress is reported
+ * (`onProgress`).
  */
 export const useSendShipmentOffer = () =>
-  useShipmentChange(({ trackingId, images = [], ...input }: CreateShipmentOfferInput & { trackingId: string }) => {
-    const form = new FormData();
-    form.set("supplierName", input.supplierName);
-    form.set("unitPrice", String(input.unitPrice));
-    form.set("currency", input.currency);
-    if (input.note) form.set("note", input.note);
-    for (const image of images) form.append("images", image);
-    return api.post<AdminShipmentDetail>(shipmentPath(trackingId, "/offer"), form);
-  });
+  useShipmentChange(
+    ({
+      trackingId,
+      images = [],
+      onProgress,
+      ...input
+    }: CreateShipmentOfferInput & { trackingId: string; onProgress?: UploadOptions["onProgress"] }) => {
+      const form = new FormData();
+      form.set("supplierName", input.supplierName);
+      form.set("unitPrice", String(input.unitPrice));
+      form.set("currency", input.currency);
+      if (input.note) form.set("note", input.note);
+      for (const image of images) form.append("images", image);
+      return api.upload<AdminShipmentDetail>(shipmentPath(trackingId, "/offer"), form, { onProgress });
+    },
+  );
 
 /** POST /admin/shipments/:trackingId/payment/confirm: pending_payment_confirmation → confirmed, with the route and weight. */
 export const useConfirmShipmentPayment = () =>
@@ -207,6 +222,30 @@ export function useUploadShipmentFile() {
     },
     onSuccess: (file, { trackingId }) => {
       queryClient.setQueryData<ShipmentFile[]>(keys.adminShipments.files(trackingId), (files) => files && [file, ...files]);
+    },
+  });
+}
+
+/**
+ * DELETE /admin/shipments/:trackingId/files/:fileId. Works on an attachment
+ * (Files tab, any status) or an offer photo (only while pending_client_decision —
+ * 409/3007 otherwise). Updates whichever cache the file lived in: the files
+ * list, or the offer's photos on the shipment detail.
+ */
+export function useDeleteShipmentFile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ trackingId, fileId }: { trackingId: string; fileId: string }) =>
+      api.delete(shipmentPath(trackingId, `/files/${encodeURIComponent(fileId)}`)),
+    onSuccess: (_result, { trackingId, fileId }) => {
+      queryClient.setQueryData<ShipmentFile[]>(keys.adminShipments.files(trackingId), (files) =>
+        files?.filter((file) => file.id !== fileId),
+      );
+      queryClient.setQueryData<AdminShipmentDetail>(keys.adminShipments.detail(trackingId), (detail) =>
+        detail?.offer
+          ? { ...detail, offer: { ...detail.offer, images: detail.offer.images.filter((image) => image.id !== fileId) } }
+          : detail,
+      );
     },
   });
 }

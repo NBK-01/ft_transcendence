@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { RefObject } from "react";
+import { useState, type RefObject } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
@@ -24,6 +24,7 @@ import {
 } from "@trans/ui/components/dialog";
 import { Field, FieldError } from "@trans/ui/components/field";
 import { Input } from "@trans/ui/components/input";
+import { Progress } from "@trans/ui/components/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@trans/ui/components/select";
 import { Textarea } from "@trans/ui/components/textarea";
 import { toast } from "@trans/ui/components/toaster";
@@ -73,9 +74,11 @@ export function SendOfferDialog({
 }
 
 function OfferForm({ shipment, onDone }: { shipment: AdminShipmentDetail; onDone: () => void }) {
-  const { t } = useTranslation(["common", "app"]);
+  const { t, i18n } = useTranslation(["common", "app"]);
   const send = useSendShipmentOffer();
   const currencies = useCurrencyOptions();
+  // 0 to 1 while the photos are sent; null otherwise.
+  const [progress, setProgress] = useState<number | null>(null);
   const form = useForm<OfferInput, unknown, OfferValues>({
     resolver: zodResolver(offerSchema),
     defaultValues: { supplierName: "", unitPrice: "", currency: "", note: "", images: [] },
@@ -83,16 +86,25 @@ function OfferForm({ shipment, onDone }: { shipment: AdminShipmentDetail; onDone
   const { errors } = form.formState;
 
   const submit = form.handleSubmit(async ({ note, ...values }) => {
+    setProgress(values.images.length > 0 ? 0 : null);
     try {
-      await send.mutateAsync({ trackingId: shipment.trackingId, ...values, ...(note && { note }) });
+      await send.mutateAsync({
+        trackingId: shipment.trackingId,
+        ...values,
+        ...(note && { note }),
+        onProgress: setProgress,
+      });
       toast.success(t("app:shipment.offerForm.sent", { name: shipment.client.name }));
       onDone();
     } catch (error) {
       const photoError = isApiError(error) && error.errorCode !== undefined ? PHOTO_ERRORS[error.errorCode] : undefined;
       if (photoError) form.setError("images", { message: photoError });
       else form.setError("root", { message: actionError(error, t, "app:shipment.offerForm.error") });
+    } finally {
+      setProgress(null);
     }
   });
+  const percent = progress !== null && new Intl.NumberFormat(`${i18n.language}-u-nu-latn`, { style: "percent" }).format(progress);
 
   return (
     <form onSubmit={submit} noValidate className="flex min-h-0 flex-col">
@@ -153,6 +165,13 @@ function OfferForm({ shipment, onDone }: { shipment: AdminShipmentDetail; onDone
             </Field>
           )}
         />
+        {progress !== null && (
+          <Progress
+            value={progress}
+            label={t("app:shipment.uploadForm.progress")}
+            caption={t("app:shipment.uploadForm.uploading", { percent })}
+          />
+        )}
         {errors.root?.message && <FieldError className="whitespace-pre-line">{errors.root.message}</FieldError>}
       </DialogBody>
       <DialogFooter>

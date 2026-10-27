@@ -1,0 +1,19 @@
+{
+  "OTP_SUBJECT": "Vérifiez votre e-mail - Code OTP",
+  "OTP_HEADING": "Vérification de l'e-mail",
+  "OTP_INTRO": "Merci de vous être inscrit ! Veuillez utiliser le code OTP suivant pour vérifier votre adresse e-mail :",
+  "OTP_IMPORTANT_LABEL": "Important :",
+  "OTP_EXPIRES": "Ce code expirera dans {expiryMinutes} minutes",
+  "OTP_NO_SHARE": "Ne partagez ce code avec personne",
+  "OTP_IGNORE": "Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail",
+  "RESET_SUBJECT": "Réinitialisez votre mot de passe",
+  "RESET_HEADING": "Demande de réinitialisation du mot de passe",
+  "RESET_INTRO": "Nous avons reçu une demande de réinitialisation de votre mot de passe. Cliquez sur le bouton ci-dessous pour en choisir un nouveau :",
+  "RESET_BUTTON": "Réinitialiser le mot de passe",
+  "RESET_COPY_TOKEN": "Ou copiez ce jeton de réinitialisation :",
+  "RESET_SECURITY_LABEL": "Avis de sécurité :",
+  "RESET_EXPIRES": "Ce jeton expirera dans {expiryMinutes} minutes",
+  "RESET_IGNORE": "Si vous n'êtes pas à l'origine de cette demande de réinitialisation, ignorez cet e-mail",
+  "RESET_NO_CHANGE": "Votre mot de passe ne changera pas tant que vous n'aurez pas terminé cette procédure",
+  "FOOTER": "Ceci est un e-mail automatique, merci de ne pas y répondre."
+}

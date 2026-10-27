@@ -363,7 +363,6 @@ const OPEN_ROUTES: Record<string, string> = {
   'POST /auth/change-password': 'any signed-in user',
   'POST /auth/logout-all': 'any signed-in user',
   'GET /users/profile': 'any signed-in user',
-  'POST /users/profile/avatar': 'any signed-in user',
 
   // Both customers and staff chat: ChatAccessService decides per conversation.
   'GET /chat/conversations': 'any signed-in user',

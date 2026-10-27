@@ -8,6 +8,8 @@ import {
   LIVE_STATES,
   MAX_OFFER_IMAGES,
   MAX_SHIPMENT_FILE_BYTES,
+  SHIPMENT_FILE_NOT_DELETABLE,
+  SHIPMENT_FILE_NOT_FOUND,
   SHIPMENT_FILE_TYPES,
   SHIPMENT_IMAGE_TYPES,
   SHIPMENT_NOT_FOUND,
@@ -646,6 +648,7 @@ function fileProblem(files: File[], allowed: readonly string[]) {
 const notFound = (trackingId: unknown) => error(404, [`Shipment ${String(trackingId)} not found`], SHIPMENT_NOT_FOUND);
 const wrongState = (status: ShipmentState) =>
   error(409, [`This action isn't available while the shipment is ${status}`], INVALID_SHIPMENT_STATE);
+const wrongStateFile = () => error(409, ["This file can't be deleted right now"], SHIPMENT_FILE_NOT_DELETABLE);
 
 /** ShipmentsService.findOne: any case, ignoring stray spaces. */
 const find = (trackingId: unknown) => shipments.find((row) => row.trackingId === String(trackingId).trim().toUpperCase());
@@ -670,6 +673,18 @@ const json = async (request: Request) => {
 const multipart = (request: Request) => request.formData().catch(() => new FormData());
 const filesIn = (form: FormData, field: string) => form.getAll(field).filter((value): value is File => value instanceof File);
 
+/** Backend ShipmentSortField — columns GET /admin/shipments can sort by. */
+const SORT_FIELDS = ["trackingId", "status", "createdAt", "updatedAt"] as const;
+type SortField = (typeof SORT_FIELDS)[number];
+
+/** `shipment.id` is always the tiebreaker, in the same direction as the chosen sort — like ShipmentsService.listQuery. */
+function byField(field: SortField, desc: boolean) {
+  return (a: Row, b: Row) => {
+    const [x, y] = desc ? [b, a] : [a, b];
+    return String(x[field]).localeCompare(String(y[field])) || x.id.localeCompare(y.id);
+  };
+}
+
 export const shipmentHandlers = [
   http.get("*/api/admin/shipments", ({ request }) => {
     const params = new URL(request.url).searchParams;
@@ -678,12 +693,16 @@ export const shipmentHandlers = [
     const q = params.get("q");
     const status = params.get("status");
     const organizationId = params.get("organizationId");
+    const sort = params.get("sort");
+    const order = params.get("order");
     const problem = invalid([
       !(Number.isInteger(page) && page >= 1) && "page must be a whole number, at least 1",
       !(Number.isInteger(limit) && limit >= 1 && limit <= 100) && "limit must be a whole number, from 1 to 100",
       text("q", q, 50, true),
       status !== null && oneOf("status", status, STATES),
       organizationId !== null && !isUuid(organizationId) && "organizationId must be a valid identifier",
+      sort !== null && oneOf("sort", sort, SORT_FIELDS),
+      order !== null && oneOf("order", order, ["asc", "desc"]),
     ]);
     if (problem) return problem;
 
@@ -696,7 +715,7 @@ export const shipmentHandlers = [
           (!status || row.status === status) &&
           (!organizationId || row.organization?.id === organizationId),
       )
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id));
+      .sort(byField((sort as SortField | null) ?? "updatedAt", order !== "asc"));
     return paginated(rows.map(toRow), page, limit);
   }),
 
@@ -824,5 +843,29 @@ export const shipmentHandlers = [
       null,
     );
     return ok(saved, 201);
+  }),
+
+  // An attachment (Files tab, any status), or the current offer's photo (only
+  // while pending_client_decision — AdminShipmentsService.deleteFile, 409/3007).
+  http.delete("*/api/admin/shipments/:trackingId/files/:fileId", ({ params }) => {
+    const row = find(params.trackingId);
+    if (!row) return notFound(params.trackingId);
+    const fileId = String(params.fileId);
+
+    const attachmentIndex = row.files.findIndex((file) => file.id === fileId);
+    if (attachmentIndex !== -1) {
+      row.files.splice(attachmentIndex, 1);
+      return ok({ message: "File removed" });
+    }
+
+    const current = row.offers.filter((offer) => !offer.rejectedAt).at(-1);
+    const imageIndex = current?.images.findIndex((image) => image.id === fileId) ?? -1;
+    if (current && imageIndex !== -1) {
+      if (row.status !== "pending_client_decision") return wrongStateFile();
+      current.images.splice(imageIndex, 1);
+      return ok({ message: "File removed" });
+    }
+
+    return error(404, ["File not found"], SHIPMENT_FILE_NOT_FOUND);
   }),
 ];

@@ -1,14 +1,15 @@
-import { Camera } from "lucide-react";
+import { Camera, Trash2 } from "lucide-react";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { isApiError } from "@trans/api";
+import { ConfirmDelete } from "@trans/ui/blocks/confirm-delete";
 import { Avatar } from "@trans/ui/components/avatar";
 import { Button } from "@trans/ui/components/button";
 import { FieldError } from "@trans/ui/components/field";
 import { toast } from "@trans/ui/components/toaster";
 
-import { useUploadAvatar } from "./api";
+import { useDeleteAvatar, useUploadAvatar } from "./api";
 import { AVATAR_TYPES, avatarError } from "./validation";
 
 /**
@@ -19,6 +20,7 @@ export function AvatarSection({ name, avatarUrl }: { name: string; avatarUrl?: s
   const { t } = useTranslation("app");
   const inputId = useId();
   const upload = useUploadAvatar();
+  const remove = useDeleteAvatar();
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | undefined>();
 
@@ -73,6 +75,23 @@ export function AvatarSection({ name, avatarUrl }: { name: string; avatarUrl?: s
         <p className="text-label-12 text-gray-900">{t("profile.photoHint")}</p>
         {error && <FieldError message={error} />}
       </div>
+
+      {avatarUrl && (
+        <ConfirmDelete
+          trigger={
+            <Button variant="tertiary" size="sm" prefix={<Trash2 />}>
+              {t("profile.removePhoto")}
+            </Button>
+          }
+          title={t("profile.removePhotoTitle")}
+          description={t("profile.removePhotoBody")}
+          errorText={t("profile.removePhotoError")}
+          onConfirm={async () => {
+            await remove.mutateAsync();
+            toast.success(t("profile.photoRemoved"));
+          }}
+        />
+      )}
     </div>
   );
 }

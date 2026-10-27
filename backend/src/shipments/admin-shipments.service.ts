@@ -23,6 +23,7 @@ import { ShipmentFactory } from './factories/shipment.factory';
 import { ShipmentsService } from './shipments.service';
 import {
   InvalidShipmentStateException,
+  ShipmentFileNotDeletableException,
   TooManyImagesException,
 } from './exceptions';
 
@@ -179,5 +180,26 @@ export class AdminShipmentsService {
       saved!,
       await this.shipmentsService.signUrls([saved!]),
     );
+  }
+
+  /**
+   * Removes a file. Offer photos only while the client is still deciding
+   * (pending_client_decision) — once accepted/rejected they're history.
+   * Request photos aren't touched here: those are the client's own, removed
+   * via ShipmentsService.deleteOwnFile instead.
+   */
+  async deleteFile(trackingId: string, fileId: string): Promise<void> {
+    const shipment = await this.shipmentsService.findOne(trackingId);
+    const file = await this.shipmentsService.findFile(shipment.id, fileId);
+    if (file.kind === ShipmentFileKind.REQUEST_PHOTO) {
+      throw new ShipmentFileNotDeletableException();
+    }
+    if (
+      file.kind === ShipmentFileKind.OFFER_PHOTO &&
+      shipment.status !== ShipmentState.PENDING_CLIENT_DECISION
+    ) {
+      throw new ShipmentFileNotDeletableException();
+    }
+    await this.shipmentsService.removeFile(file);
   }
 }

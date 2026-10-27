@@ -6,6 +6,7 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
+import { googleOAuthConfig } from '../config/google-oauth.config';
 import { PasswordResetService } from './services/password-reset.service';
 import { RefreshTokenService } from './services/refresh-token.service';
 import { AuthProviderUserService } from './services/auth-provider-user.service';
@@ -33,7 +34,17 @@ import { InternalUsersModule } from '../internal-users/internal-users.module';
   providers: [
     AuthService,
     JwtStrategy,
-    GoogleStrategy,
+    {
+      // passport-google-oauth20's Strategy throws in its own constructor if
+      // clientID/clientSecret are empty — only register it once they're real,
+      // so a Docker/eval run with no Google credentials can still boot.
+      // Nothing else injects GoogleStrategy directly, so `null` is harmless.
+      provide: GoogleStrategy,
+      useFactory: () => {
+        const { clientId, clientSecret } = googleOAuthConfig();
+        return clientId && clientSecret ? new GoogleStrategy() : null;
+      },
+    },
     PasswordResetService,
     RefreshTokenService,
     AuthProviderUserService,

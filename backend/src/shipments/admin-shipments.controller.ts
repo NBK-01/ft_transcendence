@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -192,5 +193,21 @@ export class AdminShipmentsController {
       throw new MissingRequiredDataException('file');
     }
     return this.adminShipmentsService.uploadFile(trackingId, dto, file);
+  }
+
+  @RequirePermission('shipments:update:org')
+  @Delete(':trackingId/files/:fileId')
+  @ApiOperation({
+    summary:
+      'Remove a file (offer photos only while pending_client_decision)',
+  })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 409, description: "Can't be deleted right now" })
+  async deleteFile(
+    @Param('trackingId') trackingId: string,
+    @Param('fileId') fileId: string,
+  ) {
+    await this.adminShipmentsService.deleteFile(trackingId, fileId);
+    return { message: 'File removed' };
   }
 }

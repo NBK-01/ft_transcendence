@@ -123,6 +123,11 @@ function setup() {
       if (row) Object.assign(row, values);
       return Promise.resolve({ affected: row ? 1 : 0 });
     },
+    remove: (user: InternalUser) => {
+      const index = users.findIndex((row) => row.id === user.id);
+      if (index !== -1) users.splice(index, 1);
+      return Promise.resolve(user);
+    },
   };
   const roleRepository = {
     findOne: ({ where }: { where: Partial<Role> }) =>
@@ -422,8 +427,66 @@ describe('activate / deactivate (PATCH isActive)', () => {
   });
 });
 
+describe('delete (permanent removal, distinct from deactivate)', () => {
+  it('deletes the row: the account no longer exists at all', async () => {
+    const { create, service, users } = setup();
+    const user = await create({ roleName: 'driver' });
+
+    await service.delete(user.id);
+
+    expect(users).toHaveLength(0);
+    await expectUserNotFound(service.getProfile(user.id));
+  });
+
+  it('an unknown id is 404 (8001)', async () => {
+    const { service } = setup();
+
+    await expectUserNotFound(service.delete(UNKNOWN));
+  });
+
+  it('the last active admin cannot be deleted (409, 8007)', async () => {
+    const { create, service, users } = setup();
+    const admin = await create({ roleName: 'admin' });
+
+    await expectLastAdmin(service.delete(admin.id));
+
+    expect(users).toHaveLength(1);
+  });
+
+  it('an admin can be deleted once another active admin exists', async () => {
+    const { create, service, users } = setup();
+    const admin = await create({ roleName: 'admin' });
+    await create({ roleName: 'admin' });
+
+    await service.delete(admin.id);
+
+    expect(users).toHaveLength(1);
+  });
+
+  it('a deactivated admin can always be deleted: deactivating already excluded them from the active count', async () => {
+    const { create, service, users } = setup();
+    const admin = await create({ roleName: 'admin' });
+    const other = await create({ roleName: 'admin' });
+    await service.update(admin.id, { isActive: false }); // safe: `other` stays active
+
+    await service.delete(admin.id);
+
+    expect(users).toHaveLength(1);
+    expect(users[0]!.id).toBe(other.id);
+  });
+
+  it('a non-admin can always be deleted', async () => {
+    const { create, service, users } = setup();
+    const user = await create({ roleName: 'driver' });
+
+    await service.delete(user.id);
+
+    expect(users).toHaveLength(0);
+  });
+});
+
 describe('route protection: every route is admin-only', () => {
-  const methods = ['create', 'findAll', 'findOne', 'update'] as const;
+  const methods = ['create', 'findAll', 'findOne', 'update', 'remove'] as const;
 
   it.each(methods)('%s admits an admin', async (method) => {
     const { create, callAs } = setup();

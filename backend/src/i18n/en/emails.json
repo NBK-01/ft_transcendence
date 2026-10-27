@@ -1,0 +1,19 @@
+{
+  "OTP_SUBJECT": "Verify Your Email - OTP Code",
+  "OTP_HEADING": "Email Verification",
+  "OTP_INTRO": "Thank you for registering! Please use the following OTP code to verify your email address:",
+  "OTP_IMPORTANT_LABEL": "Important:",
+  "OTP_EXPIRES": "This code will expire in {expiryMinutes} minutes",
+  "OTP_NO_SHARE": "Do not share this code with anyone",
+  "OTP_IGNORE": "If you didn't request this, please ignore this email",
+  "RESET_SUBJECT": "Reset Your Password",
+  "RESET_HEADING": "Password Reset Request",
+  "RESET_INTRO": "We received a request to reset your password. Click the button below to choose a new one:",
+  "RESET_BUTTON": "Reset Password",
+  "RESET_COPY_TOKEN": "Or copy this reset token:",
+  "RESET_SECURITY_LABEL": "Security Notice:",
+  "RESET_EXPIRES": "This token will expire in {expiryMinutes} minutes",
+  "RESET_IGNORE": "If you didn't request a password reset, please ignore this email",
+  "RESET_NO_CHANGE": "Your password won't change until you complete this flow",
+  "FOOTER": "This is an automated email, please do not reply."
+}
