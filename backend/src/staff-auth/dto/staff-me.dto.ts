@@ -32,6 +32,13 @@ export class StaffMeDto {
   organization!: StaffBranchDto | null;
 
   @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'A signed URL; null shows their initials',
+  })
+  avatarUrl!: string | null;
+
+  @ApiProperty({
     type: [String],
     example: ['shipments:read:org', 'shipments:update:org'],
     description: "The role's permissions (an admin passes every check anyway)",

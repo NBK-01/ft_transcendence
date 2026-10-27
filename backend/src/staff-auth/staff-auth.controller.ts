@@ -12,6 +12,7 @@ import { StaffLoginDto } from './dto/staff-login.dto';
 import { StaffRefreshTokenDto } from './dto/staff-refresh-token.dto';
 import { StaffChangePasswordDto } from './dto/staff-change-password.dto';
 import { StaffMeDto } from './dto/staff-me.dto';
+import { StaffProfileService } from '../staff-profile/staff-profile.service';
 import { Public, RequireStaff } from '../common/decorators';
 import { AuthContextService } from '../common/context';
 
@@ -26,6 +27,7 @@ export class StaffAuthController {
   constructor(
     private readonly staffAuthService: StaffAuthService,
     private readonly authContext: AuthContextService,
+    private readonly staffProfileService: StaffProfileService,
   ) {}
 
   @Public()
@@ -74,7 +76,7 @@ export class StaffAuthController {
   @ApiResponse({ status: 200, type: StaffMeDto })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async me() {
-    return this.staffAuthService.me();
+    return this.staffProfileService.me(this.authContext.requireUser().id);
   }
 
   @RequireStaff()
