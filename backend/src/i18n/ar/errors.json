@@ -86,5 +86,9 @@
   "API_KEY_RATE_LIMITED": "عدد كبير جدًا من الطلبات: يسمح هذا المفتاح بـ {limit} في الدقيقة. حاول مرة أخرى خلال {retryAfter} ثانية",
   "PARTNER_CUSTOMER_NOT_FOUND": "لا يوجد حساب عميل نشط بهذا البريد الإلكتروني",
   "WEBHOOK_NOT_CONFIGURED": "لم يتم إعداد هذا الويب هوك بعد. حاول مرة أخرى لاحقًا",
-  "WEBHOOK_INVALID_PAYLOAD": "حمولة الويب هوك غير صالحة: {reason}"
+  "WEBHOOK_INVALID_PAYLOAD": "حمولة الويب هوك غير صالحة: {reason}",
+  "ORGANIZATION_INACTIVE": "الفرع {name} معطّل. أعد تفعيله أولاً",
+  "ORGANIZATION_IN_USE": "لا يزال لدى الفرع {name} موظفون أو شحنات أو مفاتيح API. عطّله بدلاً من ذلك",
+  "SHIPMENT_BRANCH_LOCKED": "أنشأ شريكٌ الشحنة {trackingId}، لذا تبقى في فرعه",
+  "STAFF_NOT_IN_ORGANIZATION": "الموظف {id} ليس ضمن هذا الفرع"
 }

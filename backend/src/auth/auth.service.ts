@@ -1,5 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { AccountType } from '../common/context/auth-context.types';
+import { ActionSignals } from '../notifications/action-signals';
 import { ConfigService } from '@nestjs/config';
 import { I18nService } from 'nestjs-i18n';
 import { UsersService } from '../users/users.service';
@@ -61,6 +64,7 @@ export class AuthService {
     private readonly communicationService: CommunicationService,
     private readonly configService: ConfigService,
     private readonly authContext: AuthContextService,
+    private readonly eventEmitter: EventEmitter2,
     private readonly i18n: I18nService,
   ) {}
 
@@ -192,6 +196,10 @@ export class AuthService {
       rawToken,
       user,
     );
+    // Like login. After the token check, so only its holder learns the account is deactivated.
+    if (!user.isActive) {
+      throw new AccountDeactivatedException();
+    }
     return this.refreshTokenService.rotateRefreshToken(
       tokenRecord,
       user,
@@ -219,6 +227,10 @@ export class AuthService {
 
   async logoutAll(userId: string): Promise<{ message: string }> {
     const count = await this.refreshTokenService.deleteAllUserTokens(userId);
+    this.eventEmitter.emit(ActionSignals.SESSIONS_REVOKED, {
+      accountType: AccountType.CUSTOMER,
+      accountId: userId,
+    });
     return { message: `Logged out of ${count} session(s)` };
   }
 

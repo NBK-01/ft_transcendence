@@ -1,9 +1,16 @@
-import { Building2, Contact, KeyRound, LayoutGrid, MessageSquare, Package, ShieldCheck, Users } from "lucide-react";
+import { Building2, Contact, Home, KeyRound, LayoutGrid, MessageSquare, Package, ShieldCheck, Users } from "lucide-react";
 import { Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, Outlet } from "react-router";
 
-import { useStaffAccess, useStaffLogout, useStaffSession } from "@trans/api";
+import {
+  useChatConnection,
+  useLivePresence,
+  useStaffAccess,
+  useStaffLogout,
+  useStaffMe,
+  useStaffSession,
+} from "@trans/api";
 import { AppShell, type NavGroup } from "@trans/ui/blocks/app-shell";
 import { Logo } from "@trans/ui/blocks/logo";
 import { Badge } from "@trans/ui/components/badge";
@@ -13,7 +20,9 @@ import { Skeleton } from "@trans/ui/components/skeleton";
 import { useOrganizations } from "../features/branches/api";
 import { tabOf, useContacts } from "../features/contacts/api";
 import { useBranchFilter } from "../features/branches/use-branch-filter";
+import { SHIPMENT_READ } from "../features/auth/shipment-read";
 import { NotificationBell } from "../features/notifications/notification-bell";
+import { useNotificationToasts } from "../features/notifications/use-notification-toasts";
 
 const ALL = "all";
 
@@ -24,9 +33,23 @@ const ALL = "all";
  */
 function BranchFilter() {
   const { t } = useTranslation("common");
-  const { branchId, setBranchId } = useBranchFilter();
+  const { branchId, setBranchId, locked } = useBranchFilter();
+  const { organization } = useStaffAccess();
   const organizations = useOrganizations();
   const branches = organizations.data ?? [];
+
+  // A dispatcher works on their own branch only: it's shown, not picked.
+  if (locked) {
+    if (organization === undefined) return <Skeleton className="h-8 w-40" />;
+    return (
+      <p className="flex min-w-0 items-center gap-2 text-label-13 text-gray-900">
+        <Building2 className="size-4 shrink-0" aria-hidden="true" />
+        <span className="truncate">
+          {organization ? t("app:nav.branchLabel", { name: organization.name }) : t("app:nav.noBranch")}
+        </span>
+      </p>
+    );
+  }
 
   return (
     <Select value={branchId ?? ALL} onValueChange={(next) => setBranchId(next === ALL ? null : next)}>
@@ -53,8 +76,13 @@ export function AdminLayout() {
   const { t } = useTranslation(["common", "app"]);
   const { withBranch } = useBranchFilter();
   const { user } = useStaffSession();
-  const { isAdmin, can } = useStaffAccess();
+  const { isAdmin, can, organization } = useStaffAccess();
   const signOut = useStaffLogout();
+  // The photo isn't in the stored session (its URL expires): it comes from /me, as useStaffAccess reads it.
+  const avatarUrl = useStaffMe({ enabled: user !== null }).data?.avatarUrl;
+  useNotificationToasts();
+  // Contacts' online dots follow presence.changed on any page.
+  useLivePresence(useChatConnection());
   // Requests waiting for an answer, as a count on the Contacts nav item.
   const contacts = useContacts();
   const requests = (contacts.data ?? []).filter((contact) => user && tabOf(contact, user.id) === "received").length;
@@ -62,10 +90,10 @@ export function AdminLayout() {
   const nav: NavGroup[] = [
     {
       label: t("app:groups.operations"),
-      // Shipments need "shipments:read:all" (admin, support); everything else here is for every role.
+      // Shipments: every one for admin and support, their branch's for a dispatcher. Everything else is for every role.
       items: [
         { to: withBranch("/"), label: t("nav.dashboard"), icon: LayoutGrid, end: true },
-        ...(can("shipments:read:all") ? [{ to: withBranch("/shipments"), label: t("nav.shipments"), icon: Package }] : []),
+        ...(SHIPMENT_READ.some(can) ? [{ to: withBranch("/shipments"), label: t("nav.shipments"), icon: Package }] : []),
         { to: withBranch("/messages"), label: t("nav.chat"), icon: MessageSquare },
         {
           to: withBranch("/contacts"),
@@ -83,11 +111,21 @@ export function AdminLayout() {
     },
     {
       label: t("app:groups.manage"),
-      // Staff accounts and API keys are admin-only; every role can read the branches.
+      // Staff accounts and API keys are admin-only; every role can read the branches, and go straight to their own.
       items: [
         ...(isAdmin ? [{ to: withBranch("/users"), label: t("nav.users"), icon: Users }] : []),
         ...(isAdmin ? [{ to: withBranch("/roles"), label: t("nav.roles"), icon: ShieldCheck }] : []),
-        { to: withBranch("/branches"), label: t("nav.branches"), icon: Building2 },
+        ...(organization
+          ? [
+              {
+                to: withBranch(`/branches/${encodeURIComponent(organization.id)}`),
+                label: t("app:nav.myBranch"),
+                icon: Home,
+              },
+            ]
+          : []),
+        // With "My branch" beside it, Branches is only lit on the list itself.
+        { to: withBranch("/branches"), label: t("nav.branches"), icon: Building2, end: Boolean(organization) },
         ...(isAdmin ? [{ to: withBranch("/api-keys"), label: t("nav.apiKeys"), icon: KeyRound }] : []),
       ],
     },
@@ -104,6 +142,7 @@ export function AdminLayout() {
       user={{
         name: user?.name ?? "",
         email: user?.email ?? "",
+        avatarUrl,
         role: user?.roleName ? t(`app:users.roles.${user.roleName}`, { defaultValue: user.roleName }) : undefined,
       }}
       profileHref={withBranch("/profile")}

@@ -5,6 +5,7 @@ import {
   keys,
   type CreateOrganizationInput,
   type InternalUser,
+  type MessageResponse,
   type Organization,
   type UpdateOrganizationInput,
 } from "@trans/api";
@@ -86,17 +87,26 @@ export function useUpdateOrganization() {
 }
 
 /**
- * Deactivate (DELETE, a soft delete) or reactivate (PATCH isActive) a branch.
- * Its members stay assigned either way.
+ * Deactivate or reactivate a branch (PATCH isActive). Its members stay
+ * assigned either way, and its history stays.
  */
 export function useSetOrganizationActive() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-      const path = `/organizations/${encodeURIComponent(id)}`;
-      if (isActive) await api.patch<Organization>(path, { isActive: true });
-      else await api.delete(path);
-    },
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      api.patch<Organization>(`/organizations/${encodeURIComponent(id)}`, { isActive }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: keys.organizations.all }),
+  });
+}
+
+/** Backend OrganizationErrorCodes.OrganizationInUse: it still has staff, shipments or API keys. */
+export const ORGANIZATION_IN_USE = 4003;
+
+/** Delete a branch for good: only one with no staff, shipments or API keys (409, ORGANIZATION_IN_USE). */
+export function useDeleteOrganization() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<MessageResponse>(`/organizations/${encodeURIComponent(id)}`),
     onSettled: () => queryClient.invalidateQueries({ queryKey: keys.organizations.all }),
   });
 }

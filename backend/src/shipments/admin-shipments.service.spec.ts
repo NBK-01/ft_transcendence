@@ -27,6 +27,14 @@ import { ShipmentFile } from './entities/shipment-file.entity';
 import { ShipmentOffer } from './entities/shipment-offer.entity';
 import { ShipmentErrorCodes } from './exceptions';
 import { ShipmentsService } from './shipments.service';
+import {
+  AccessControlService,
+  BranchScope,
+} from '../access-control/access-control.service';
+import { Organization } from '../organizations/organization.entity';
+import { OrganizationErrorCodes } from '../organizations/exceptions';
+import { ListAdminShipmentsQueryDto } from './dto/list-admin-shipments-query.dto';
+import { AssignBranchDto } from './dto/assign-branch.dto';
 
 /**
  * Real magic-byte signatures — FileStorageService now sniffs the actual
@@ -98,6 +106,10 @@ class FakeShipmentStore {
   readonly rows = new Map<string, StoredShipment>();
   readonly events: Pick<ShipmentEvent, 'shipmentId' | 'status' | 'location'>[] =
     [];
+  /** The branches assignBranch can look up. */
+  readonly organizations = new Map<string, Partial<Organization>>();
+  /** The caller's branch scope (AccessControlService.branchScope): every shipment by default. */
+  scope: BranchScope = { all: true };
   /** Set to make the next ShipmentOffer save blow up, to test upload cleanup. */
   failOfferSave = false;
   private nextId = 1;
@@ -118,6 +130,7 @@ class FakeShipmentStore {
       offers: [] as ShipmentOffer[],
       files: [] as ShipmentFile[],
       payment: null,
+      organizationId: null,
       updatedAt: new Date(),
     });
     this.rows.set(shipment.id, shipment);
@@ -222,6 +235,19 @@ class FakeShipmentStore {
     },
     create: <T extends object>(entity: new () => T, values: Partial<T>): T =>
       Object.assign(new entity(), values),
+    /** The first ShipmentEvent (in insertion order) or a branch, as assignBranch asks for them. */
+    findOne: (
+      entity: unknown,
+      { where }: { where: Record<string, string> },
+    ) => {
+      if (entity === ShipmentEvent) {
+        return Promise.resolve(
+          this.events.find((event) => event.shipmentId === where.shipmentId) ??
+            null,
+        );
+      }
+      return Promise.resolve(this.organizations.get(where.id) ?? null);
+    },
     save: <T>(entityOrArray: T): Promise<T> => {
       if (Array.isArray(entityOrArray)) {
         return Promise.all(
@@ -239,6 +265,10 @@ class FakeShipmentStore {
           rejectedAt: null,
         });
         this.rows.get(entity.shipmentId)!.offers.push(entity);
+      } else if (entity instanceof Shipment) {
+        Object.assign(this.rows.get(entity.id)!, {
+          organizationId: entity.organizationId,
+        });
       } else if (entity instanceof ShipmentFile) {
         Object.assign(entity, {
           id: `file-${this.nextId++}`,
@@ -279,11 +309,15 @@ function setup() {
     store.dataSource as unknown as DataSource,
     fileStorage,
   );
+  const accessControl = {
+    branchScope: () => Promise.resolve(store.scope),
+  } as unknown as AccessControlService;
   const admin = new AdminShipmentsService(
     shipments,
     store.dataSource as unknown as DataSource,
+    accessControl,
   );
-  return { store, admin, provider };
+  return { store, admin, provider, shipments };
 }
 
 function file(
@@ -688,6 +722,7 @@ describe('uploading a file to the shipment', () => {
       const row = store.seed(ShipmentState.CONFIRMED);
 
       const result = await admin.uploadFile(
+        STAFF_ID,
         TRACKING_ID,
         { kind } as UploadFileDto,
         file(),
@@ -709,6 +744,7 @@ describe('uploading a file to the shipment', () => {
 
     await expect(
       admin.uploadFile(
+        STAFF_ID,
         TRACKING_ID,
         { kind: ShipmentFileKind.PROOF_OF_DELIVERY } as UploadFileDto,
         file({
@@ -726,6 +762,7 @@ describe('uploading a file to the shipment', () => {
 
     await expectInvalidFileType(
       admin.uploadFile(
+        STAFF_ID,
         TRACKING_ID,
         { kind: ShipmentFileKind.OTHER } as UploadFileDto,
         file({ mimetype: 'video/mp4', buffer: UNKNOWN_BYTES }),
@@ -739,6 +776,7 @@ describe('uploading a file to the shipment', () => {
 
     await expectFileTooLarge(
       admin.uploadFile(
+        STAFF_ID,
         TRACKING_ID,
         { kind: ShipmentFileKind.OTHER } as UploadFileDto,
         file({ buffer: padded(JPEG_BYTES, 11 * 1024 * 1024) }),
@@ -751,6 +789,7 @@ describe('uploading a file to the shipment', () => {
     store.seed(ShipmentState.CONFIRMED);
 
     await admin.uploadFile(
+      STAFF_ID,
       TRACKING_ID,
       { kind: ShipmentFileKind.OTHER } as UploadFileDto,
       file({ originalname: 'manifest.pdf', mimetype: 'application/pdf' }),
@@ -774,6 +813,7 @@ describe('uploading a file to the shipment', () => {
         const row = store.seed(status);
 
         await admin.uploadFile(
+          STAFF_ID,
           TRACKING_ID,
           { kind: ShipmentFileKind.OTHER } as UploadFileDto,
           file(),
@@ -786,13 +826,175 @@ describe('uploading a file to the shipment', () => {
   });
 });
 
+describe('branch scope', () => {
+  const query = (organizationId?: string) =>
+    ({ page: 1, limit: 20, organizationId }) as ListAdminShipmentsQueryDto;
+
+  it("forces a dispatcher's list to their branch, whatever organizationId says", async () => {
+    const { store, admin, shipments } = setup();
+    store.scope = { all: false, organizationId: 'org-1' };
+    const listQuery = jest
+      .spyOn(shipments, 'listQuery')
+      .mockResolvedValue([[], 0]);
+
+    await admin.list(STAFF_ID, query('org-2'));
+
+    expect(listQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 'org-1' }),
+    );
+  });
+
+  it('shows someone in no branch nothing, without querying (an empty filter would list everything)', async () => {
+    const { store, admin, shipments } = setup();
+    store.scope = { all: false, organizationId: null };
+    const listQuery = jest.spyOn(shipments, 'listQuery');
+
+    const page = await admin.list(STAFF_ID, query());
+
+    expect(listQuery).not.toHaveBeenCalled();
+    expect(page).toMatchObject({ meta: { totalItems: 0 } });
+  });
+
+  it('treats a shipment outside the branch as not found, for reads and for changes, before any upload', async () => {
+    const { store, admin, provider } = setup();
+    Object.assign(store.seed(ShipmentState.CONFIRMED), {
+      organizationId: 'org-2',
+    });
+    store.scope = { all: false, organizationId: 'org-1' };
+    const notFound = { code: ShipmentErrorCodes.ShipmentNotFound };
+
+    await expect(
+      admin.getDetailFor(STAFF_ID, TRACKING_ID),
+    ).rejects.toMatchObject(notFound);
+    await expect(admin.listEvents(STAFF_ID, TRACKING_ID)).rejects.toMatchObject(
+      notFound,
+    );
+    await expect(
+      admin.uploadFile(
+        STAFF_ID,
+        TRACKING_ID,
+        { kind: ShipmentFileKind.OTHER } as UploadFileDto,
+        file(),
+      ),
+    ).rejects.toMatchObject(notFound);
+    expect(provider.uploads).toEqual([]);
+  });
+
+  it("won't let a dispatcher remove a file from another branch's shipment (404)", async () => {
+    const { store, admin, provider } = setup();
+    const row = Object.assign(store.seed(ShipmentState.CONFIRMED), {
+      organizationId: 'org-2',
+    });
+    const target = store.seedFile(row.id, { kind: ShipmentFileKind.OTHER });
+    store.scope = { all: false, organizationId: 'org-1' };
+
+    await expect(
+      admin.deleteFile(STAFF_ID, TRACKING_ID, target.id),
+    ).rejects.toMatchObject({ code: ShipmentErrorCodes.ShipmentNotFound });
+    expect(row.files).toHaveLength(1);
+    expect(provider.deleted).toEqual([]);
+  });
+
+  it("lets a dispatcher work on their branch's shipment", async () => {
+    const { store, admin } = setup();
+    const row = Object.assign(store.seed(ShipmentState.CONFIRMED), {
+      organizationId: 'org-1',
+    });
+    store.scope = { all: false, organizationId: 'org-1' };
+
+    await admin.addEvent(STAFF_ID, TRACKING_ID, {
+      status: ShipmentState.IN_TRANSIT,
+      location: 'Beirut port',
+    } as CreateEventDto);
+
+    expect(row.status).toBe(ShipmentState.IN_TRANSIT);
+  });
+});
+
+describe('assignBranch', () => {
+  const branches = (store: FakeShipmentStore) => {
+    store.organizations.set('org-1', {
+      id: 'org-1',
+      name: 'Beirut Central',
+      isActive: true,
+    });
+    store.organizations.set('org-off', {
+      id: 'org-off',
+      name: 'Marseille Joliette',
+      isActive: false,
+    });
+  };
+
+  it("hands a customer's order to a branch, and takes it off with null", async () => {
+    const { store, admin } = setup();
+    branches(store);
+    const row = store.seed(ShipmentState.PENDING_SOURCING);
+
+    await admin.assignBranch(TRACKING_ID, 'org-1');
+    expect(row.organizationId).toBe('org-1');
+
+    await admin.assignBranch(TRACKING_ID, null);
+    expect(row.organizationId).toBeNull();
+  });
+
+  it("refuses a partner's shipment (it started at confirmed): 409, 3008", async () => {
+    const { store, admin } = setup();
+    branches(store);
+    const row = store.seed(ShipmentState.CONFIRMED);
+    store.events.push({
+      shipmentId: row.id,
+      status: ShipmentState.CONFIRMED,
+      location: 'Created by Lyon Part-Dieu',
+    });
+
+    await expect(
+      admin.assignBranch(TRACKING_ID, 'org-1'),
+    ).rejects.toMatchObject({
+      code: ShipmentErrorCodes.ShipmentBranchLocked,
+    });
+    expect(row.organizationId).toBeNull();
+  });
+
+  it('refuses a deactivated branch (409, 4005) and an unknown one (404, 4001)', async () => {
+    const { store, admin } = setup();
+    branches(store);
+    const row = store.seed(ShipmentState.PENDING_SOURCING);
+
+    await expect(
+      admin.assignBranch(TRACKING_ID, 'org-off'),
+    ).rejects.toMatchObject({
+      code: OrganizationErrorCodes.OrganizationInactive,
+    });
+    await expect(
+      admin.assignBranch(TRACKING_ID, 'org-unknown'),
+    ).rejects.toMatchObject({
+      code: OrganizationErrorCodes.OrganizationNotFound,
+    });
+    expect(row.organizationId).toBeNull();
+  });
+
+  it('takes a branch id or null, nothing else', async () => {
+    const errorsFor = (body: object) =>
+      validate(plainToInstance(AssignBranchDto, body));
+
+    expect(
+      await errorsFor({
+        organizationId: '7b3c1e9a-2f4d-4a8b-9c6e-1d2f3a4b5c6d',
+      }),
+    ).toEqual([]);
+    expect(await errorsFor({ organizationId: null })).toEqual([]);
+    expect(await errorsFor({ organizationId: 'beirut' })).not.toEqual([]);
+    expect(await errorsFor({})).not.toEqual([]);
+  });
+});
+
 describe('deleting a file', () => {
   it('removes a Files-tab attachment regardless of shipment status, and best-effort cleans up storage', async () => {
     const { store, admin, provider } = setup();
     const row = store.seed(ShipmentState.CONFIRMED);
     const target = store.seedFile(row.id, { kind: ShipmentFileKind.OTHER });
 
-    await admin.deleteFile(TRACKING_ID, target.id);
+    await admin.deleteFile(STAFF_ID, TRACKING_ID, target.id);
 
     expect(row.files).toHaveLength(0);
     expect(provider.deleted).toEqual([target.storageKey]);
@@ -806,7 +1008,7 @@ describe('deleting a file', () => {
       offerId: 'offer-1',
     });
 
-    await admin.deleteFile(TRACKING_ID, target.id);
+    await admin.deleteFile(STAFF_ID, TRACKING_ID, target.id);
 
     expect(row.files).toHaveLength(0);
   });
@@ -819,7 +1021,9 @@ describe('deleting a file', () => {
       offerId: 'offer-1',
     });
 
-    await expectFileNotDeletable(admin.deleteFile(TRACKING_ID, target.id));
+    await expectFileNotDeletable(
+      admin.deleteFile(STAFF_ID, TRACKING_ID, target.id),
+    );
 
     expect(row.files).toHaveLength(1);
   });
@@ -831,7 +1035,9 @@ describe('deleting a file', () => {
       kind: ShipmentFileKind.REQUEST_PHOTO,
     });
 
-    await expectFileNotDeletable(admin.deleteFile(TRACKING_ID, target.id));
+    await expectFileNotDeletable(
+      admin.deleteFile(STAFF_ID, TRACKING_ID, target.id),
+    );
 
     expect(row.files).toHaveLength(1);
   });
@@ -840,7 +1046,7 @@ describe('deleting a file', () => {
     const { store, admin } = setup();
     store.seed(ShipmentState.CONFIRMED);
 
-    await expectFileNotFound(admin.deleteFile(TRACKING_ID, 'nope'));
+    await expectFileNotFound(admin.deleteFile(STAFF_ID, TRACKING_ID, 'nope'));
   });
 });
 
@@ -854,11 +1060,17 @@ describe('route protection', () => {
       string | undefined;
 
   it.each(['list', 'getOne', 'listEvents', 'listFiles'])(
-    '%s is read-only: shipments:read:all',
+    '%s reads: shipments:read:all or shipments:read:org (scoped in the service)',
     (method) => {
-      expect(permissionOf(method)).toBe('shipments:read:all');
+      expect(
+        Reflect.getMetadata(ACCESS_CONTROL_KEYS.ANY_PERMISSION, proto[method]),
+      ).toEqual(['shipments:read:all', 'shipments:read:org']);
     },
   );
+
+  it('assigning a branch is for whoever manages branches', () => {
+    expect(permissionOf('assignBranch')).toBe('organizations:manage');
+  });
 
   it.each([
     'createOffer',

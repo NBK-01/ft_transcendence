@@ -1,6 +1,6 @@
 import { http } from "msw/http";
 
-import { error, ok } from "@trans/api/mocks";
+import { error, notifyAction, ok } from "@trans/api/mocks";
 import { profileSchema } from "@trans/ui/schemas/profile";
 
 import type { AvatarUploadResult, Profile, ProfileUpdate } from "./types";
@@ -29,6 +29,9 @@ const profile: Profile = {
   phoneNumber: "+961 70 123 456",
 };
 
+/** The customer, as the notifications see them. */
+const me = { id: profile.id, accountType: "customer" as const };
+
 export const handlers = [
   http.get("*/api/users/profile", () => ok<Profile>(profile)),
 
@@ -47,6 +50,11 @@ export const handlers = [
     const { firstName, lastName } = parsed.data;
     const dateOfBirth = parsed.data.dateOfBirth || null;
     const phoneNumber = parsed.data.phoneNumber || null;
+    const changed =
+      firstName !== profile.firstName ||
+      lastName !== profile.lastName ||
+      dateOfBirth !== profile.dateOfBirth ||
+      phoneNumber !== profile.phoneNumber;
 
     Object.assign(profile, {
       firstName,
@@ -57,6 +65,8 @@ export const handlers = [
       phoneNumber,
       updatedAt: new Date().toISOString(),
     });
+    // Like the backend: only a real change is told (a record for the customer).
+    if (changed) notifyAction({ type: "PROFILE_UPDATED", account: me, change: "details" }, me);
     return ok<Profile>(profile);
   }),
 
@@ -71,6 +81,7 @@ export const handlers = [
     if (profile.avatarUrl?.startsWith("blob:")) URL.revokeObjectURL(profile.avatarUrl);
     profile.avatarUrl = URL.createObjectURL(file);
     profile.updatedAt = new Date().toISOString();
+    notifyAction({ type: "PROFILE_UPDATED", account: me, change: "avatar" }, me);
     return ok<AvatarUploadResult>({ avatarUrl: profile.avatarUrl }, 201);
   }),
 ];

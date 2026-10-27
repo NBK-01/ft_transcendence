@@ -86,5 +86,9 @@
   "API_KEY_RATE_LIMITED": "Trop de requêtes : cette clé autorise {limit} par minute. Réessayez dans {retryAfter} secondes",
   "PARTNER_CUSTOMER_NOT_FOUND": "Aucun compte client actif avec cet e-mail",
   "WEBHOOK_NOT_CONFIGURED": "Ce webhook n'est pas encore configuré. Réessayez plus tard",
-  "WEBHOOK_INVALID_PAYLOAD": "Charge utile du webhook invalide : {reason}"
+  "WEBHOOK_INVALID_PAYLOAD": "Charge utile du webhook invalide : {reason}",
+  "ORGANIZATION_INACTIVE": "L'agence {name} est désactivée : réactivez-la d'abord",
+  "ORGANIZATION_IN_USE": "L'agence {name} a encore du personnel, des expéditions ou des clés API. Désactivez-la plutôt",
+  "SHIPMENT_BRANCH_LOCKED": "L'expédition {trackingId} a été créée par un partenaire : elle reste dans son agence",
+  "STAFF_NOT_IN_ORGANIZATION": "Le membre du personnel {id} ne fait pas partie de cette agence"
 }

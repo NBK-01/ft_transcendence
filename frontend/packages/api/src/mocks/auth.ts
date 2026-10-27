@@ -66,6 +66,8 @@ export const authHandlers = [
       return error(409, ["A user with this email already exists"], EMAIL_ALREADY_REGISTERED);
     }
     pending.set(email, { password: body.password ?? "", name: body.name ?? "" });
+    // The backend creates the account here (unverified until the code), which is what tells the admins.
+    notifyAction({ type: "CUSTOMER_REGISTERED", customerId: crypto.randomUUID(), name: body.name ?? email }, null);
     return ok<{ message: string; email: string }>({
       message: "Registration successful. Check your email for a verification code.",
       email,
@@ -124,6 +126,8 @@ export const authHandlers = [
   http.post("*/api/auth/logout-all", ({ request }) => {
     if (!isValidAccess(bearer(request))) return error(401, ["Unauthorized"]);
     signedOutUpTo = counter;
+    const customer = { id: MOCK_USER.id, accountType: "customer" as const };
+    notifyAction({ type: "SESSIONS_REVOKED", account: customer }, customer);
     return ok<MessageResponse>({ message: "Logged out of all sessions" });
   }),
 

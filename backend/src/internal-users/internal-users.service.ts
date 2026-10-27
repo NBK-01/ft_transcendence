@@ -17,6 +17,7 @@ import {
 import { RoleNotFoundException } from '../access-control/exceptions';
 import { AccountType } from '../common/context/auth-context.types';
 import { ActionSignals } from '../notifications/action-signals';
+import { ProfileChange } from '../notifications/constants/notification.constants';
 
 const ADMIN_ROLE_NAME = 'admin';
 
@@ -61,6 +62,59 @@ export class InternalUsersService {
     return this.internalUserRepository.findOne({
       where: { id },
       relations: ['role'],
+    });
+  }
+
+  /**
+   * A staff member renames themselves (PATCH /staff-profile): a record for
+   * them, nobody else told. An admin renaming someone goes through update().
+   */
+  async renameSelf(id: string, name: string): Promise<void> {
+    const staff = await this.findById(id);
+    if (!staff) {
+      throw new InternalUserNotFoundException(id);
+    }
+    if (staff.name === name) {
+      return;
+    }
+    await this.internalUserRepository.update(id, { name });
+    this.signalProfileUpdated(id, 'details');
+  }
+
+  /**
+   * Sets (or, with null, clears) the staff member's own photo. Returns the
+   * key it replaced, for the caller to delete from storage.
+   */
+  async setAvatar(
+    id: string,
+    avatarKey: string | null,
+  ): Promise<{ previousKey: string | null }> {
+    const staff = await this.findById(id);
+    if (!staff) {
+      throw new InternalUserNotFoundException(id);
+    }
+    const previousKey = staff.avatarKey ?? null;
+    if (previousKey === avatarKey) {
+      return { previousKey: null };
+    }
+    await this.internalUserRepository.update(id, { avatarKey });
+    this.signalProfileUpdated(id, 'avatar');
+    return { previousKey };
+  }
+
+  private signalProfileUpdated(id: string, change: ProfileChange): void {
+    this.eventEmitter.emit(ActionSignals.PROFILE_UPDATED, {
+      accountType: AccountType.STAFF,
+      accountId: id,
+      change,
+    });
+  }
+
+  /** With the role and the branch, for GET /staff-auth/me. */
+  async findWithBranch(id: string): Promise<InternalUser | null> {
+    return this.internalUserRepository.findOne({
+      where: { id },
+      relations: ['role', 'organization'],
     });
   }
 

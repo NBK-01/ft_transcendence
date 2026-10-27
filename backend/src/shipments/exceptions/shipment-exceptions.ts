@@ -10,6 +10,7 @@ export enum ShipmentErrorCodes {
   CardExpired = 3005,
   ShipmentFileNotFound = 3006,
   ShipmentFileNotDeletable = 3007,
+  ShipmentBranchLocked = 3008,
 }
 
 export enum ShipmentErrorMessages {
@@ -20,6 +21,7 @@ export enum ShipmentErrorMessages {
   CardExpired = 'errors.CARD_EXPIRED',
   ShipmentFileNotFound = 'errors.SHIPMENT_FILE_NOT_FOUND',
   ShipmentFileNotDeletable = 'errors.SHIPMENT_FILE_NOT_DELETABLE',
+  ShipmentBranchLocked = 'errors.SHIPMENT_BRANCH_LOCKED',
 }
 
 /** Also thrown when the shipment exists but belongs to another client — never reveal that it exists. */
@@ -93,6 +95,20 @@ export class ShipmentFileNotDeletableException extends DomainException {
       { key: ShipmentErrorMessages.ShipmentFileNotDeletable },
       HttpStatus.CONFLICT,
       ShipmentErrorCodes.ShipmentFileNotDeletable,
+    );
+  }
+}
+
+/** A partner's shipment stays with the branch whose API key created it. */
+export class ShipmentBranchLockedException extends DomainException {
+  constructor(trackingId: string) {
+    super(
+      {
+        key: ShipmentErrorMessages.ShipmentBranchLocked,
+        params: { trackingId },
+      },
+      HttpStatus.CONFLICT,
+      ShipmentErrorCodes.ShipmentBranchLocked,
     );
   }
 }

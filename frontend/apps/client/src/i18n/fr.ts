@@ -120,6 +120,7 @@ const fr: ClientResources = {
   notifications: {
     bellLabel: "Notifications, {{count}} non lues",
     markAllRead: "Tout marquer comme lu",
+    open: "Ouvrir",
     markAllError: "Impossible de marquer vos notifications comme lues. Réessayez.",
     loadMore: "Charger plus",
     unread: "Non lu",
@@ -155,6 +156,33 @@ const fr: ClientResources = {
       passwordChanged: {
         title: "Mot de passe modifié",
         message: "Si ce n'était pas vous, réinitialisez votre mot de passe immédiatement.",
+      },
+      supportStarted: {
+        title: "Conversation avec le support ouverte",
+        message: "Notre équipe de support vous répondra dans Messages.",
+      },
+      welcome: {
+        title: "Bienvenue sur ShipTrack",
+        message: "Votre compte est prêt. Demandez un envoi quand vous voulez.",
+      },
+      profileUpdated: {
+        title: "Profil mis à jour",
+        details: "Vous avez mis à jour les informations de votre profil.",
+        avatar: "Vous avez changé votre photo de profil.",
+      },
+      sessionsRevoked: {
+        title: "Déconnecté partout",
+        message:
+          "Toutes les sessions de votre compte ont été fermées. Si ce n'était pas vous, changez votre mot de passe maintenant.",
+      },
+      message: { title: "Nouveau message", message: "{{name}}, du support, vous a envoyé un message." },
+    },
+    own: {
+      shipment: {
+        pending_sourcing: "Vous avez envoyé cette demande. Nous cherchons un fournisseur.",
+        pending_payment: "Vous avez accepté l'offre. Payez pour la confirmer.",
+        pending_payment_confirmation: "Vous avez payé. Nous confirmerons le paiement sous peu.",
+        other: "Vous avez fait ce changement.",
       },
     },
   },

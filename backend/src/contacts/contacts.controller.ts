@@ -19,14 +19,19 @@ import { SendContactRequestDto } from './dto/send-contact-request.dto';
 import { ListContactsQueryDto } from './dto/list-contacts-query.dto';
 import { RequireStaff } from '../common/decorators/access-control.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { RequestUser } from '../common/context/auth-context.types';
+import { AccountType, RequestUser } from '../common/context/auth-context.types';
+import { PresenceService } from '../chat/presence.service';
+import { ContactPresenceDto } from './dto/contact-presence.dto';
 
 @ApiTags('Contacts')
 @ApiBearerAuth()
 @RequireStaff()
 @Controller('contacts')
 export class ContactsController {
-  constructor(private readonly contactsService: ContactsService) {}
+  constructor(
+    private readonly contactsService: ContactsService,
+    private readonly presenceService: PresenceService,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Send a contact request to another staff member' })
@@ -37,6 +42,29 @@ export class ContactsController {
     @CurrentUser() currentUser: RequestUser,
   ) {
     return this.contactsService.sendRequest(currentUser.id, dto.addresseeId);
+  }
+
+  @Get('presence')
+  @ApiOperation({
+    summary: 'Which of my accepted contacts are online now',
+    description:
+      'A snapshot: after it, the socket sends presence.changed as they come and go.',
+  })
+  @ApiResponse({ status: 200, type: [ContactPresenceDto] })
+  async presence(
+    @CurrentUser() currentUser: RequestUser,
+  ): Promise<ContactPresenceDto[]> {
+    const ids = await this.contactsService.listAcceptedContactIds(
+      currentUser.id,
+    );
+    const online = await this.presenceService.onlineAmong(
+      AccountType.STAFF,
+      ids,
+    );
+    return ids.map((internalUserId) => ({
+      internalUserId,
+      online: online.has(internalUserId),
+    }));
   }
 
   @Get()

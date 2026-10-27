@@ -3,9 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { ClsService } from 'nestjs-cls';
 import { ApiKeyGuard } from './api-key.guard';
 import {
+  ApiKeyLookup,
   ApiKeyPrincipal,
   ApiKeysService,
   ApiKeyVerification,
+  IdentifiedApiKey,
 } from '../api-keys.service';
 import {
   ApiKeyRateLimiterService,
@@ -30,6 +32,9 @@ const principal: ApiKeyPrincipal = {
   organizationName: 'Lyon',
 };
 
+/** What identify() finds: the record confirm() checks. */
+const record = { id: 'key-1' } as IdentifiedApiKey;
+
 const underLimit: RateLimitState = {
   limit: 60,
   remaining: 59,
@@ -38,18 +43,21 @@ const underLimit: RateLimitState = {
 };
 
 function setup({
+  lookup = { valid: true, record },
   verification = { valid: true, apiKey: principal },
   rateLimit = underLimit,
   internalCallerKey = INTERNAL_CALLER_KEY,
   limiterFails = false,
 }: {
+  lookup?: ApiKeyLookup;
   verification?: ApiKeyVerification;
   rateLimit?: RateLimitState;
   internalCallerKey?: string;
   limiterFails?: boolean;
 } = {}) {
   const apiKeysService = {
-    verify: jest.fn().mockResolvedValue(verification),
+    identify: jest.fn().mockResolvedValue(lookup),
+    confirm: jest.fn().mockResolvedValue(verification),
     touchLastUsed: jest.fn().mockResolvedValue(true),
   };
   const rateLimiter = {
@@ -130,7 +138,7 @@ describe('ApiKeyGuard: the key', () => {
     expect(await refusal(call({ 'x-api-key': '   ' }))).toMatchObject({
       code: PublicApiErrorCodes.ApiKeyMissing,
     });
-    expect(apiKeysService.verify).not.toHaveBeenCalled();
+    expect(apiKeysService.identify).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -149,15 +157,31 @@ describe('ApiKeyGuard: the key', () => {
       HttpStatus.FORBIDDEN,
       PublicApiErrorCodes.ApiKeyBranchDeactivated,
     ],
-  ])('turns %s into a %i (%i)', async (reason, status, code) => {
+  ])(
+    'turns %s into a %i (%i), before the rate limit and the bcrypt check',
+    async (reason, status, code) => {
+      const { call, rateLimiter, apiKeysService } = setup({
+        lookup: { valid: false, reason },
+      });
+      expect(await refusal(call({ 'x-api-key': KEY }))).toEqual({
+        status,
+        code,
+      });
+      expect(rateLimiter.hit).not.toHaveBeenCalled();
+      expect(apiKeysService.confirm).not.toHaveBeenCalled();
+      expect(apiKeysService.touchLastUsed).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses a key that fails the bcrypt check (401, 16004), once it has counted against the limit', async () => {
     const { call, rateLimiter, apiKeysService } = setup({
-      verification: { valid: false, reason },
+      verification: { valid: false, reason: ApiKeyRejection.INVALID },
     });
     expect(await refusal(call({ 'x-api-key': KEY }))).toEqual({
-      status,
-      code,
+      status: HttpStatus.UNAUTHORIZED,
+      code: PublicApiErrorCodes.ApiKeyInvalid,
     });
-    expect(rateLimiter.hit).not.toHaveBeenCalled();
+    expect(rateLimiter.hit).toHaveBeenCalledWith('key-1');
     expect(apiKeysService.touchLastUsed).not.toHaveBeenCalled();
   });
 
@@ -165,7 +189,8 @@ describe('ApiKeyGuard: the key', () => {
     const { call, lastRequest, apiKeysService, cls } = setup();
     expect(await call({ 'x-api-key': ` ${KEY} ` })).toBe(true);
 
-    expect(apiKeysService.verify).toHaveBeenCalledWith(KEY);
+    expect(apiKeysService.identify).toHaveBeenCalledWith(KEY);
+    expect(apiKeysService.confirm).toHaveBeenCalledWith(KEY, record);
     expect(lastRequest().partner).toEqual({ ...principal, isInternal: false });
     expect(cls.set).toHaveBeenCalledWith(
       PARTNER_CONTEXT_KEY,
@@ -188,8 +213,8 @@ describe('ApiKeyGuard: the rate limit', () => {
     });
   });
 
-  it('is a 429 (16007) past the limit, and says when to come back', async () => {
-    const { call, lastRequest, lastResponseHeaders } = setup({
+  it('is a 429 (16007) past the limit, and says when to come back, without the bcrypt check', async () => {
+    const { call, lastRequest, lastResponseHeaders, apiKeysService } = setup({
       rateLimit: {
         limit: 60,
         remaining: 0,
@@ -206,6 +231,7 @@ describe('ApiKeyGuard: the rate limit', () => {
       'X-RateLimit-Remaining': 0,
     });
     expect(lastRequest().partner).toBeUndefined();
+    expect(apiKeysService.confirm).not.toHaveBeenCalled();
   });
 
   it('lets the request through when Redis is down, and logs it', async () => {
@@ -250,7 +276,7 @@ describe('ApiKeyGuard: X-Internal-Key', () => {
     ).toMatchObject({ code: PublicApiErrorCodes.ApiKeyMissing });
 
     const withBadKey = setup({
-      verification: { valid: false, reason: ApiKeyRejection.INVALID },
+      lookup: { valid: false, reason: ApiKeyRejection.INVALID },
     });
     expect(
       await refusal(

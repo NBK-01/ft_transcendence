@@ -17,6 +17,19 @@ const ar: CommonResources = {
     typeToConfirm: "اكتب <value>{{value}}</value> للتأكيد",
     error: "تعذّر الحذف. حاول مرة أخرى.",
   },
+  presence: {
+    online: "متصل",
+    offline: "غير متصل",
+  },
+  avatarUploader: {
+    add: "إضافة صورة",
+    change: "تغيير الصورة",
+    remove: "إزالة الصورة",
+    uploading: "جارٍ الرفع… {{percent}}٪",
+    hint: "JPG أو PNG أو WebP، بحد أقصى {{size}} ميغابايت.",
+    type: "اختر صورة JPG أو PNG أو WebP.",
+    size: "يجب ألا يتجاوز حجم الصورة {{size}} ميغابايت.",
+  },
   status: {
     requested: "مطلوبة",
     confirmed: "مؤكدة",

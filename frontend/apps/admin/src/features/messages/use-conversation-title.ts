@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useStaffSession, type Conversation } from "@trans/api";
+import { useContactPresence, useStaffSession, type Conversation } from "@trans/api";
 
 import { otherParty, useContacts } from "../contacts/api";
 
@@ -11,6 +11,8 @@ export type ConversationTitle = {
   detail: string;
   /** The other staff member in a DM. */
   otherId?: string;
+  /** Whether they're online; undefined unless they're an accepted contact. */
+  online?: boolean;
   support: boolean;
 };
 
@@ -23,6 +25,7 @@ export function useConversationTitle() {
   const { t } = useTranslation("app");
   const { user } = useStaffSession();
   const contacts = useContacts();
+  const presence = useContactPresence().data;
   const myId = user?.id ?? "";
 
   return useMemo(() => {
@@ -37,7 +40,13 @@ export function useConversationTitle() {
       }
       const otherId = (conversation.participantAId === myId ? conversation.participantBId : conversation.participantAId) ?? undefined;
       const person = otherId ? people.get(otherId) : undefined;
-      return { name: person?.name ?? t("messages.formerContact"), detail: person?.email ?? "", otherId, support: false };
+      return {
+        name: person?.name ?? t("messages.formerContact"),
+        detail: person?.email ?? "",
+        otherId,
+        online: otherId ? presence?.get(otherId) : undefined,
+        support: false,
+      };
     };
-  }, [contacts.data, myId, t]);
+  }, [contacts.data, presence, myId, t]);
 }

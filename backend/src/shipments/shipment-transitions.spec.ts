@@ -22,6 +22,7 @@ import {
   ShipmentErrorCodes,
 } from './exceptions';
 import { AdminShipmentsService } from './admin-shipments.service';
+import { AccessControlService } from '../access-control/access-control.service';
 import { ShipmentsService } from './shipments.service';
 
 /**
@@ -222,6 +223,10 @@ function setup() {
   const admin = new AdminShipmentsService(
     shipments,
     store.dataSource as unknown as DataSource,
+    // An admin: every shipment is in scope (scoping is admin-shipments.service.spec's).
+    {
+      branchScope: () => Promise.resolve({ all: true }),
+    } as unknown as AccessControlService,
   );
   return { store, shipments, admin };
 }

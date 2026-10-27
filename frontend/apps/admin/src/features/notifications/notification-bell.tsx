@@ -16,8 +16,9 @@ import { NotificationList } from "./notification-list";
 const WIDE = "(min-width: 48rem)";
 
 /**
- * The top bar's bell, for every role: the unread count (polled, see
- * useUnreadNotificationCount) and, once opened, the latest notifications.
+ * The top bar's bell, for every role: the unread count (refreshed live by
+ * useNotificationToasts, and polled as a fallback) and, once opened, the
+ * latest notifications.
  * Wide screens get a popover under the bell; phones a bottom sheet, like the
  * shell's "More" sheet, since a popover would be cramped at that width.
  * Escape or closing sends focus back to the bell either way.

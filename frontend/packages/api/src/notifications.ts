@@ -11,6 +11,9 @@ import {
   type QueryKey,
 } from "@tanstack/react-query";
 
+import { useEffect, useRef } from "react";
+
+import type { ChatConnection } from "./chat-socket";
 import { api } from "./client";
 import { isApiError } from "./errors";
 import { keys } from "./keys";
@@ -29,9 +32,9 @@ export const NOTIFICATION_NOT_FOUND = 12001;
 export const NOTIFICATIONS_PAGE_SIZE = 20;
 
 /**
- * How often the unread count is polled while the tab is visible. Delivery is
- * local-only for now (rows in the feed, no push), so polling is how a badge
- * hears about new ones; once the socket sends them, this can slow down or go.
+ * How often the unread count is polled while the tab is visible: a fallback.
+ * While the socket is up, useLiveNotifications refreshes it as soon as one
+ * arrives.
  */
 export const UNREAD_COUNT_REFETCH_MS = 60_000;
 
@@ -245,4 +248,41 @@ export const dismissOptions = (queryClient: QueryClient) =>
 export function useDismissNotification() {
   const queryClient = useQueryClient();
   return useMutation(dismissOptions(queryClient));
+}
+
+/**
+ * New notifications as they arrive over the socket (`notification.new`): the
+ * feed and the count are refetched, and `onNotification` gets each one, e.g.
+ * for a toast. After a reconnect everything is refetched, for what came while
+ * it was down. Pass the tab's connection (useChatConnection, which keeps it
+ * open while it's mounted).
+ */
+export function useLiveNotifications(
+  connection: ChatConnection | null,
+  onNotification?: (notification: AppNotification) => void,
+) {
+  const queryClient = useQueryClient();
+  const latest = useRef(onNotification);
+  useEffect(() => {
+    latest.current = onNotification;
+  });
+
+  useEffect(() => {
+    if (!connection) return;
+    const refresh = () => void queryClient.invalidateQueries({ queryKey: keys.notifications.all });
+    // The first connect is the page loading its data anyway; later ones are reconnects.
+    let reconnect = connection.connected;
+    const offConnect = connection.on("connect", () => {
+      if (reconnect) refresh();
+      reconnect = true;
+    });
+    const offNew = connection.on("notification.new", (notification) => {
+      refresh();
+      latest.current?.(notification);
+    });
+    return () => {
+      offConnect();
+      offNew();
+    };
+  }, [connection, queryClient]);
 }

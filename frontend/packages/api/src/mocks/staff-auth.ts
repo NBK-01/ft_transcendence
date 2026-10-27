@@ -2,6 +2,7 @@ import { http } from "msw/http";
 
 import { INSUFFICIENT_PERMISSIONS, roleCan } from "../permissions";
 import type { MessageResponse, StaffAuthResponse, TokenPair } from "../types";
+import { customerForToken } from "./auth";
 import { internalUsers, staffPasswords } from "./data";
 import { notifyAction } from "./notification-store";
 import { error, ok } from "./respond";
@@ -20,6 +21,8 @@ import { error, ok } from "./respond";
 const INVALID_CREDENTIALS = 8003;
 const INVALID_REFRESH_TOKEN = 8004;
 const ACCOUNT_INACTIVE = 7003;
+/** Backend AccessControlErrorCodes.NotInternalUser (403): a customer's token on a staff route. */
+const NOT_INTERNAL_USER = 7002;
 
 const ACCESS_PREFIX = "mock-staff-access-";
 const REFRESH_PREFIX = "mock-staff-refresh-";
@@ -55,9 +58,13 @@ export const staffForToken = (token: string | null | undefined) => {
   return user?.isActive ? user : undefined;
 };
 
-/** @RequireStaff(): the signed-in, active staff member, or the 401 the backend would send. */
+/** @RequireStaff(): the signed-in, active staff member, or the 401 or 403 the backend would send. */
 export const staffCaller = (request: Request) => {
-  const caller = accountOf(bearer(request), ACCESS_PREFIX);
+  const token = bearer(request);
+  const caller = accountOf(token, ACCESS_PREFIX);
+  if (!caller && customerForToken(token)) {
+    return { response: error(403, ["This action is restricted to staff accounts"], NOT_INTERNAL_USER) };
+  }
   if (!caller) return { response: unauthorized() };
   if (!caller.isActive) return { response: error(401, ["This staff account has been deactivated"], ACCOUNT_INACTIVE) };
   return { caller };
@@ -67,8 +74,11 @@ export const staffCaller = (request: Request) => {
 function roleAllows(roleName: string | null, method: string, pathname: string) {
   if (/\/api\/(internal-users|access-control|api-keys)(\/|$)/.test(pathname)) return roleName === "admin";
   if (/\/api\/organizations(\/|$)/.test(pathname)) return method === "GET" || roleCan(roleName, "organizations:manage");
+  if (/\/api\/admin\/shipments\/[^/]+\/branch$/.test(pathname)) return roleCan(roleName, "organizations:manage");
   if (/\/api\/admin\/shipments(\/|$)/.test(pathname)) {
-    return roleCan(roleName, method === "GET" ? "shipments:read:all" : "shipments:update:org");
+    if (method !== "GET") return roleCan(roleName, "shipments:update:org");
+    // Which shipments they then see is the handlers' business (scopeOf in shipments.ts).
+    return roleCan(roleName, "shipments:read:all") || roleCan(roleName, "shipments:read:org");
   }
   if (/\/api\/admin\/stats(\/|$)/.test(pathname)) return roleCan(roleName, "shipments:read:all");
   return true;
@@ -76,15 +86,17 @@ function roleAllows(roleName: string | null, method: string, pathname: string) {
 
 /**
  * Runs before the staff-only handlers, in the same order as the backend's
- * guards: no staff token → 401; a deactivated account → 401 (7003); a role
- * without access → 403 (7001). Otherwise it returns nothing, so MSW moves on
+ * guards: no valid token → 401; a customer's token → 403 (7002); a
+ * deactivated account → 401 (7003); a role without access → 403 (7001). Otherwise it returns nothing, so MSW moves on
  * to the matching handler. The role is read from the account as it is now,
  * like the backend does, not from when the token was issued.
  *  - Staff accounts, roles and API keys (@RequireRole("admin")): admins only.
  *  - Branches: any staff member may read; changes need "organizations:manage".
  *  - Contacts: any staff member.
  *  - Shipments (/admin/shipments): reading needs "shipments:read:all" (admin,
- *    support), every change "shipments:update:org" (admin, dispatcher).
+ *    support) or "shipments:read:org" (a dispatcher, their branch's only),
+ *    every change "shipments:update:org" (admin, dispatcher), assigning a
+ *    branch "organizations:manage".
  *  - Stats (/admin/stats): "shipments:read:all", like reading shipments.
  */
 export const requireStaffAccess = http.all(
@@ -142,6 +154,8 @@ export const staffAuthHandlers = [
     const { caller, response } = staffCaller(request);
     if (!caller) return response;
     signedOutUpTo.set(caller.id, counter);
+    const owner = { id: caller.id, accountType: "staff" as const };
+    notifyAction({ type: "SESSIONS_REVOKED", account: owner }, owner);
     return ok<MessageResponse>({ message: "Logged out of all sessions" });
   }),
 

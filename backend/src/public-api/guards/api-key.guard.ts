@@ -32,11 +32,14 @@ import { timingSafeCompare } from '../utils/timing-safe-compare';
 
 /**
  * The public API's door, applied by @PartnerApi(). In order:
- *  1. an X-API-Key that ApiKeysService.verify accepts (401/403 otherwise);
+ *  1. an X-API-Key that ApiKeysService.identify finds, not revoked, with an
+ *     active branch (401/403 otherwise);
  *  2. X-Internal-Key: if it matches INTERNAL_CALLER_KEY, the caller is one
  *     of our own services. It never replaces the key, and it only lifts the
  *     per-key rate limit: the key's branch still bounds what it can reach;
- *  3. the per-key rate limit (429 with Retry-After when exceeded).
+ *  3. the per-key rate limit (429 with Retry-After when exceeded);
+ *  4. the key's bcrypt check (ApiKeysService.confirm), last: it's the slow
+ *     step (tens of milliseconds), so a refused request never pays for it.
  * The partner then sits on the request and in the CLS store.
  */
 @Injectable()
@@ -63,22 +66,25 @@ export class ApiKeyGuard implements CanActivate {
     if (!key) {
       throw new ApiKeyMissingException();
     }
-    const result = await this.apiKeysService.verify(key);
+    const found = await this.apiKeysService.identify(key);
+    if (!found.valid) {
+      throw rejectionFor(found.reason);
+    }
+    // Only looked at once the key is found: on its own the header gets nothing.
+    const isInternal = this.isInternal(request);
+    if (!isInternal) {
+      await this.enforceRateLimit(found.record.id, response);
+    }
+    const result = await this.apiKeysService.confirm(key, found.record);
     if (!result.valid) {
       throw rejectionFor(result.reason);
     }
 
-    // Only looked at once the key is valid: on its own the header gets nothing.
-    const partner: PartnerContext = {
-      ...result.apiKey,
-      isInternal: this.isInternal(request),
-    };
-    if (partner.isInternal) {
+    const partner: PartnerContext = { ...result.apiKey, isInternal };
+    if (isInternal) {
       this.logger.log(
         `Internal call with API key ${partner.id} (${partner.name}): ${request.method} ${request.path}`,
       );
-    } else {
-      await this.enforceRateLimit(partner.id, response);
     }
 
     request.partner = partner;

@@ -2,6 +2,7 @@ import { AttachmentKind } from '../../shipments/constants/shipment-state';
 import {
   ApiKeyPayload,
   NotificationType,
+  ProfileChange,
   StaffChange,
 } from '../../notifications/constants/notification.constants';
 import { NotificationRecipient } from '../../notifications/notifications.service';
@@ -29,6 +30,7 @@ export interface ActionDataMap {
     name: string;
     staffIds: string[];
   };
+  [NotificationType.BRANCH_DELETED]: { organizationId: string; name: string };
   [NotificationType.BRANCH_STAFF_ADDED]: {
     organizationId: string;
     name: string;
@@ -64,8 +66,38 @@ export interface ActionDataMap {
     fileName: string;
   };
   [NotificationType.PASSWORD_CHANGED]: { account: NotificationRecipient };
+  [NotificationType.SHIPMENT_BRANCH_ASSIGNED]: {
+    shipmentId: string;
+    organizationId: string | null;
+  };
   [NotificationType.API_KEY_CREATED]: ApiKeyPayload;
   [NotificationType.API_KEY_REVOKED]: ApiKeyPayload;
+  [NotificationType.CUSTOMER_REGISTERED]: { customerId: string; name: string };
+  [NotificationType.PROFILE_UPDATED]: {
+    account: NotificationRecipient;
+    change: ProfileChange;
+  };
+  [NotificationType.CUSTOMER_ACCOUNT_DEACTIVATED]: { customerId: string };
+  [NotificationType.SESSIONS_REVOKED]: { account: NotificationRecipient };
+  [NotificationType.CONTACT_REQUEST_DECLINED]: ContactParties;
+  [NotificationType.CONTACT_REQUEST_CANCELLED]: ContactParties;
+  [NotificationType.CONTACT_REMOVED]: ContactParties;
+  [NotificationType.CONTACT_BLOCKED]: ContactParties;
+  [NotificationType.CONVERSATION_STARTED]: {
+    conversationId: string;
+    participantIds: [string, string];
+  };
+  [NotificationType.MESSAGE_RECEIVED]: {
+    conversationId: string;
+    sender: NotificationRecipient;
+  };
+}
+
+/** A contact's two staff members: the row may be gone by the time the job runs. */
+export interface ContactParties {
+  contactId: string;
+  requesterId: string;
+  addresseeId: string;
 }
 
 /**
@@ -81,7 +113,7 @@ export type ActionNotificationEvent = {
      * of every dedupe key. No ':' (BullMQ refuses it in job ids).
      */
     occurrence: string;
-    /** Who did it, left out of the recipients; null outside a request (a seed, a job). */
+    /** Who did it: they get a record of it rather than the news; null outside a request (a seed, a job). */
     actor: NotificationRecipient | null;
     data: ActionDataMap[T];
   };

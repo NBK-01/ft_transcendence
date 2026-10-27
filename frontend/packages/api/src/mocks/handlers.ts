@@ -7,6 +7,7 @@ import { organizationHandlers } from "./organizations";
 import { shipmentHandlers } from "./shipments";
 import { staffHandlers } from "./staff";
 import { requireStaffAccess, staffAuthHandlers } from "./staff-auth";
+import { staffProfileHandlers } from "./staff-profile";
 import { statsHandlers } from "./stats";
 
 export { error, ok, paginated } from "./respond";
@@ -22,6 +23,7 @@ export { error, ok, paginated } from "./respond";
 export const handlers = [
   ...authHandlers,
   ...staffAuthHandlers,
+  ...staffProfileHandlers,
   // Customers and staff alike, so before the staff-only guard (whose pattern
   // doesn't cover /notifications anyway): a customer token must get through.
   ...notificationHandlers,

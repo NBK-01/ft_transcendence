@@ -42,6 +42,68 @@
       "pending_payment_confirmation": {
         "title": "Payment to confirm",
         "message": "The client paid for {trackingId}. Confirm the payment to start the shipment."
+      },
+      "created": {
+        "title": "New partner shipment",
+        "message": "A partner created {trackingId} through the API."
+      },
+      "in_transit": {
+        "title": "In transit",
+        "message": "{trackingId} is on its way."
+      },
+      "out_for_delivery": {
+        "title": "Out for delivery",
+        "message": "{trackingId} is out for delivery."
+      },
+      "delivered": {
+        "title": "Delivered",
+        "message": "{trackingId} has been delivered."
+      },
+      "cancelled": {
+        "title": "Shipment cancelled",
+        "message": "{trackingId} has been cancelled."
+      }
+    },
+    "actor": {
+      "requested": {
+        "title": "Request sent",
+        "message": "You requested {trackingId}. We're finding a supplier."
+      },
+      "rejected": {
+        "title": "Offer rejected",
+        "message": "You rejected the offer for {trackingId}. We're finding another supplier."
+      },
+      "pending_payment": {
+        "title": "Offer accepted",
+        "message": "You accepted the offer for {trackingId}. Pay to confirm it."
+      },
+      "pending_payment_confirmation": {
+        "title": "Payment sent",
+        "message": "You paid for {trackingId}. We'll confirm the payment shortly."
+      },
+      "pending_client_decision": {
+        "title": "Offer sent",
+        "message": "You sent an offer for {trackingId}. The customer can accept or reject it now."
+      },
+      "confirmed": {
+        "title": "Payment confirmed",
+        "message": "You confirmed the payment for {trackingId}. Tracking can start."
+      },
+      "in_transit": {
+        "title": "Tracking updated",
+        "message": "You marked {trackingId} as in transit."
+      },
+      "out_for_delivery": {
+        "title": "Tracking updated",
+        "message": "You marked {trackingId} as out for delivery."
+      },
+      "delivered": {
+        "title": "Tracking updated",
+        "message": "You marked {trackingId} as delivered."
+      },
+      "cancelled": {
+        "title": "Shipment cancelled",
+        "message": "You cancelled {trackingId}."
       }
     }
   },
@@ -49,6 +111,10 @@
     "admins": {
       "title": "New branch",
       "message": "{name} was added as a branch."
+    },
+    "actor": {
+      "title": "Branch created",
+      "message": "You created the branch {name}."
     }
   },
   "BRANCH_UPDATED": {
@@ -59,6 +125,10 @@
     "admins": {
       "title": "Branch updated",
       "message": "{name} was updated."
+    },
+    "actor": {
+      "title": "Branch updated",
+      "message": "You updated the branch {name}."
     }
   },
   "BRANCH_DEACTIVATED": {
@@ -69,24 +139,50 @@
     "admins": {
       "title": "Branch deactivated",
       "message": "{name} was deactivated."
+    },
+    "actor": {
+      "title": "Branch deactivated",
+      "message": "You deactivated the branch {name}."
+    }
+  },
+  "BRANCH_DELETED": {
+    "admins": {
+      "title": "Branch deleted",
+      "message": "{name} was deleted."
+    },
+    "actor": {
+      "title": "Branch deleted",
+      "message": "You deleted the branch {name}."
     }
   },
   "BRANCH_STAFF_ADDED": {
     "self": {
       "title": "Added to a branch",
       "message": "You're now part of {name}."
+    },
+    "actor": {
+      "title": "Member added",
+      "message": "You added {staffName} to {name}."
     }
   },
   "BRANCH_STAFF_REMOVED": {
     "self": {
       "title": "Removed from a branch",
       "message": "You're no longer part of {name}."
+    },
+    "actor": {
+      "title": "Member removed",
+      "message": "You removed {staffName} from {name}."
     }
   },
   "STAFF_ACCOUNT_CREATED": {
     "admins": {
       "title": "New staff account",
       "message": "{name} now has a staff account."
+    },
+    "actor": {
+      "title": "Staff account created",
+      "message": "You created {name}'s account. They can sign in now."
     }
   },
   "STAFF_ACCOUNT_UPDATED": {
@@ -97,30 +193,50 @@
     "admins": {
       "title": "Staff account updated",
       "message": "{name}'s account was updated."
+    },
+    "actor": {
+      "title": "Staff account updated",
+      "message": "You updated {name}'s account."
     }
   },
   "STAFF_ACCOUNT_DEACTIVATED": {
     "admins": {
       "title": "Staff account deactivated",
       "message": "{name}'s account was deactivated."
+    },
+    "actor": {
+      "title": "Staff account deactivated",
+      "message": "You deactivated {name}'s account."
     }
   },
   "CONTACT_REQUEST_RECEIVED": {
     "self": {
       "title": "New contact request",
       "message": "{name} wants to add you as a contact."
+    },
+    "actor": {
+      "title": "Contact request sent",
+      "message": "You asked {name} to be a contact."
     }
   },
   "CONTACT_REQUEST_ACCEPTED": {
     "self": {
       "title": "Contact request accepted",
       "message": "{name} accepted your contact request."
+    },
+    "actor": {
+      "title": "Contact request accepted",
+      "message": "You and {name} are contacts now."
     }
   },
   "SUPPORT_CONVERSATION_STARTED": {
     "staff": {
       "title": "New support conversation",
       "message": "{customerName} started a support conversation."
+    },
+    "actor": {
+      "title": "Support conversation started",
+      "message": "Our support team will answer you in Messages."
     }
   },
   "SHIPMENT_FILE_ADDED": {
@@ -137,6 +253,20 @@
         "title": "New document",
         "message": "{fileName} was added to {trackingId}."
       }
+    },
+    "actor": {
+      "title": "File added",
+      "message": "You added {fileName} to {trackingId}."
+    }
+  },
+  "SHIPMENT_BRANCH_ASSIGNED": {
+    "staff": {
+      "title": "New order for your branch",
+      "message": "{trackingId} is now handled by {branch}."
+    },
+    "actor": {
+      "title": "Branch changed",
+      "message": "You changed the branch of {trackingId}."
     }
   },
   "PASSWORD_CHANGED": {
@@ -149,12 +279,104 @@
     "admins": {
       "title": "New API key",
       "message": "{name} was created for {branch}. Partners can use it with the public API."
+    },
+    "actor": {
+      "title": "API key created",
+      "message": "You created {name} for {branch}. Its full key was shown once."
     }
   },
   "API_KEY_REVOKED": {
     "admins": {
       "title": "API key revoked",
       "message": "{name} for {branch} was revoked. It no longer works."
+    },
+    "actor": {
+      "title": "API key revoked",
+      "message": "You revoked {name} for {branch}. It no longer works."
+    }
+  },
+  "CUSTOMER_REGISTERED": {
+    "self": {
+      "title": "Welcome to ShipTrack",
+      "message": "Your account is ready. Request a shipment whenever you like."
+    },
+    "admins": {
+      "title": "New customer",
+      "message": "{name} created an account."
+    },
+    "actor": {
+      "title": "Welcome to ShipTrack",
+      "message": "Your account is ready. Request a shipment whenever you like."
+    }
+  },
+  "PROFILE_UPDATED": {
+    "self": {
+      "title": "Profile updated",
+      "message": "Your profile was changed."
+    },
+    "actor": {
+      "title": "Profile updated",
+      "message": "You updated your profile."
+    }
+  },
+  "CUSTOMER_ACCOUNT_DEACTIVATED": {
+    "admins": {
+      "title": "Customer account closed",
+      "message": "{name} closed their account."
+    },
+    "actor": {
+      "title": "Account closed",
+      "message": "You closed your account."
+    }
+  },
+  "SESSIONS_REVOKED": {
+    "self": {
+      "title": "Signed out everywhere",
+      "message": "Every session on your account was ended. If this wasn't you, change your password now."
+    }
+  },
+  "CONTACT_REQUEST_DECLINED": {
+    "actor": {
+      "title": "Contact request declined",
+      "message": "You declined {name}'s contact request."
+    }
+  },
+  "CONTACT_REQUEST_CANCELLED": {
+    "actor": {
+      "title": "Contact request withdrawn",
+      "message": "You withdrew your contact request to {name}."
+    }
+  },
+  "CONTACT_REMOVED": {
+    "actor": {
+      "title": "Contact removed",
+      "message": "You removed {name} from your contacts."
+    }
+  },
+  "CONTACT_BLOCKED": {
+    "actor": {
+      "title": "Contact blocked",
+      "message": "You blocked {name}."
+    }
+  },
+  "CONVERSATION_STARTED": {
+    "self": {
+      "title": "New conversation",
+      "message": "{name} started a conversation with you."
+    },
+    "actor": {
+      "title": "Conversation started",
+      "message": "You started a conversation with {name}."
+    }
+  },
+  "MESSAGE_RECEIVED": {
+    "self": {
+      "title": "New message",
+      "message": "{senderName} sent you a message."
+    },
+    "support": {
+      "title": "New support message",
+      "message": "{senderName} wrote to support."
     }
   }
 }

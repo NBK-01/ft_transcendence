@@ -118,7 +118,7 @@ describe("API key mocks match the backend", () => {
     });
   });
 
-  it("tells the other admins (not the one who acted), once per create and per revoke", async () => {
+  it("tells the other admins once per create and per revoke, and gives the one who acted a record of it", async () => {
     await signInAs(nadia.email);
     const created = await create("Notified key");
     await api.delete(`/api-keys/${created.id}`);
@@ -126,7 +126,7 @@ describe("API key mocks match the backend", () => {
     const nadiaSees = (await notificationsOfType("API_KEY_CREATED")).filter(
       (n) => n.type === "API_KEY_CREATED" && n.payload.apiKeyId === created.id,
     );
-    expect(nadiaSees).toEqual([]);
+    expect(nadiaSees).toEqual([expect.objectContaining({ ownAction: true, title: "API key created" })]);
 
     await signInAs(youssef.email);
     const about = (list: AppNotification[]) =>
@@ -137,9 +137,10 @@ describe("API key mocks match the backend", () => {
     expect(revokedNotices).toHaveLength(1);
     expect(createdNotices[0]).toMatchObject({
       title: "New API key",
+      ownAction: false,
       payload: { name: "Notified key", maskedKey: created.maskedKey },
     });
-    expect(JSON.stringify(createdNotices)).not.toContain(created.key);
+    expect(JSON.stringify([...createdNotices, ...nadiaSees])).not.toContain(created.key);
   });
 });
 

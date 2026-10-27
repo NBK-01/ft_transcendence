@@ -24,3 +24,5 @@ export async function startMocks(baseUrl: string) {
 export { handlers };
 /** Response helpers for app-level mock handlers, so every mock is enveloped like the real API. */
 export { error, ok, paginated } from "./respond";
+/** For app-level mocks that change something: the notifications the backend's job would leave. */
+export { notifyAction } from "./notification-store";

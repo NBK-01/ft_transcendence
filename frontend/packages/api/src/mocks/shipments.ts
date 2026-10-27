@@ -1,5 +1,7 @@
 import { http } from "msw/http";
 
+import { roleCan } from "../permissions";
+
 import {
   ATTACHMENT_KINDS,
   FILE_TOO_LARGE,
@@ -521,7 +523,8 @@ for (const row of shipments) {
         clientId: row.client.id,
         status: event.status,
         occurredAt: event.occurredAt,
-        isNew: row.organization !== null && step === 0,
+        actor: event.actor,
+        isFirstEvent: step === 0,
       },
       { read: at < ago(DAY) },
     );
@@ -654,16 +657,39 @@ const wrongStateFile = () => error(409, ["This file can't be deleted right now"]
 const find = (trackingId: unknown) => shipments.find((row) => row.trackingId === String(trackingId).trim().toUpperCase());
 
 /**
+ * AccessControlService.branchScope: every shipment for "shipments:read:all"
+ * (admin, support), only their branch's for a dispatcher ("shipments:read:org");
+ * someone in no branch sees none.
+ */
+function scopeOf(request: Request): { all: true } | { all: false; organizationId: string | null } {
+  const { caller } = staffCaller(request);
+  if (caller && roleCan(caller.roleName, "shipments:read:all")) return { all: true };
+  return { all: false, organizationId: caller?.organizationId ?? null };
+}
+
+/** AdminShipmentsService.findInScope: outside the caller's branch, a shipment is as good as missing (404). */
+function findFor(request: Request, trackingId: unknown) {
+  const row = find(trackingId);
+  const scope = scopeOf(request);
+  return row && (scope.all || (scope.organizationId !== null && row.organization?.id === scope.organizationId)) ? row : undefined;
+}
+
+/**
  * ShipmentsService.transition, once the caller has checked where it may move
- * from, recording who did it. The new event notifies whoever didn't cause it,
- * here the customer.
+ * from, recording who did it. The new event notifies whoever didn't cause it.
  */
 function moveTo(row: Row, status: ShipmentState, location: string, actor: ActivityActor | null) {
   const now = new Date().toISOString();
   row.status = status;
   row.updatedAt = now;
   row.events.unshift({ id: crypto.randomUUID(), status, location, occurredAt: now, actor });
-  notifyShipmentEvent({ trackingId: row.trackingId, clientId: row.client.id, status, occurredAt: now });
+  notifyShipmentEvent({
+    trackingId: row.trackingId,
+    clientId: row.client.id,
+    status,
+    occurredAt: now,
+    actor,
+  });
 }
 
 const json = async (request: Request) => {
@@ -706,6 +732,11 @@ export const shipmentHandlers = [
     ]);
     if (problem) return problem;
 
+    // A dispatcher only ever sees their branch's, whatever organizationId says; in no branch, nothing.
+    const scope = scopeOf(request);
+    if (!scope.all && !scope.organizationId) return paginated([], page, limit);
+    const branchId = scope.all ? organizationId : scope.organizationId;
+
     // ILIKE '%q%' on the tracking ID, with % and _ taken literally.
     const search = q?.trim().toUpperCase();
     const rows = shipments
@@ -713,27 +744,27 @@ export const shipmentHandlers = [
         (row) =>
           (!search || row.trackingId.includes(search)) &&
           (!status || row.status === status) &&
-          (!organizationId || row.organization?.id === organizationId),
+          (!branchId || row.organization?.id === branchId),
       )
       .sort(byField((sort as SortField | null) ?? "updatedAt", order !== "asc"));
     return paginated(rows.map(toRow), page, limit);
   }),
 
-  http.get("*/api/admin/shipments/:trackingId", ({ params }) => {
-    const row = find(params.trackingId);
+  http.get("*/api/admin/shipments/:trackingId", ({ params, request }) => {
+    const row = findFor(request, params.trackingId);
     return row ? ok(toDetail(row)) : notFound(params.trackingId);
   }),
 
-  http.get("*/api/admin/shipments/:trackingId/events", ({ params }) => {
-    const row = find(params.trackingId);
+  http.get("*/api/admin/shipments/:trackingId/events", ({ params, request }) => {
+    const row = findFor(request, params.trackingId);
     // ShipmentEventDto: no id, and not who did it.
     return row
       ? ok(row.events.map(({ status, location, occurredAt }): ShipmentEvent => ({ status, location, occurredAt })))
       : notFound(params.trackingId);
   }),
 
-  http.get("*/api/admin/shipments/:trackingId/files", ({ params }) => {
-    const row = find(params.trackingId);
+  http.get("*/api/admin/shipments/:trackingId/files", ({ params, request }) => {
+    const row = findFor(request, params.trackingId);
     return row ? ok(row.files) : notFound(params.trackingId);
   }),
 
@@ -750,7 +781,7 @@ export const shipmentHandlers = [
     ]);
     if (problem) return problem;
 
-    const row = find(params.trackingId);
+    const row = findFor(request, params.trackingId);
     if (!row) return notFound(params.trackingId);
     if (row.status !== "pending_sourcing") return wrongState(row.status);
     const images = filesIn(form, "images");
@@ -783,7 +814,7 @@ export const shipmentHandlers = [
     ]);
     if (problem) return problem;
 
-    const row = find(params.trackingId);
+    const row = findFor(request, params.trackingId);
     if (!row) return notFound(params.trackingId);
     if (row.status !== "pending_payment_confirmation") return wrongState(row.status);
 
@@ -805,7 +836,7 @@ export const shipmentHandlers = [
     ]);
     if (problem) return problem;
 
-    const row = find(params.trackingId);
+    const row = findFor(request, params.trackingId);
     if (!row) return notFound(params.trackingId);
     const status = body.status as TrackingEventStatus;
     if (!TRACKING_TRANSITIONS[status].includes(row.status)) return wrongState(row.status);
@@ -822,7 +853,7 @@ export const shipmentHandlers = [
     const [file] = filesIn(form, "file");
     if (!file) return error(400, ["file is required"], MISSING_REQUIRED_DATA);
 
-    const row = find(params.trackingId);
+    const row = findFor(request, params.trackingId);
     if (!row) return notFound(params.trackingId);
     const badFile = fileProblem([file], SHIPMENT_FILE_TYPES);
     if (badFile) return badFile;
@@ -837,18 +868,54 @@ export const shipmentHandlers = [
       url: URL.createObjectURL(file),
     };
     row.files.unshift(saved);
-    // The customer hears about it (the backend's ACTION_NOTIFICATION job); the staff member who uploaded it doesn't.
+    // The customer hears about it (the backend's ACTION_NOTIFICATION job); the staff member who uploaded it gets a record.
+    const { caller } = staffCaller(request);
     notifyAction(
       { type: "SHIPMENT_FILE_ADDED", trackingId: row.trackingId, clientId: row.client.id, kind: saved.kind, fileName: saved.name },
-      null,
+      caller ? { id: caller.id, accountType: "staff" } : null,
     );
     return ok(saved, 201);
   }),
 
+  // AdminShipmentsService.assignBranch: a customer's order to a branch, or off one (null).
+  http.patch("*/api/admin/shipments/:trackingId/branch", async ({ params, request }) => {
+    const body = await json(request);
+    const { organizationId } = body;
+    const problem = invalid([
+      ...unknownFields(Object.keys(body), ["organizationId"]),
+      !(organizationId === null || isUuid(organizationId)) && "organizationId must be a UUID",
+    ]);
+    if (problem) return problem;
+
+    const row = find(params.trackingId);
+    if (!row) return notFound(params.trackingId);
+    // Events are newest first: the last one is how it started. A partner's starts at confirmed.
+    if (row.events.at(-1)?.status === "confirmed") {
+      return error(409, [`${row.trackingId} was created by a partner: it stays with that branch`], SHIPMENT_BRANCH_LOCKED);
+    }
+    const branch = organizationId === null ? null : ORGANIZATIONS.find((org) => org.id === organizationId);
+    if (branch === undefined) {
+      return error(404, [`Organization ${String(organizationId)} not found`], ORGANIZATION_NOT_FOUND);
+    }
+    if (branch && !branch.isActive) {
+      return error(409, [`${branch.name} is deactivated: reactivate it first`], ORGANIZATION_INACTIVE);
+    }
+    if ((row.organization?.id ?? null) !== (branch?.id ?? null)) {
+      row.organization = branch ? { id: branch.id, name: branch.name } : null;
+      row.updatedAt = new Date().toISOString();
+      const { caller } = staffCaller(request);
+      notifyAction(
+        { type: "SHIPMENT_BRANCH_ASSIGNED", trackingId: row.trackingId, branch: branch ? { id: branch.id, name: branch.name } : null },
+        caller ? { id: caller.id, accountType: "staff" } : null,
+      );
+    }
+    return ok(toDetail(row));
+  }),
+
   // An attachment (Files tab, any status), or the current offer's photo (only
   // while pending_client_decision — AdminShipmentsService.deleteFile, 409/3007).
-  http.delete("*/api/admin/shipments/:trackingId/files/:fileId", ({ params }) => {
-    const row = find(params.trackingId);
+  http.delete("*/api/admin/shipments/:trackingId/files/:fileId", ({ params, request }) => {
+    const row = findFor(request, params.trackingId);
     if (!row) return notFound(params.trackingId);
     const fileId = String(params.fileId);
 
@@ -869,3 +936,8 @@ export const shipmentHandlers = [
     return error(404, ["File not found"], SHIPMENT_FILE_NOT_FOUND);
   }),
 ];
+
+/** Backend ShipmentErrorCodes.ShipmentBranchLocked, OrganizationErrorCodes.OrganizationNotFound / OrganizationInactive. */
+const SHIPMENT_BRANCH_LOCKED = 3008;
+const ORGANIZATION_NOT_FOUND = 4001;
+const ORGANIZATION_INACTIVE = 4005;

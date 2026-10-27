@@ -5,6 +5,7 @@ import { ErrorFallback } from "@trans/ui/blocks/error-boundary";
 import { NotFoundPage } from "@trans/ui/blocks/not-found-page";
 
 import { RequireAdmin, RequirePermission } from "./features/auth/require-admin";
+import { SHIPMENT_READ } from "./features/auth/shipment-read";
 import { RequireStaff } from "./features/auth/require-staff";
 import { AdminLayout } from "./layouts/admin-layout";
 import {
@@ -19,6 +20,7 @@ import {
   RolesPage,
   ShipmentDetailPage,
   ShipmentsPage,
+  StaffProfilePage,
   UsersPage,
 } from "./routes/lazy-pages";
 import { LoginPage } from "./routes/login";
@@ -60,7 +62,7 @@ export const router = createBrowserRouter(
             {
               path: "shipments",
               element: (
-                <RequirePermission permission="shipments:read:all">
+                <RequirePermission permission={SHIPMENT_READ}>
                   <ShipmentsPage />
                 </RequirePermission>
               ),
@@ -68,7 +70,7 @@ export const router = createBrowserRouter(
             {
               path: "shipments/:trackingId",
               element: (
-                <RequirePermission permission="shipments:read:all">
+                <RequirePermission permission={SHIPMENT_READ}>
                   <ShipmentDetailPage />
                 </RequirePermission>
               ),
@@ -103,6 +105,8 @@ export const router = createBrowserRouter(
               ),
             },
             { path: "profile", element: <ProfilePage /> },
+            // Any colleague's page; every role may see one.
+            { path: "profile/:id", element: <StaffProfilePage /> },
           ],
         },
         { path: "*", element: <NotFoundPage /> },

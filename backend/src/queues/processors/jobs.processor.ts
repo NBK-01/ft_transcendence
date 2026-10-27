@@ -6,6 +6,7 @@ import { NotificationsService } from '../../notifications/notifications.service'
 import { ShipmentLookupService } from '../../notifications/shipment-lookup.service';
 import { ActionLookupService } from '../../notifications/action-lookup.service';
 import { WebhooksService } from '../../webhooks/webhooks.service';
+import { NotificationsGateway } from '../../notifications/notifications.gateway';
 import { JobServices } from '../interfaces/job-handler.interface';
 import { handlerFor } from '../registry/handler-registry';
 
@@ -18,12 +19,14 @@ import { handlerFor } from '../registry/handler-registry';
 export abstract class JobsProcessor extends WorkerHost {
   protected readonly logger = new Logger(this.constructor.name);
 
+  // eslint-disable-next-line max-params
   constructor(
     private readonly notificationsService: NotificationsService,
     private readonly shipmentLookupService: ShipmentLookupService,
     private readonly actionLookupService: ActionLookupService,
     private readonly webhooksService: WebhooksService,
     private readonly i18n: I18nService,
+    private readonly notificationsGateway: NotificationsGateway,
   ) {
     super();
   }
@@ -60,6 +63,7 @@ export abstract class JobsProcessor extends WorkerHost {
       shipmentLookupService: this.shipmentLookupService,
       actionLookupService: this.actionLookupService,
       webhooksService: this.webhooksService,
+      notificationsGateway: this.notificationsGateway,
       i18n: this.i18n,
     };
   }

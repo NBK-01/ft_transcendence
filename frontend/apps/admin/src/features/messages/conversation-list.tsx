@@ -45,7 +45,7 @@ export function ConversationList({
                   active && "bg-gray-alpha-100",
                 )}
               >
-                <Avatar name={title.name} size="md" aria-hidden="true" />
+                <Avatar name={title.name} size="md" aria-hidden="true" online={title.online} />
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className={cn("truncate text-label-14 text-gray-1000", isUnseen && "font-semibold")}>
                     {title.name}

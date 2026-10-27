@@ -7,6 +7,7 @@ import { Organization } from '../organizations/organization.entity';
 import { Contact } from '../contacts/contact.entity';
 import { User } from '../users/user.entity';
 import { Shipment } from '../shipments/entities/shipment.entity';
+import { Conversation } from '../chat/entities/conversation.entity';
 import { CHAT_SUPPORT_ACCESS_PERMISSION } from '../chat/chat.constants';
 import { NotificationRecipient } from './notifications.service';
 import { findActiveStaffWithPermission } from './staff-with-permission';
@@ -35,6 +36,7 @@ export interface ContactSummary {
 @Injectable()
 export class ActionLookupService {
   // One repository per table it reads; nothing here writes.
+  // eslint-disable-next-line max-params
   constructor(
     @InjectRepository(InternalUser)
     private readonly internalUserRepository: Repository<InternalUser>,
@@ -46,6 +48,8 @@ export class ActionLookupService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Shipment)
     private readonly shipmentRepository: Repository<Shipment>,
+    @InjectRepository(Conversation)
+    private readonly conversationRepository: Repository<Conversation>,
   ) {}
 
   findAdmins(): Promise<NotificationRecipient[]> {
@@ -62,16 +66,35 @@ export class ActionLookupService {
     );
   }
 
-  /** Which of these staff accounts are active: the only ones notified. */
-  async activeStaffIds(ids: string[]): Promise<Set<string>> {
-    if (!ids.length) {
-      return new Set();
-    }
-    const rows = await this.internalUserRepository.find({
+  /** The recipients whose account is still active, staff and customers alike: the only ones notified. */
+  async keepActive(
+    recipients: NotificationRecipient[],
+  ): Promise<NotificationRecipient[]> {
+    const idsOf = (accountType: AccountType) =>
+      recipients
+        .filter((recipient) => recipient.accountType === accountType)
+        .map(({ id }) => id);
+    const staffIds = idsOf(AccountType.STAFF);
+    const customerIds = idsOf(AccountType.CUSTOMER);
+    const query = (ids: string[]) => ({
       where: { id: In(ids), isActive: true },
       select: { id: true },
     });
-    return new Set(rows.map(({ id }) => id));
+    const [staff, customers] = await Promise.all([
+      staffIds.length
+        ? this.internalUserRepository.find(query(staffIds))
+        : Promise.resolve([]),
+      customerIds.length
+        ? this.userRepository.find(query(customerIds))
+        : Promise.resolve([]),
+    ]);
+    const active = new Set([
+      ...staff.map(({ id }) => `${AccountType.STAFF}:${id}`),
+      ...customers.map(({ id }) => `${AccountType.CUSTOMER}:${id}`),
+    ]);
+    return recipients.filter(({ id, accountType }) =>
+      active.has(`${accountType}:${id}`),
+    );
   }
 
   /** Everyone assigned to the branch, active or not (the job keeps the active ones). */
@@ -126,6 +149,18 @@ export class ActionLookupService {
 
   findShipment(id: string): Promise<Shipment | null> {
     return this.shipmentRepository.findOne({ where: { id } });
+  }
+
+  findConversation(id: string): Promise<Conversation | null> {
+    return this.conversationRepository.findOne({ where: { id } });
+  }
+
+  /** A customer's or staff member's name. */
+  async findName(account: NotificationRecipient): Promise<string | null> {
+    if (account.accountType === AccountType.CUSTOMER) {
+      return this.findCustomerName(account.id);
+    }
+    return (await this.findStaff(account.id))?.name ?? null;
   }
 
   /** When the account last changed: with its id, it names one password change. */

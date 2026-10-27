@@ -4,6 +4,7 @@ import {
   EntitySubscriberInterface,
   InsertEvent,
   ObjectLiteral,
+  RemoveEvent,
   TransactionCommitEvent,
   TransactionRollbackEvent,
   UpdateEvent,
@@ -15,7 +16,10 @@ import {
   Conversation,
   ConversationType,
 } from '../../chat/entities/conversation.entity';
+import { Message } from '../../chat/entities/message.entity';
 import { ShipmentFile } from '../../shipments/entities/shipment-file.entity';
+import { Shipment } from '../../shipments/entities/shipment.entity';
+import { User } from '../../users/user.entity';
 import { ATTACHMENT_KINDS } from '../../shipments/constants/shipment-state';
 import {
   NotificationType,
@@ -33,17 +37,29 @@ import { AfterCommit } from './after-commit';
 type Build = () => Promise<ActionNotificationEvent | null>;
 type Actor = NotificationRecipient | null;
 
+/** Messages from one sender in one conversation within it make one notice. */
+const MESSAGE_WINDOW_MS = 10 * 60_000;
+
+const contactParties = ({ id, requesterId, addresseeId }: Contact) => ({
+  contactId: id,
+  requesterId,
+  addresseeId,
+});
+
 /**
  * The trigger for the actions TypeORM can describe on its own: rows created
- * with save()/insert(), and rows changed with save(), which come with their
- * old values. Who acted is read from the request while it runs; the job is
- * enqueued once the transaction commits (AfterCommit).
+ * with save()/insert(), rows changed with save(), which come with their old
+ * values, and rows deleted with remove(). Who acted is read from the request
+ * while it runs; the job is enqueued once the transaction commits
+ * (AfterCommit).
+ *  - customer signed up (UsersService.create/createOAuthUser)
  *  - branch created, updated, deactivated (OrganizationsService.create/update)
  *  - staff account created, updated, deactivated (InternalUsersService.create/update)
- *  - contact request sent, accepted (ContactsService.sendRequest/acceptRequest)
- *  - support conversation started (ChatService, a new SUPPORT conversation)
+ *  - contact request sent, accepted, declined, withdrawn; contact blocked,
+ *    removed (ContactsService)
+ *  - support conversation or staff DM started, message sent (ChatService)
  *  - an attachment added to a shipment (AdminShipmentsService.uploadFile)
- * Declined, blocked and removed contacts notify nobody, by design.
+ *  - a customer's order handed to a branch (AdminShipmentsService.assignBranch)
  */
 @Injectable()
 export class ActionSubscriber implements EntitySubscriberInterface {
@@ -82,6 +98,19 @@ export class ActionSubscriber implements EntitySubscriberInterface {
     this.schedule(event, build);
   }
 
+  afterRemove(event: RemoveEvent<ObjectLiteral>): void {
+    // After a remove TypeORM clears the entity's id: it's in event.entityId.
+    const removed = event.databaseEntity ?? event.entity;
+    if (event.metadata.target !== Contact || !removed || !event.entityId) {
+      return;
+    }
+    const build = this.contactRemoved(
+      { ...(removed as Contact), id: String(event.entityId) },
+      this.notifier.actor(),
+    );
+    this.schedule(event, build);
+  }
+
   afterTransactionCommit(event: TransactionCommitEvent): void {
     this.afterCommit.committed(event.queryRunner);
   }
@@ -91,7 +120,10 @@ export class ActionSubscriber implements EntitySubscriberInterface {
   }
 
   private schedule(
-    event: InsertEvent<ObjectLiteral> | UpdateEvent<ObjectLiteral>,
+    event:
+      | InsertEvent<ObjectLiteral>
+      | UpdateEvent<ObjectLiteral>
+      | RemoveEvent<ObjectLiteral>,
     build: Build | null,
   ): void {
     if (build) {
@@ -106,6 +138,15 @@ export class ActionSubscriber implements EntitySubscriberInterface {
     entity: ObjectLiteral,
     actor: Actor,
   ): Build | null {
+    if (target === User) {
+      const { id, name } = entity as User;
+      return async () => ({
+        type: NotificationType.CUSTOMER_REGISTERED,
+        occurrence: id,
+        actor,
+        data: { customerId: id, name },
+      });
+    }
     if (target === Organization) {
       const { id, name } = entity as Organization;
       return async () => ({
@@ -134,7 +175,10 @@ export class ActionSubscriber implements EntitySubscriberInterface {
       });
     }
     if (target === Conversation) {
-      return this.supportStarted(entity as Conversation, actor);
+      return this.conversationStarted(entity as Conversation, actor);
+    }
+    if (target === Message) {
+      return this.messageSent(entity as Message);
     }
     if (target === ShipmentFile) {
       return this.fileAdded(entity as ShipmentFile, actor);
@@ -163,22 +207,75 @@ export class ActionSubscriber implements EntitySubscriberInterface {
       );
     }
     if (target === Contact) {
-      return this.contactAccepted(before as Contact, after as Contact, actor);
+      return this.contactChanged(before as Contact, after as Contact, actor);
+    }
+    if (target === Shipment) {
+      return this.branchAssigned(before as Shipment, after as Shipment, actor);
     }
     return null;
   }
 
-  /** Only a customer's SUPPORT conversation: staff DMs are inserted here too. */
-  private supportStarted(conversation: Conversation, actor: Actor) {
-    const { id, type, customerId } = conversation;
-    if (type !== ConversationType.SUPPORT || !customerId) {
+  /** A customer's order handed to a branch, or taken off one (AdminShipmentsService.assignBranch). */
+  private branchAssigned(before: Shipment, after: Shipment, actor: Actor) {
+    const organizationId = after.organizationId ?? null;
+    if ((before.organizationId ?? null) === organizationId) {
       return null;
     }
     return async (): Promise<ActionNotificationEvent> => ({
-      type: NotificationType.SUPPORT_CONVERSATION_STARTED,
-      occurrence: id,
+      type: NotificationType.SHIPMENT_BRANCH_ASSIGNED,
+      occurrence: occurrenceOf(after.id, after.updatedAt),
       actor,
-      data: { conversationId: id, customerId },
+      data: { shipmentId: after.id, organizationId },
+    });
+  }
+
+  /** A customer's SUPPORT conversation, or a staff DM. */
+  private conversationStarted(conversation: Conversation, actor: Actor) {
+    const { id, type, customerId, participantAId, participantBId } =
+      conversation;
+    if (type === ConversationType.SUPPORT && customerId) {
+      return async (): Promise<ActionNotificationEvent> => ({
+        type: NotificationType.SUPPORT_CONVERSATION_STARTED,
+        occurrence: id,
+        actor,
+        data: { conversationId: id, customerId },
+      });
+    }
+    if (
+      type === ConversationType.STAFF_DM &&
+      participantAId &&
+      participantBId
+    ) {
+      return async (): Promise<ActionNotificationEvent> => ({
+        type: NotificationType.CONVERSATION_STARTED,
+        occurrence: id,
+        actor,
+        data: {
+          conversationId: id,
+          participantIds: [participantAId, participantBId],
+        },
+      });
+    }
+    return null;
+  }
+
+  /**
+   * One notice per sender, conversation and 10 minutes: the job id and the
+   * dedupe keys repeat within the window, so later messages in it add none.
+   * The sender comes from the row (a socket message has no request context).
+   */
+  private messageSent(message: Message) {
+    const { conversationId, senderId, senderType } = message;
+    const sentAt = message.createdAt ?? new Date();
+    const window = Math.floor(sentAt.getTime() / MESSAGE_WINDOW_MS);
+    return async (): Promise<ActionNotificationEvent> => ({
+      type: NotificationType.MESSAGE_RECEIVED,
+      occurrence: `${conversationId}-${senderId}-${window}`,
+      actor: null,
+      data: {
+        conversationId,
+        sender: { id: senderId, accountType: senderType },
+      },
     });
   }
 
@@ -259,20 +356,57 @@ export class ActionSubscriber implements EntitySubscriberInterface {
     });
   }
 
-  /** pending → accepted. Blocking also saves the contact, and notifies nobody. */
-  private contactAccepted(before: Contact, after: Contact, actor: Actor) {
+  /** pending → accepted, or anything → blocked. Each happens at most once to a contact. */
+  private contactChanged(before: Contact, after: Contact, actor: Actor) {
     if (
-      before.status !== ContactStatus.PENDING ||
-      after.status !== ContactStatus.ACCEPTED
+      before.status === ContactStatus.PENDING &&
+      after.status === ContactStatus.ACCEPTED
     ) {
-      return null;
+      return async (): Promise<ActionNotificationEvent> => ({
+        type: NotificationType.CONTACT_REQUEST_ACCEPTED,
+        occurrence: `${after.id}-accepted`,
+        actor,
+        data: { contactId: after.id },
+      });
     }
+    if (
+      before.status !== ContactStatus.BLOCKED &&
+      after.status === ContactStatus.BLOCKED
+    ) {
+      return async (): Promise<ActionNotificationEvent> => ({
+        type: NotificationType.CONTACT_BLOCKED,
+        occurrence: `${after.id}-blocked`,
+        actor,
+        data: contactParties(after),
+      });
+    }
+    return null;
+  }
+
+  /**
+   * A pending request removed by the addressee is declined, by the requester
+   * withdrawn; an accepted or blocked contact removed is removed.
+   */
+  private contactRemoved(contact: Contact, actor: Actor) {
+    const data = contactParties(contact);
+    const occurrence = `${contact.id}-removed`;
+    if (contact.status !== ContactStatus.PENDING) {
+      return async (): Promise<ActionNotificationEvent> => ({
+        type: NotificationType.CONTACT_REMOVED,
+        occurrence,
+        actor,
+        data,
+      });
+    }
+    const type =
+      actor?.id === contact.requesterId
+        ? NotificationType.CONTACT_REQUEST_CANCELLED
+        : NotificationType.CONTACT_REQUEST_DECLINED;
     return async (): Promise<ActionNotificationEvent> => ({
-      type: NotificationType.CONTACT_REQUEST_ACCEPTED,
-      // A contact is accepted at most once.
-      occurrence: `${after.id}-accepted`,
+      type,
+      occurrence,
       actor,
-      data: { contactId: after.id },
+      data,
     });
   }
 }

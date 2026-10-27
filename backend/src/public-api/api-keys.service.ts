@@ -39,14 +39,23 @@ export interface ApiKeyPrincipal {
   organizationName: string;
 }
 
+/** A key identify() found usable: with its (active) branch. */
+export type IdentifiedApiKey = ApiKey & { organization: Organization };
+
+/** identify(): the key's record, found by its HMAC, before the bcrypt check. */
+export type ApiKeyLookup =
+  | { valid: true; record: IdentifiedApiKey }
+  | { valid: false; reason: ApiKeyRejection };
+
+/** confirm(): the bcrypt check passed or not. */
 export type ApiKeyVerification =
   | { valid: true; apiKey: ApiKeyPrincipal }
   | { valid: false; reason: ApiKeyRejection };
 
 /**
  * API keys for partner systems: the admin side (create, list, revoke) and
- * the check the public API's guard runs on every request (verify, then
- * touchLastUsed).
+ * the checks the public API's guard runs on every request (identify, then
+ * confirm, then touchLastUsed).
  *
  * The plaintext key exists only in create()'s return value and in the
  * partner's requests. It is never stored or logged.
@@ -151,35 +160,48 @@ export class ApiKeysService {
    * ------------------------------------------------------------------- */
 
   /**
-   * Finds the key by its HMAC (one indexed lookup, whatever the number of
-   * keys), then checks it with bcrypt. A key that isn't real is always
-   * INVALID; REVOKED and BRANCH_INACTIVE are only reported after bcrypt
-   * has confirmed the key.
+   * Step 1, no bcrypt: finds the key by its HMAC (one indexed lookup,
+   * whatever the number of keys) and checks it may still be used. The HMAC
+   * is keyed with API_KEY_HMAC_SECRET, so it only finds the row for the
+   * exact key: REVOKED and BRANCH_INACTIVE still only go to someone holding
+   * the real key, and anything else is INVALID. The guard rate-limits the
+   * key next, so bcrypt (confirm) only runs for requests that will be served.
    */
-  async verify(key: string): Promise<ApiKeyVerification> {
+  async identify(key: string): Promise<ApiKeyLookup> {
     if (!API_KEY_PATTERN.test(key)) {
       return { valid: false, reason: ApiKeyRejection.INVALID };
     }
-    const apiKey = await this.apiKeyRepository.findOne({
+    const record = await this.apiKeyRepository.findOne({
       where: { keyHmac: this.hmac(key) },
       relations: { organization: true },
     });
-    if (!apiKey || !(await bcrypt.compare(key, apiKey.keyHash))) {
+    if (!record) {
       return { valid: false, reason: ApiKeyRejection.INVALID };
     }
-    if (apiKey.revokedAt) {
+    if (record.revokedAt) {
       return { valid: false, reason: ApiKeyRejection.REVOKED };
     }
-    if (!apiKey.organization?.isActive) {
+    if (!record.organization?.isActive) {
       return { valid: false, reason: ApiKeyRejection.BRANCH_INACTIVE };
+    }
+    return { valid: true, record: record as IdentifiedApiKey };
+  }
+
+  /** Step 2: the key against its bcrypt hash, and who it lets in. */
+  async confirm(
+    key: string,
+    record: IdentifiedApiKey,
+  ): Promise<ApiKeyVerification> {
+    if (!(await bcrypt.compare(key, record.keyHash))) {
+      return { valid: false, reason: ApiKeyRejection.INVALID };
     }
     return {
       valid: true,
       apiKey: {
-        id: apiKey.id,
-        name: apiKey.name,
-        organizationId: apiKey.organization.id,
-        organizationName: apiKey.organization.name,
+        id: record.id,
+        name: record.name,
+        organizationId: record.organization.id,
+        organizationName: record.organization.name,
       },
     };
   }

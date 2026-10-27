@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
 } from '@nestjs/common';
@@ -47,32 +48,39 @@ export class OrganizationsController {
   @RequireStaff()
   @Get(':id')
   @ApiOperation({ summary: 'Get an organization by id' })
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.organizationsService.getById(id);
   }
 
   @RequirePermission('organizations:manage')
   @Patch(':id')
   @ApiOperation({ summary: 'Update an organization' })
-  async update(@Param('id') id: string, @Body() dto: UpdateOrganizationDto) {
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateOrganizationDto,
+  ) {
     const org = await this.organizationsService.update(id, dto);
     return OrganizationFactory.toDto(org);
   }
 
   @RequirePermission('organizations:manage')
   @Delete(':id')
-  @ApiOperation({ summary: 'Deactivate an organization' })
-  async deactivate(@Param('id') id: string) {
-    await this.organizationsService.deactivate(id);
-    return { message: 'Organization deactivated' };
+  @ApiOperation({
+    summary: 'Delete an organization',
+    description:
+      'Only one with no staff, shipments or API keys (409, 4003). To keep its history, deactivate it instead: PATCH isActive false.',
+  })
+  async remove(@Param('id', ParseUUIDPipe) id: string) {
+    await this.organizationsService.remove(id);
+    return { message: 'Organization deleted' };
   }
 
   @RequirePermission('organizations:manage')
   @Post(':id/staff/:internalUserId')
   @ApiOperation({ summary: 'Assign a staff member to this organization' })
   async assignStaff(
-    @Param('id') id: string,
-    @Param('internalUserId') internalUserId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('internalUserId', ParseUUIDPipe) internalUserId: string,
   ) {
     await this.organizationsService.assignStaff(id, internalUserId);
     return { message: 'Staff member assigned' };
@@ -81,15 +89,18 @@ export class OrganizationsController {
   @RequirePermission('organizations:manage')
   @Delete(':id/staff/:internalUserId')
   @ApiOperation({ summary: 'Remove a staff member from this organization' })
-  async removeStaff(@Param('internalUserId') internalUserId: string) {
-    await this.organizationsService.removeStaff(internalUserId);
+  async removeStaff(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('internalUserId', ParseUUIDPipe) internalUserId: string,
+  ) {
+    await this.organizationsService.removeStaff(id, internalUserId);
     return { message: 'Staff member removed' };
   }
 
   @RequireStaff()
   @Get(':id/staff')
   @ApiOperation({ summary: "List an organization's staff" })
-  async listStaff(@Param('id') id: string) {
+  async listStaff(@Param('id', ParseUUIDPipe) id: string) {
     return this.organizationsService.listStaff(id);
   }
 }

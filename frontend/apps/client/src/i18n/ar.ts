@@ -120,6 +120,7 @@ const ar: ClientResources = {
   notifications: {
     bellLabel: "الإشعارات، {{count}} غير مقروءة",
     markAllRead: "تعليم الكل كمقروء",
+    open: "فتح",
     markAllError: "تعذّر تعليم إشعاراتك كمقروءة. حاول مرة أخرى.",
     loadMore: "تحميل المزيد",
     unread: "غير مقروء",
@@ -155,6 +156,32 @@ const ar: ClientResources = {
       passwordChanged: {
         title: "تم تغيير كلمة المرور",
         message: "إذا لم تكن أنت من قام بذلك، أعد تعيين كلمة المرور فورًا.",
+      },
+      supportStarted: {
+        title: "بدأت محادثة مع الدعم",
+        message: "سيرد عليك فريق الدعم في الرسائل.",
+      },
+      welcome: {
+        title: "مرحبًا بك في ShipTrack",
+        message: "حسابك جاهز. اطلب شحنة متى شئت.",
+      },
+      profileUpdated: {
+        title: "تم تحديث الملف الشخصي",
+        details: "حدّثت بيانات ملفك الشخصي.",
+        avatar: "غيّرت صورة ملفك الشخصي.",
+      },
+      sessionsRevoked: {
+        title: "تم تسجيل الخروج من كل الأجهزة",
+        message: "تم إنهاء كل الجلسات على حسابك. إن لم تكن أنت، فغيّر كلمة المرور الآن.",
+      },
+      message: { title: "رسالة جديدة", message: "أرسل إليك {{name}} من فريق الدعم رسالة." },
+    },
+    own: {
+      shipment: {
+        pending_sourcing: "أرسلت هذا الطلب. نبحث عن مورّد.",
+        pending_payment: "قبلت العرض. ادفع لتأكيده.",
+        pending_payment_confirmation: "دفعت. سنؤكد الدفع قريبًا.",
+        other: "أنت من أجرى هذا التغيير.",
       },
     },
   },

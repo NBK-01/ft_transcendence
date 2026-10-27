@@ -1,3 +1,5 @@
+import { ConversationType } from '../../chat/entities/conversation.entity';
+import { ShipmentActorType } from '../../shipments/constants/shipment-actor';
 import {
   AttachmentKind,
   ShipmentState,
@@ -19,7 +21,9 @@ export enum NotificationStatus {
 /**
  * What the notification is about. Frontends pick their own wording from this
  * plus `payload`. Everything but SHIPMENT_UPDATE comes from the
- * ACTION_NOTIFICATION job: something was created, changed or deleted.
+ * ACTION_NOTIFICATION job: something was created, changed or deleted. Who's
+ * told is noted on each; whoever acted also gets a record of it
+ * (ownAction), except for the security notices and messages.
  */
 export enum NotificationType {
   /** A new step on a shipment's timeline (any ShipmentEvent). */
@@ -28,8 +32,10 @@ export enum NotificationType {
   BRANCH_CREATED = 'BRANCH_CREATED',
   /** Details changed or reactivated. To the other admins and the branch's staff. */
   BRANCH_UPDATED = 'BRANCH_UPDATED',
-  /** Deactivated (PATCH isActive false, or DELETE). To the other admins and the branch's staff. */
+  /** Deactivated (PATCH isActive false). To the other admins and the branch's staff. */
   BRANCH_DEACTIVATED = 'BRANCH_DEACTIVATED',
+  /** Deleted (DELETE, only an empty branch). To the other admins. */
+  BRANCH_DELETED = 'BRANCH_DELETED',
   /** To the staff member added. */
   BRANCH_STAFF_ADDED = 'BRANCH_STAFF_ADDED',
   /** To the staff member removed. */
@@ -48,12 +54,38 @@ export enum NotificationType {
   SUPPORT_CONVERSATION_STARTED = 'SUPPORT_CONVERSATION_STARTED',
   /** Staff attached a file to a shipment. To its customer. */
   SHIPMENT_FILE_ADDED = 'SHIPMENT_FILE_ADDED',
+  /** An admin handed a customer's order to a branch (or took it off one). To that branch's staff. */
+  SHIPMENT_BRANCH_ASSIGNED = 'SHIPMENT_BRANCH_ASSIGNED',
   /** A security notice to the account's owner, even when they did it themselves. */
   PASSWORD_CHANGED = 'PASSWORD_CHANGED',
   /** An admin created a partner API key. To the other admins. */
   API_KEY_CREATED = 'API_KEY_CREATED',
   /** An admin revoked one. To the other admins. */
   API_KEY_REVOKED = 'API_KEY_REVOKED',
+  /** A customer signed up (email or Google). A welcome to them, and to the admins. */
+  CUSTOMER_REGISTERED = 'CUSTOMER_REGISTERED',
+  /** Profile details or photo changed. To the account's owner. */
+  PROFILE_UPDATED = 'PROFILE_UPDATED',
+  /** A customer closed their account. To the admins. */
+  CUSTOMER_ACCOUNT_DEACTIVATED = 'CUSTOMER_ACCOUNT_DEACTIVATED',
+  /** "Sign out everywhere": a security notice to the account's owner. */
+  SESSIONS_REVOKED = 'SESSIONS_REVOKED',
+  /** The addressee declined a request. Only a record for them: the requester isn't told. */
+  CONTACT_REQUEST_DECLINED = 'CONTACT_REQUEST_DECLINED',
+  /** The requester withdrew a request. Only a record for them. */
+  CONTACT_REQUEST_CANCELLED = 'CONTACT_REQUEST_CANCELLED',
+  /** A contact (or a block) was removed. Only a record for whoever removed it. */
+  CONTACT_REMOVED = 'CONTACT_REMOVED',
+  /** A contact was blocked. Only a record for whoever blocked it. */
+  CONTACT_BLOCKED = 'CONTACT_BLOCKED',
+  /** A staff member opened a direct conversation. To the other one. */
+  CONVERSATION_STARTED = 'CONVERSATION_STARTED',
+  /**
+   * New messages in a conversation: to the other participant, or for a
+   * support conversation, the customer or the support staff. At most one
+   * per sender, conversation and recipient every 10 minutes.
+   */
+  MESSAGE_RECEIVED = 'MESSAGE_RECEIVED',
 }
 
 export interface ShipmentUpdatePayload {
@@ -61,11 +93,15 @@ export interface ShipmentUpdatePayload {
   status: ShipmentState;
   /** Set on a shipment created straight at `confirmed` (by a partner): "new shipment", not "payment confirmed". */
   isNew?: true;
+  /** Who moved it; missing on events from before it was recorded. */
+  actorType?: ShipmentActorType;
 }
 
 export interface BranchPayload {
   organizationId: string;
   name: string;
+  /** On BRANCH_STAFF_ADDED / _REMOVED: the member's name (missing on older rows). */
+  staffName?: string;
 }
 
 export interface StaffAccountPayload {
@@ -84,7 +120,7 @@ export interface StaffAccountUpdatedPayload extends StaffAccountPayload {
   organizationName: string | null;
 }
 
-/** The other person: who sent the request, or who accepted it. */
+/** The other person, for the reader: who sent the request, who accepted it, who they declined… */
 export interface ContactPayload {
   contactId: string;
   internalUserId: string;
@@ -102,11 +138,38 @@ export interface ShipmentFilePayload {
   fileName: string;
 }
 
-/**
- * What each type carries in `payload`: enough for a frontend to word the
- * notification in its own language and link to the thing it's about. The
- * stored title/message are English only (the backend has no other locale).
- */
+/** The branch an order now belongs to; null when it was taken off one. */
+export interface ShipmentBranchPayload {
+  trackingId: string;
+  organizationId: string | null;
+  branchName: string | null;
+}
+
+export interface CustomerPayload {
+  customerId: string;
+  name: string;
+}
+
+/** What changed on a profile. */
+export type ProfileChange = 'details' | 'avatar';
+
+export interface ProfilePayload {
+  change: ProfileChange;
+}
+
+/** A direct conversation, and the other person in it for the reader. */
+export interface ConversationPayload {
+  conversationId: string;
+  internalUserId: string;
+  name: string;
+}
+
+export interface MessagePayload {
+  conversationId: string;
+  conversationType: ConversationType;
+  senderName: string;
+}
+
 /** A partner API key, as the admins' list shows it (masked: never the key itself). */
 export interface ApiKeyPayload {
   apiKeyId: string;
@@ -116,11 +179,17 @@ export interface ApiKeyPayload {
   maskedKey: string;
 }
 
+/**
+ * What each type carries in `payload`: enough for a frontend to word the
+ * notification in its own language and link to the thing it's about. The
+ * stored title/message are English only (the backend has no other locale).
+ */
 export interface NotificationPayloads {
   [NotificationType.SHIPMENT_UPDATE]: ShipmentUpdatePayload;
   [NotificationType.BRANCH_CREATED]: BranchPayload;
   [NotificationType.BRANCH_UPDATED]: BranchPayload;
   [NotificationType.BRANCH_DEACTIVATED]: BranchPayload;
+  [NotificationType.BRANCH_DELETED]: BranchPayload;
   [NotificationType.BRANCH_STAFF_ADDED]: BranchPayload;
   [NotificationType.BRANCH_STAFF_REMOVED]: BranchPayload;
   [NotificationType.STAFF_ACCOUNT_CREATED]: StaffAccountPayload;
@@ -130,9 +199,20 @@ export interface NotificationPayloads {
   [NotificationType.CONTACT_REQUEST_ACCEPTED]: ContactPayload;
   [NotificationType.SUPPORT_CONVERSATION_STARTED]: SupportConversationPayload;
   [NotificationType.SHIPMENT_FILE_ADDED]: ShipmentFilePayload;
+  [NotificationType.SHIPMENT_BRANCH_ASSIGNED]: ShipmentBranchPayload;
   [NotificationType.PASSWORD_CHANGED]: Record<string, never>;
   [NotificationType.API_KEY_CREATED]: ApiKeyPayload;
   [NotificationType.API_KEY_REVOKED]: ApiKeyPayload;
+  [NotificationType.CUSTOMER_REGISTERED]: CustomerPayload;
+  [NotificationType.PROFILE_UPDATED]: ProfilePayload;
+  [NotificationType.CUSTOMER_ACCOUNT_DEACTIVATED]: CustomerPayload;
+  [NotificationType.SESSIONS_REVOKED]: Record<string, never>;
+  [NotificationType.CONTACT_REQUEST_DECLINED]: ContactPayload;
+  [NotificationType.CONTACT_REQUEST_CANCELLED]: ContactPayload;
+  [NotificationType.CONTACT_REMOVED]: ContactPayload;
+  [NotificationType.CONTACT_BLOCKED]: ContactPayload;
+  [NotificationType.CONVERSATION_STARTED]: ConversationPayload;
+  [NotificationType.MESSAGE_RECEIVED]: MessagePayload;
 }
 
 export type NotificationPayload = NotificationPayloads[NotificationType];

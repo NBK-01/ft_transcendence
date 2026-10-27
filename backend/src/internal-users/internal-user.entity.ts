@@ -39,4 +39,8 @@ export class InternalUser extends BaseEntity {
 
   @Column({ name: 'force_logout_after', type: 'timestamptz', nullable: true })
   forceLogoutAfter!: Date | null;
+
+  /** The profile photo's storage key; null shows their initials. Served as a signed URL, never stored as one. */
+  @Column({ name: 'avatar_key', type: 'varchar', nullable: true })
+  avatarKey!: string | null;
 }

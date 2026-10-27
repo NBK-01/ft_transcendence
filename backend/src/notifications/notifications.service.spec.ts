@@ -201,6 +201,7 @@ function makeNotification(overrides: Partial<Notification> = {}): Notification {
       trackingId: 'TRK-4A6F90',
       status: ShipmentState.OUT_FOR_DELIVERY,
     },
+    ownAction: false,
     status: NotificationStatus.SENT,
     sentAt: createdAt,
     readAt: null,
@@ -469,9 +470,19 @@ describe('NotificationsService.createOnce', () => {
       type: NotificationType.SHIPMENT_UPDATE,
       status: NotificationStatus.PENDING,
       payload: { trackingId: 'TRK-4A6F90', status: ShipmentState.IN_TRANSIT },
+      ownAction: false,
       dedupeKey: 'shipment-event:1:me',
     });
     expect(repository.rows).toHaveLength(1);
+  });
+
+  it('marks the row as the recipient’s own action when asked', async () => {
+    const { notification } = await service.createOnce({
+      ...input('shipment-event:1:me'),
+      ownAction: true,
+    });
+
+    expect(notification.ownAction).toBe(true);
   });
 
   it('never creates a second row for the same key, and returns the first one', async () => {

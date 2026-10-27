@@ -1,13 +1,17 @@
 import {
+  Ban,
   Bell,
   Building2,
   Contact,
   FileText,
   Headset,
   KeyRound,
+  LogOut,
+  MessageSquare,
   Package,
   UserCheck,
   UserCog,
+  UserMinus,
   UserPlus,
   UserX,
   type LucideIcon,
@@ -25,6 +29,7 @@ import {
   type StaffChange,
 } from "@trans/api";
 
+import { SHIPMENT_READ } from "../auth/shipment-read";
 import { useBranchFilter } from "../branches/use-branch-filter";
 
 /**
@@ -62,14 +67,24 @@ type Kind<T extends NotificationType> = {
   icon: LucideIcon;
   /** null: show the backend's English title and message. */
   wording: (notification: Of<T>, t: Translate, reader: Reader) => Wording | null;
+  /** The reader's record of their own action ("You…"); without it, the backend's English. */
+  own?: (notification: Of<T>, t: Translate) => Wording;
   href: (notification: Of<T>, reader: Reader) => string | null;
 };
 
-/** The shipment steps staff are told about (backend AUDIENCE_BY_STATUS): the customer acted. */
-const STAFF_STEPS: ReadonlySet<ShipmentState> = new Set(["pending_sourcing", "pending_payment", "pending_payment_confirmation"]);
+/** The customer's steps, worded by what they did; anything else staff hear about came from a partner or the carrier. */
+const CUSTOMER_STEPS: ReadonlySet<ShipmentState> = new Set(["pending_sourcing", "pending_payment", "pending_payment_confirmation"]);
 
+/** Which line explains a shipment step: what the customer did, or who moved it from outside. */
+function shipmentLine({ status, isNew, actorType }: Of<"SHIPMENT_UPDATE">["payload"]): string {
+  if (isNew) return "partnerCreated";
+  if (actorType === "partner" || actorType === "carrier") return actorType;
+  return CUSTOMER_STEPS.has(status) ? status : "other";
+}
+
+/** Admins and support open any shipment, a dispatcher their branch's (the ones they're told about). */
 const shipmentPath = (trackingId: string, reader: Reader) =>
-  reader.can("shipments:read:all") ? `/shipments/${encodeURIComponent(trackingId)}` : null;
+  SHIPMENT_READ.some(reader.can) ? `/shipments/${encodeURIComponent(trackingId)}` : null;
 const branchPath = (organizationId: string) => `/branches/${encodeURIComponent(organizationId)}`;
 const usersPath = (reader: Reader) => (reader.isAdmin ? "/users" : null);
 
@@ -80,6 +95,15 @@ const named =
     title: t(`notifications.types.${key}.title`, { name: payload.name }),
     message: t(`notifications.types.${key}.message`, { name: payload.name }),
   });
+
+/** A record of the reader's own action, from notifications.own.<key>, with the payload's names. */
+const own =
+  (key: string) =>
+  ({ payload }: { payload: object }, t: Translate): Wording => {
+    const values: Record<string, string> = { staffName: t("notifications.own.someone") };
+    for (const [name, value] of Object.entries(payload)) if (typeof value === "string") values[name] = value;
+    return { title: t(`notifications.own.${key}.title`, values), message: t(`notifications.own.${key}.message`, values) };
+  };
 
 /** What an account update changed, one sentence each, about "you" or "them". */
 function staffChanges({ payload }: Of<"STAFF_ACCOUNT_UPDATED">, t: Translate, self: boolean) {
@@ -102,6 +126,23 @@ function staffChanges({ payload }: Of<"STAFF_ACCOUNT_UPDATED">, t: Translate, se
   };
 }
 
+const messagesPath = (conversationId: string) => `/messages/${encodeURIComponent(conversationId)}`;
+
+/** The reader's own profile: only they change it, so it's always "you". */
+const profileWording = ({ payload }: Of<"PROFILE_UPDATED">, t: Translate): Wording => ({
+  title: t("notifications.types.profileUpdated.title"),
+  message: t(`notifications.types.profileUpdated.${payload.change}`),
+});
+
+/** A contact declined, withdrawn, removed or blocked: only ever the reader's own record of it. */
+type ContactRecordType = "CONTACT_REQUEST_DECLINED" | "CONTACT_REQUEST_CANCELLED" | "CONTACT_REMOVED" | "CONTACT_BLOCKED";
+const contactRecord = <T extends ContactRecordType>(icon: LucideIcon, key: string): Kind<T> => ({
+  icon,
+  wording: () => null,
+  own: own(key),
+  href: () => "/contacts",
+});
+
 /** Partner API keys: admins only, like the page they link to. */
 const apiKeysPath = (reader: Reader) => (reader.isAdmin ? "/api-keys" : null);
 
@@ -121,49 +162,105 @@ const KINDS: { [T in NotificationType]: Kind<T> } = {
         trackingId: payload.trackingId,
         status: t(`common:status.${payload.status}`),
       }),
-      message: t(`notifications.types.shipment.${STAFF_STEPS.has(payload.status) ? payload.status : "other"}`),
+      message: t(`notifications.types.shipment.${shipmentLine(payload)}`),
+    }),
+    own: ({ payload }, t) => ({
+      title: t("notifications.types.shipment.title", {
+        trackingId: payload.trackingId,
+        status: t(`common:status.${payload.status}`),
+      }),
+      message: t("notifications.own.shipment"),
     }),
     href: ({ payload }, reader) => shipmentPath(payload.trackingId, reader),
   },
-  BRANCH_CREATED: { icon: Building2, wording: named("branchCreated"), href: ({ payload }) => branchPath(payload.organizationId) },
-  BRANCH_UPDATED: { icon: Building2, wording: named("branchUpdated"), href: ({ payload }) => branchPath(payload.organizationId) },
+  BRANCH_CREATED: {
+    icon: Building2,
+    wording: named("branchCreated"),
+    own: own("branchCreated"),
+    href: ({ payload }) => branchPath(payload.organizationId),
+  },
+  BRANCH_UPDATED: {
+    icon: Building2,
+    wording: named("branchUpdated"),
+    own: own("branchUpdated"),
+    href: ({ payload }) => branchPath(payload.organizationId),
+  },
   BRANCH_DEACTIVATED: {
     icon: Building2,
     wording: named("branchDeactivated"),
+    own: own("branchDeactivated"),
     href: ({ payload }) => branchPath(payload.organizationId),
   },
+  // It's gone: nowhere to link.
+  BRANCH_DELETED: { icon: Building2, wording: named("branchDeleted"), own: own("branchDeleted"), href: () => null },
   BRANCH_STAFF_ADDED: {
     icon: Building2,
     wording: named("branchStaffAdded"),
+    own: own("branchStaffAdded"),
     href: ({ payload }) => branchPath(payload.organizationId),
   },
   BRANCH_STAFF_REMOVED: {
     icon: Building2,
     wording: named("branchStaffRemoved"),
+    own: own("branchStaffRemoved"),
     href: ({ payload }) => branchPath(payload.organizationId),
   },
-  STAFF_ACCOUNT_CREATED: { icon: UserPlus, wording: named("staffCreated"), href: (_, reader) => usersPath(reader) },
+  STAFF_ACCOUNT_CREATED: {
+    icon: UserPlus,
+    wording: named("staffCreated"),
+    own: own("staffCreated"),
+    href: (_, reader) => usersPath(reader),
+  },
   STAFF_ACCOUNT_UPDATED: {
     icon: UserCog,
     // To the account's owner ("your role is now…") and to the other admins ("their role…").
     wording: (notification, t, reader) => staffChanges(notification, t, notification.payload.internalUserId === reader.id),
+    own: own("staffUpdated"),
     href: ({ payload }, reader) => (payload.internalUserId === reader.id ? "/profile" : usersPath(reader)),
   },
-  STAFF_ACCOUNT_DEACTIVATED: { icon: UserX, wording: named("staffDeactivated"), href: (_, reader) => usersPath(reader) },
-  CONTACT_REQUEST_RECEIVED: { icon: Contact, wording: named("contactReceived"), href: () => "/contacts" },
-  CONTACT_REQUEST_ACCEPTED: { icon: UserCheck, wording: named("contactAccepted"), href: () => "/contacts" },
+  STAFF_ACCOUNT_DEACTIVATED: {
+    icon: UserX,
+    wording: named("staffDeactivated"),
+    own: own("staffDeactivated"),
+    href: (_, reader) => usersPath(reader),
+  },
+  CONTACT_REQUEST_RECEIVED: { icon: Contact, wording: named("contactReceived"), own: own("contactSent"), href: () => "/contacts" },
+  CONTACT_REQUEST_ACCEPTED: {
+    icon: UserCheck,
+    wording: named("contactAccepted"),
+    own: own("contactAccepted"),
+    href: () => "/contacts",
+  },
   SUPPORT_CONVERSATION_STARTED: {
     icon: Headset,
     wording: ({ payload }, t) => ({
       title: t("notifications.types.supportStarted.title"),
       message: t("notifications.types.supportStarted.message", { name: payload.customerName }),
     }),
-    href: ({ payload }) => `/messages/${encodeURIComponent(payload.conversationId)}`,
+    href: ({ payload }) => messagesPath(payload.conversationId),
   },
-  // Only customers get these (a file on their shipment), so no staff wording.
+  // Only customers hear about these (a file on their shipment); staff only get the record of adding one.
   SHIPMENT_FILE_ADDED: {
     icon: FileText,
     wording: () => null,
+    own: own("fileAdded"),
+    href: ({ payload }, reader) => shipmentPath(payload.trackingId, reader),
+  },
+  SHIPMENT_BRANCH_ASSIGNED: {
+    icon: Package,
+    wording: ({ payload }, t) => ({
+      title: t("notifications.types.shipmentBranch.title"),
+      message: t("notifications.types.shipmentBranch.message", {
+        trackingId: payload.trackingId,
+        branch: payload.branchName ?? "",
+      }),
+    }),
+    own: ({ payload }, t) => ({
+      title: t("notifications.own.shipmentBranch.title", { trackingId: payload.trackingId }),
+      message: payload.branchName
+        ? t("notifications.own.shipmentBranch.assigned", { branch: payload.branchName })
+        : t("notifications.own.shipmentBranch.removed"),
+    }),
     href: ({ payload }, reader) => shipmentPath(payload.trackingId, reader),
   },
   PASSWORD_CHANGED: {
@@ -174,14 +271,54 @@ const KINDS: { [T in NotificationType]: Kind<T> } = {
     }),
     href: () => "/profile",
   },
-  API_KEY_CREATED: { icon: KeyRound, wording: apiKeyWording("apiKeyCreated"), href: (_, reader) => apiKeysPath(reader) },
-  API_KEY_REVOKED: { icon: KeyRound, wording: apiKeyWording("apiKeyRevoked"), href: (_, reader) => apiKeysPath(reader) },
+  API_KEY_CREATED: {
+    icon: KeyRound,
+    wording: apiKeyWording("apiKeyCreated"),
+    own: own("apiKeyCreated"),
+    href: (_, reader) => apiKeysPath(reader),
+  },
+  API_KEY_REVOKED: {
+    icon: KeyRound,
+    wording: apiKeyWording("apiKeyRevoked"),
+    own: own("apiKeyRevoked"),
+    href: (_, reader) => apiKeysPath(reader),
+  },
+  // Customers have no page in the admin: these link nowhere.
+  CUSTOMER_REGISTERED: { icon: UserPlus, wording: named("customerRegistered"), href: () => null },
+  CUSTOMER_ACCOUNT_DEACTIVATED: { icon: UserX, wording: named("customerDeactivated"), href: () => null },
+  PROFILE_UPDATED: { icon: UserCog, wording: profileWording, own: profileWording, href: () => "/profile" },
+  SESSIONS_REVOKED: {
+    icon: LogOut,
+    wording: (_, t) => ({
+      title: t("notifications.types.sessionsRevoked.title"),
+      message: t("notifications.types.sessionsRevoked.message"),
+    }),
+    href: () => "/profile",
+  },
+  CONTACT_REQUEST_DECLINED: contactRecord(UserX, "contactDeclined"),
+  CONTACT_REQUEST_CANCELLED: contactRecord(UserX, "contactCancelled"),
+  CONTACT_REMOVED: contactRecord(UserMinus, "contactRemoved"),
+  CONTACT_BLOCKED: contactRecord(Ban, "contactBlocked"),
+  CONVERSATION_STARTED: {
+    icon: MessageSquare,
+    wording: named("conversationStarted"),
+    own: own("conversationStarted"),
+    href: ({ payload }) => messagesPath(payload.conversationId),
+  },
+  MESSAGE_RECEIVED: {
+    icon: MessageSquare,
+    wording: ({ payload }, t) => ({
+      title: t(`notifications.types.message.${payload.conversationType === "support" ? "supportTitle" : "title"}`),
+      message: t(`notifications.types.message.${payload.conversationType}`, { name: payload.senderName }),
+    }),
+    href: ({ payload }) => messagesPath(payload.conversationId),
+  },
 };
 
 export function describeNotification(notification: AppNotification, t: Translate, reader: Reader): NotificationView {
   // Looked up by its own type, so the payload matches; TypeScript can't follow that through the union.
   const kind = KINDS[notification.type] as Kind<NotificationType> | undefined;
-  const wording = kind?.wording(notification, t, reader) ?? null;
+  const wording = (notification.ownAction ? kind?.own?.(notification, t) : kind?.wording(notification, t, reader)) ?? null;
   return {
     icon: kind?.icon ?? Bell,
     title: wording?.title ?? notification.title,

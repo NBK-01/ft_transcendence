@@ -39,7 +39,7 @@ afterAll(() => server.close());
 const staffNamed = (name: string) => internalUsers.find((user) => user.name === name)!;
 const nadia = staffNamed("Nadia Haddad"); // admin: reads and changes
 const maya = staffNamed("Maya Azar"); // support: reads only
-const rami = staffNamed("Rami Khoury"); // dispatcher: can't read
+const rami = staffNamed("Rami Khoury"); // dispatcher in Beirut Central: his branch's shipments only
 const karim = staffNamed("Karim Saade"); // driver: neither
 
 async function signInAs(email = nadia.email) {
@@ -81,7 +81,7 @@ describe("admin shipments: access", () => {
     await expect(list()).rejects.toMatchObject({ status: 401, errorCode: undefined });
   });
 
-  it("support reads but can't change anything; a dispatcher or a driver can't read (403, 7001)", async () => {
+  it("support reads but can't change anything; a driver can't read (403, 7001)", async () => {
     await signInAs(maya.email);
     const { items } = await list();
     const trackingId = items[0]!.trackingId;
@@ -91,11 +91,64 @@ describe("admin shipments: access", () => {
     await expect(addEvent(trackingId, { status: "cancelled", location: "Test" })).rejects.toMatchObject(forbidden);
     await expect(api.post(path(trackingId, "/files"), new FormData())).rejects.toMatchObject(forbidden);
 
-    for (const staff of [rami, karim]) {
-      await signInAs(staff.email);
-      await expect(list()).rejects.toMatchObject(forbidden);
-      await expect(detail(trackingId)).rejects.toMatchObject(forbidden);
-    }
+    await signInAs(karim.email);
+    await expect(list()).rejects.toMatchObject(forbidden);
+    await expect(detail(trackingId)).rejects.toMatchObject(forbidden);
+  });
+});
+
+describe("admin shipments: branches", () => {
+  const beirut = () => internalUsers.find((user) => user.id === rami.id)!.organizationId!;
+
+  it("a dispatcher sees only their branch's shipments, whatever organizationId says; the rest are 404", async () => {
+    await signInAs();
+    const all = (await list({ limit: 100 })).items;
+    const theirs = all.filter((row) => row.organization?.id === beirut());
+    const elsewhere = all.find((row) => row.organization !== null && row.organization.id !== beirut())!;
+    expect(theirs.length).toBeGreaterThan(0);
+
+    await signInAs(rami.email);
+    const seen = (await list({ limit: 100, organizationId: elsewhere.organization!.id })).items;
+    expect(seen.map((row) => row.trackingId).sort()).toEqual(theirs.map((row) => row.trackingId).sort());
+    await expect(detail(elsewhere.trackingId)).rejects.toMatchObject({ status: 404, errorCode: 3001 });
+    await expect(detail(theirs[0]!.trackingId)).resolves.toMatchObject({ trackingId: theirs[0]!.trackingId });
+  });
+
+  it("an admin hands a customer's order to a branch: its dispatcher can then work on it; null takes it back", async () => {
+    await signInAs();
+    const trackingId = await oneIn("confirmed");
+    const assigned = await api.patch<AdminShipmentDetail>(path(trackingId, "/branch"), { organizationId: beirut() });
+    expect(assigned.organization).toMatchObject({ id: beirut() });
+
+    await signInAs(rami.email);
+    await expect(addEvent(trackingId, { status: "in_transit", location: "Beirut port" })).resolves.toMatchObject({
+      status: "in_transit",
+    });
+
+    await signInAs();
+    await api.patch(path(trackingId, "/branch"), { organizationId: null });
+    await signInAs(rami.email);
+    await expect(detail(trackingId)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("refuses a partner's shipment (409, 3008), a deactivated branch (409, 4005), a bad id (400), and anyone but an admin (403)", async () => {
+    await signInAs();
+    const all = (await list({ limit: 100 })).items;
+    const partners = all.find((row) => row.organization !== null)!;
+    await expect(api.patch(path(partners.trackingId, "/branch"), { organizationId: null })).rejects.toMatchObject({
+      status: 409,
+      errorCode: 3008,
+    });
+    const order = await oneIn("pending_sourcing");
+    const closed = ORGANIZATIONS.find((org) => !org.isActive)!;
+    await expect(api.patch(path(order, "/branch"), { organizationId: closed.id })).rejects.toMatchObject({
+      status: 409,
+      errorCode: 4005,
+    });
+    await expect(api.patch(path(order, "/branch"), { organizationId: "beirut" })).rejects.toMatchObject(badRequest);
+
+    await signInAs(maya.email);
+    await expect(api.patch(path(order, "/branch"), { organizationId: beirut() })).rejects.toMatchObject(forbidden);
   });
 });
 

@@ -5,11 +5,13 @@ import { ContactsController } from './contacts.controller';
 import { Contact } from './contact.entity';
 import { InternalUsersModule } from '../internal-users/internal-users.module';
 import { AccessControlModule } from '../access-control/access-control.module';
+import { PresenceModule } from '../chat/presence.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Contact]),
     InternalUsersModule,
+    PresenceModule,
     AccessControlModule,
   ],
   controllers: [ContactsController],

@@ -161,6 +161,22 @@ function useShipmentChange<TInput extends { trackingId: string }>(
 }
 
 /**
+ * PATCH /admin/shipments/:trackingId/branch: hand a customer's order to a
+ * branch, or take it off one (null). Admins only. 409 (3008) for a partner's
+ * shipment, which stays with its branch; 409 (4005) for a deactivated branch.
+ */
+export function useAssignShipmentBranch() {
+  return useShipmentChange(({ trackingId, organizationId }: { trackingId: string; organizationId: string | null }) =>
+    api.patch<AdminShipmentDetail>(`/admin/shipments/${encodeURIComponent(trackingId)}/branch`, { organizationId }),
+  );
+}
+
+/** Backend ShipmentErrorCodes.ShipmentBranchLocked: a partner's shipment stays with its branch. */
+export const SHIPMENT_BRANCH_LOCKED = 3008;
+/** Backend OrganizationErrorCodes.OrganizationInactive: a deactivated branch takes no new orders. */
+export const ORGANIZATION_INACTIVE = 4005;
+
+/**
  * POST /admin/shipments/:trackingId/offer (multipart): pending_sourcing →
  * pending_client_decision, and the client sees the offer. 400 (3004) over
  * MAX_OFFER_IMAGES photos, 400 (9001/9002) for a photo of the wrong type or

@@ -1,6 +1,6 @@
 import { HttpStatus } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { QueryFailedError, Repository } from 'typeorm';
+import { EntityTarget, QueryFailedError, Repository } from 'typeorm';
 import { ACCESS_CONTROL_KEYS } from '../common/decorators/access-control.decorator';
 import { CryptoService } from '../common/services/crypto.service';
 import { Role } from '../access-control/entities/role.entity';
@@ -13,10 +13,15 @@ import {
 import { Organization } from './organization.entity';
 import { OrganizationsController } from './organizations.controller';
 import { OrganizationsService } from './organizations.service';
+import { Shipment } from '../shipments/entities/shipment.entity';
+import { ApiKey } from '../public-api/entities/api-key.entity';
+import { ActionSignals } from '../notifications/action-signals';
 import {
   OrganizationAlreadyExistsException,
   OrganizationErrorCodes,
+  OrganizationInUseException,
   OrganizationNotFoundException,
+  StaffNotInOrganizationException,
 } from './exceptions';
 
 /**
@@ -28,16 +33,61 @@ import {
  * ("name") constraint as the migration, so a duplicate that slips past the
  * service fails the way Postgres would.
  *
- * The "current gaps" block pins behaviour that looks wrong but is what the
- * code does today, so a fix shows up as a deliberate test change.
+ * Deleting counts what still points at the branch through the repository's
+ * manager: its staff (the in-memory table), and shipments and API keys
+ * (counts a test sets).
  */
 
 const UNKNOWN = '00000000-0000-0000-0000-000000000000';
 
+/** Linked shipments and API keys per organization id, which remove() counts. */
+interface Linked {
+  shipments: Map<string, number>;
+  apiKeys: Map<string, number>;
+}
+
+/** The transaction manager remove() uses: counts what points at a branch, and deletes it. */
+function fakeManager(
+  organizations: Organization[],
+  staff: InternalUser[],
+  linked: Linked,
+) {
+  return {
+    count: (
+      target: EntityTarget<unknown>,
+      { where }: { where: { organizationId: string } },
+    ) => {
+      if (target === InternalUser) {
+        return Promise.resolve(
+          staff.filter((user) => user.organizationId === where.organizationId)
+            .length,
+        );
+      }
+      expect([Shipment, ApiKey]).toContain(target);
+      const counts = target === Shipment ? linked.shipments : linked.apiKeys;
+      return Promise.resolve(counts.get(where.organizationId) ?? 0);
+    },
+    delete: (_target: unknown, id: string) => {
+      const index = organizations.findIndex((org) => org.id === id);
+      if (index >= 0) organizations.splice(index, 1);
+      return Promise.resolve({ affected: index >= 0 ? 1 : 0 });
+    },
+  };
+}
+
 function setup() {
   const organizations: Organization[] = [];
   const staff: InternalUser[] = [];
+  /** Shipments and API keys per organization id, for remove(). */
+  const linked = {
+    shipments: new Map<string, number>(),
+    apiKeys: new Map<string, number>(),
+  };
+  /** Every ActionSignal emitted, in order. */
+  const signals: Array<{ event: string; payload: unknown }> = [];
   let nextId = 1;
+
+  const manager = fakeManager(organizations, staff, linked);
 
   const uniqueViolation = (name: string) =>
     new QueryFailedError(
@@ -81,6 +131,10 @@ function setup() {
       if (row) Object.assign(row, values);
       return Promise.resolve({ affected: row ? 1 : 0 });
     },
+    manager: {
+      transaction: <T>(work: (transactional: typeof manager) => Promise<T>) =>
+        work(manager),
+    },
   };
 
   const internalUserRepository = {
@@ -105,10 +159,14 @@ function setup() {
     // Nothing listens in these tests: the notification signals it sends go nowhere.
     new EventEmitter2(),
   );
+  const events = new EventEmitter2({ wildcard: true });
+  events.onAny((event, payload) =>
+    signals.push({ event: String(event), payload }),
+  );
   const service = new OrganizationsService(
     organizationRepository as unknown as Repository<Organization>,
     internalUsers,
-    new EventEmitter2(),
+    events,
   );
 
   const addStaff = (id: string, organizationId: string | null = null) => {
@@ -123,7 +181,7 @@ function setup() {
     return user;
   };
 
-  return { service, organizations, staff, addStaff };
+  return { service, organizations, staff, addStaff, linked, signals };
 }
 
 async function rejection(promise: Promise<unknown>): Promise<unknown> {
@@ -177,7 +235,7 @@ describe('create', () => {
   it('a name taken by a deactivated organization is still taken', async () => {
     const { service } = setup();
     const old = await service.create({ name: 'Beirut' });
-    await service.deactivate(old.id);
+    await service.update(old.id, { isActive: false });
 
     await expect(service.create({ name: 'Beirut' })).rejects.toBeInstanceOf(
       OrganizationAlreadyExistsException,
@@ -190,7 +248,7 @@ describe('read', () => {
     const { service } = setup();
     await service.create({ name: 'Beirut' });
     const tripoli = await service.create({ name: 'Tripoli' });
-    await service.deactivate(tripoli.id);
+    await service.update(tripoli.id, { isActive: false });
 
     const list = await service.findAll();
 
@@ -226,14 +284,36 @@ describe('update', () => {
     });
   });
 
-  it('can reactivate a deactivated organization', async () => {
-    const { service } = setup();
+  it('deactivates and reactivates (PATCH isActive), keeping the row and its staff', async () => {
+    const { service, organizations, addStaff } = setup();
     const org = await service.create({ name: 'Beirut' });
-    await service.deactivate(org.id);
+    addStaff('staff-1', org.id);
+
+    await service.update(org.id, { isActive: false });
+    expect((await service.getById(org.id)).isActive).toBe(false);
+    expect(organizations).toHaveLength(1);
+    expect((await service.listStaff(org.id)).map((user) => user.id)).toEqual([
+      'staff-1',
+    ]);
 
     await service.update(org.id, { isActive: true });
-
     expect((await service.getById(org.id)).isActive).toBe(true);
+  });
+
+  it('renaming onto a taken name is 409 (4002), like create', async () => {
+    const { service } = setup();
+    await service.create({ name: 'Beirut' });
+    const tripoli = await service.create({ name: 'Tripoli' });
+
+    const error = await rejection(
+      service.update(tripoli.id, { name: 'Beirut' }),
+    );
+
+    expect(error).toBeInstanceOf(OrganizationAlreadyExistsException);
+    expect((error as OrganizationAlreadyExistsException).getStatus()).toBe(
+      HttpStatus.CONFLICT,
+    );
+    expect((await service.getById(tripoli.id)).name).toBe('Tripoli');
   });
 
   it('keeping its own name is not a conflict', async () => {
@@ -252,25 +332,42 @@ describe('update', () => {
   });
 });
 
-describe('deactivate', () => {
-  it('is a soft toggle: the row stays and its staff stay assigned', async () => {
-    const { service, organizations, addStaff } = setup();
+describe('remove', () => {
+  it('deletes a branch nothing points at, and signals it with its name', async () => {
+    const { service, organizations, signals } = setup();
     const org = await service.create({ name: 'Beirut' });
-    addStaff('staff-1', org.id);
 
-    await service.deactivate(org.id);
+    await service.remove(org.id);
 
-    expect(organizations).toHaveLength(1);
-    expect((await service.getById(org.id)).isActive).toBe(false);
-    expect((await service.listStaff(org.id)).map((user) => user.id)).toEqual([
-      'staff-1',
-    ]);
+    expect(organizations).toEqual([]);
+    expect(signals).toContainEqual({
+      event: ActionSignals.ORGANIZATION_DELETED,
+      payload: { organizationId: org.id, name: 'Beirut' },
+    });
   });
+
+  it.each(['staff', 'shipments', 'apiKeys'] as const)(
+    'refuses a branch that still has %s: 409 (4003), and keeps it',
+    async (what) => {
+      const { service, organizations, addStaff, linked } = setup();
+      const org = await service.create({ name: 'Beirut' });
+      if (what === 'staff') addStaff('staff-1', org.id);
+      else linked[what].set(org.id, 2);
+
+      const error = await rejection(service.remove(org.id));
+
+      expect(error).toBeInstanceOf(OrganizationInUseException);
+      expect((error as OrganizationInUseException).code).toBe(
+        OrganizationErrorCodes.OrganizationInUse,
+      );
+      expect(organizations).toHaveLength(1);
+    },
+  );
 
   it('an unknown id is 404 (4001)', async () => {
     const { service } = setup();
 
-    await expectNotFound(service.deactivate(UNKNOWN));
+    await expectNotFound(service.remove(UNKNOWN));
   });
 });
 
@@ -327,10 +424,57 @@ describe('staff membership', () => {
     const org = await service.create({ name: 'Beirut' });
     addStaff('staff-1', org.id);
 
-    await service.removeStaff('staff-1');
+    await service.removeStaff(org.id, 'staff-1');
 
     expect(staff[0].organizationId).toBeNull();
     expect(await service.listStaff(org.id)).toEqual([]);
+  });
+
+  it('removing someone from a branch they aren’t in is 404 (4004), and they stay where they are', async () => {
+    const { service, staff, addStaff } = setup();
+    const beirut = await service.create({ name: 'Beirut' });
+    const tripoli = await service.create({ name: 'Tripoli' });
+    addStaff('staff-1', tripoli.id);
+
+    const error = await rejection(service.removeStaff(beirut.id, 'staff-1'));
+
+    expect(error).toBeInstanceOf(StaffNotInOrganizationException);
+    expect((error as StaffNotInOrganizationException).code).toBe(
+      OrganizationErrorCodes.StaffNotInOrganization,
+    );
+    expect(staff[0].organizationId).toBe(tripoli.id);
+  });
+
+  it('assigning someone where they already are changes nothing and signals nothing', async () => {
+    const { service, addStaff, signals } = setup();
+    const org = await service.create({ name: 'Beirut' });
+    addStaff('staff-1', org.id);
+    signals.length = 0;
+
+    await service.assignStaff(org.id, 'staff-1');
+
+    expect(signals).toEqual([]);
+  });
+
+  it('moving someone signals both: removed from the old branch, added to the new one', async () => {
+    const { service, addStaff, signals } = setup();
+    const beirut = await service.create({ name: 'Beirut' });
+    const tripoli = await service.create({ name: 'Tripoli' });
+    addStaff('staff-1', beirut.id);
+    signals.length = 0;
+
+    await service.assignStaff(tripoli.id, 'staff-1');
+
+    expect(signals).toEqual([
+      {
+        event: ActionSignals.ORGANIZATION_STAFF_REMOVED,
+        payload: { organizationId: beirut.id, internalUserId: 'staff-1' },
+      },
+      {
+        event: ActionSignals.ORGANIZATION_STAFF_ADDED,
+        payload: { organizationId: tripoli.id, internalUserId: 'staff-1' },
+      },
+    ]);
   });
 
   it('listing only returns that organization’s staff', async () => {
@@ -353,35 +497,6 @@ describe('staff membership', () => {
   });
 });
 
-describe('current gaps (pinned, not endorsed)', () => {
-  it('DELETE /organizations/:id/staff/:userId ignores :id, so it unassigns a member of a DIFFERENT organization', async () => {
-    const { service, staff, addStaff } = setup();
-    const beirut = await service.create({ name: 'Beirut' });
-    const tripoli = await service.create({ name: 'Tripoli' });
-    addStaff('staff-1', tripoli.id);
-
-    // The controller drops :id and calls removeStaff(userId) only, so
-    // "remove staff-1 from Beirut" silently takes them out of Tripoli.
-    await new OrganizationsController(service).removeStaff('staff-1');
-
-    expect(beirut.id).not.toBe(tripoli.id);
-    expect(staff[0].organizationId).toBeNull();
-  });
-
-  it('renaming onto a taken name is not caught by the service: it fails as a raw DB error (500), not 409', async () => {
-    const { service } = setup();
-    await service.create({ name: 'Beirut' });
-    const tripoli = await service.create({ name: 'Tripoli' });
-
-    const error = await rejection(
-      service.update(tripoli.id, { name: 'Beirut' }),
-    );
-
-    expect(error).toBeInstanceOf(QueryFailedError);
-    expect(error).not.toBeInstanceOf(OrganizationAlreadyExistsException);
-  });
-});
-
 describe('route protection', () => {
   const proto = OrganizationsController.prototype as unknown as Record<
     string,
@@ -393,7 +508,7 @@ describe('route protection', () => {
   const staffOnly = (method: string) =>
     Reflect.getMetadata(ACCESS_CONTROL_KEYS.STAFF, proto[method]) === true;
 
-  it.each(['create', 'update', 'deactivate', 'assignStaff', 'removeStaff'])(
+  it.each(['create', 'update', 'remove', 'assignStaff', 'removeStaff'])(
     '%s needs organizations:manage',
     (method) => {
       expect(permissionOf(method)).toBe('organizations:manage');

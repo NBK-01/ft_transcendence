@@ -20,13 +20,21 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
 }
 
 /**
- * For pages whose endpoints need one permission, e.g. the shipments pages
- * ("shipments:read:all": admin and support). Other roles see "no access", as
- * with RequireAdmin.
+ * For pages whose endpoints need a permission, or any one of several: e.g.
+ * the shipments pages ("shipments:read:all" for admin and support, or
+ * "shipments:read:org" for a dispatcher, who sees their branch's). Other
+ * roles see "no access", as with RequireAdmin.
  */
-export function RequirePermission({ permission, children }: { permission: Permission; children: ReactNode }) {
+export function RequirePermission({
+  permission,
+  children,
+}: {
+  permission: Permission | readonly Permission[];
+  children: ReactNode;
+}) {
   const { can } = useStaffAccess();
-  return can(permission) ? children : <NoAccess />;
+  const allowed = typeof permission === "string" ? can(permission) : permission.some(can);
+  return allowed ? children : <NoAccess />;
 }
 
 /** In place of a page the signed-in role can't use. */

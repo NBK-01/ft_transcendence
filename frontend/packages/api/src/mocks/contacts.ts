@@ -3,6 +3,7 @@ import { http } from "msw/http";
 import type { Contact, ContactStatus, InternalUser, MessageResponse } from "../types";
 import { internalUsers, isUuid } from "./data";
 import { notifyAction } from "./notification-store";
+import { isOnline } from "./presence";
 import { error, ok } from "./respond";
 import { staffCaller } from "./staff-auth";
 
@@ -53,8 +54,8 @@ const staffWho = (id: string) => ({ id, accountType: "staff" as const });
 
 /**
  * What the backend's job says about a request (the addressee hears) and an
- * acceptance (the requester hears). Declining, blocking and removing say
- * nothing, by design.
+ * acceptance (the requester hears). Declining, withdrawing, blocking and
+ * removing are only a record for whoever did it (notifyEnded).
  */
 function notifyContact(type: "CONTACT_REQUEST_RECEIVED" | "CONTACT_REQUEST_ACCEPTED", row: Row, actorId: string, when = {}) {
   notifyAction(
@@ -62,6 +63,16 @@ function notifyContact(type: "CONTACT_REQUEST_RECEIVED" | "CONTACT_REQUEST_ACCEP
     staffWho(actorId),
     when,
   );
+}
+
+/** A contact declined, withdrawn, blocked or removed by `actorId`: a record for them, about the other person. */
+function notifyEnded(
+  type: "CONTACT_REQUEST_DECLINED" | "CONTACT_REQUEST_CANCELLED" | "CONTACT_REMOVED" | "CONTACT_BLOCKED",
+  row: Row,
+  actorId: string,
+) {
+  const other = userOf(row.requesterId === actorId ? row.addresseeId : row.requesterId);
+  notifyAction({ type, contactId: row.id, other }, staffWho(actorId));
 }
 
 // The seeded requests and acceptances, as their notifications (all over a day old: read).
@@ -111,7 +122,20 @@ const partyContact = (id: unknown, actorId: string) => {
 export const areConnected = (a: string, b: string) =>
   contacts.some((row) => row.status === "accepted" && isParty(row, a) && isParty(row, b));
 
+/** ContactsService.listAcceptedContactIds: the other person in each of your accepted contacts. */
+export const acceptedContactIdsOf = (internalUserId: string) =>
+  contacts
+    .filter((row) => row.status === "accepted" && isParty(row, internalUserId))
+    .map((row) => (row.requesterId === internalUserId ? row.addresseeId : row.requesterId));
+
 export const contactHandlers = [
+  // GET /contacts/presence: the caller's accepted contacts, online or not (presence.ts).
+  http.get("*/api/contacts/presence", ({ request }) => {
+    const { caller, response } = staffCaller(request);
+    if (!caller) return response;
+    return ok(acceptedContactIdsOf(caller.id).map((internalUserId) => ({ internalUserId, online: isOnline(internalUserId) })));
+  }),
+
   http.get("*/api/contacts", ({ request }) => {
     const { caller, response } = staffCaller(request);
     if (!caller) return response;
@@ -170,6 +194,7 @@ export const contactHandlers = [
     const found = pendingForAddressee(params.id, caller.id);
     if (!found.row) return found.response;
     contacts.splice(contacts.indexOf(found.row), 1);
+    notifyEnded("CONTACT_REQUEST_DECLINED", found.row, caller.id);
     return ok<MessageResponse>({ message: "Contact request rejected" });
   }),
 
@@ -178,7 +203,9 @@ export const contactHandlers = [
     if (!caller) return response;
     const found = partyContact(params.id, caller.id);
     if (!found.row) return found.response;
+    const wasBlocked = found.row.status === "blocked";
     Object.assign(found.row, { status: "blocked", updatedAt: new Date().toISOString() });
+    if (!wasBlocked) notifyEnded("CONTACT_BLOCKED", found.row, caller.id);
     return ok(toDto(found.row));
   }),
 
@@ -188,6 +215,14 @@ export const contactHandlers = [
     const found = partyContact(params.id, caller.id);
     if (!found.row) return found.response;
     contacts.splice(contacts.indexOf(found.row), 1);
+    // A pending request removed by its addressee is declined, by its requester withdrawn.
+    const type =
+      found.row.status !== "pending"
+        ? "CONTACT_REMOVED"
+        : found.row.requesterId === caller.id
+          ? "CONTACT_REQUEST_CANCELLED"
+          : "CONTACT_REQUEST_DECLINED";
+    notifyEnded(type, found.row, caller.id);
     return ok<MessageResponse>({ message: "Contact removed" });
   }),
 ];

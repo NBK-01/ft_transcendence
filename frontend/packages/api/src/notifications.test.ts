@@ -6,7 +6,9 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { api, configureApi, type Query } from "./client";
 import { keys } from "./keys";
 import { internalUsers, MOCK_STAFF_PASSWORD, MOCK_USER } from "./mocks/data";
+import { createMockChatConnection } from "./mocks/chat";
 import { handlers } from "./mocks/handlers";
+import { notifyAction } from "./mocks/notification-store";
 import { error } from "./mocks/respond";
 import {
   dismissOptions,
@@ -29,6 +31,7 @@ import type {
   NotificationType,
   Organization,
   Page,
+  ShipmentActorType,
   ShipmentState,
   StaffAuthResponse,
 } from "./types";
@@ -91,6 +94,8 @@ const shipmentUpdates = async () =>
 /** The statuses each side is told about: staff actions reach the customer, customer actions the staff. */
 const CUSTOMER_HEARS: ShipmentState[] = ["pending_client_decision", "confirmed", "in_transit", "out_for_delivery", "delivered", "cancelled"];
 const STAFF_HEAR: ShipmentState[] = ["pending_sourcing", "pending_payment", "pending_payment_confirmation"];
+/** Partners (public API) and the carrier (webhook) act for neither side: both hear about their steps. */
+const OUTSIDE_ACTORS: ShipmentActorType[] = ["partner", "carrier"];
 
 const unauthorized = { status: 401, errorCode: undefined };
 const notFound = { status: 404, errorCode: 12001 };
@@ -117,11 +122,19 @@ describe("notifications: access", () => {
     await expect(dismiss(UNKNOWN_ID)).rejects.toMatchObject(unauthorized);
   });
 
-  it("a customer gets her own shipments' staff actions, worded for her", async () => {
+  it("a customer gets her own shipments' staff actions, worded for her, and a record of her own steps", async () => {
     const hers = await aminasTrackingIds();
     await signInAsAmina();
-    const items = await shipmentUpdates();
+    const all = await shipmentUpdates();
+    const items = all.filter((item) => !item.ownAction);
     expect(items.length).toBeGreaterThan(0);
+    const own = all.filter((item) => item.ownAction);
+    expect(own.length).toBeGreaterThan(0);
+    for (const item of own) {
+      expect(hers.has(item.payload.trackingId)).toBe(true);
+      expect(item.payload.actorType).toBe("customer");
+      expect(item.message).toMatch(/^You /);
+    }
     for (const item of items) {
       expect(hers.has(item.payload.trackingId)).toBe(true);
       expect(CUSTOMER_HEARS).toContain(item.payload.status);
@@ -130,13 +143,19 @@ describe("notifications: access", () => {
     expect(items.map((item) => item.title)).toContain("Out for delivery");
   });
 
-  it("admins and support get customer actions on shipments, worded for staff; dispatchers and drivers none", async () => {
+  it("admins and support get customer, partner and carrier steps on shipments, worded for staff; dispatchers and drivers none", async () => {
     for (const staff of [nadia, maya]) {
       await signInAs(staff.email);
-      const items = await shipmentUpdates();
+      const items = (await shipmentUpdates()).filter((item) => !item.ownAction);
       expect(items.length).toBeGreaterThan(0);
-      expect(items.every((item) => STAFF_HEAR.includes(item.payload.status))).toBe(true);
-      expect(items.map((item) => item.title)).toContain("Needs a supplier");
+      for (const { payload } of items) {
+        const fromOutside = payload.actorType !== undefined && OUTSIDE_ACTORS.includes(payload.actorType);
+        expect(fromOutside || STAFF_HEAR.includes(payload.status)).toBe(true);
+        expect(payload.actorType).not.toBe("staff");
+      }
+      const titles = items.map((item) => item.title);
+      expect(titles).toContain("Needs a supplier");
+      expect(titles).toContain("New partner shipment");
     }
     for (const staff of [rami, karim]) {
       await signInAs(staff.email);
@@ -199,6 +218,35 @@ describe("notifications: the list", () => {
       expect(ofType.length).toBeGreaterThan(0);
       expect(ofType).toHaveLength(everything.filter((item) => item.type === type).length);
     }
+  });
+
+  it("filters by any of the backend's types", async () => {
+    const types: NotificationType[] = [
+      "API_KEY_CREATED",
+      "API_KEY_REVOKED",
+      "CUSTOMER_REGISTERED",
+      "PROFILE_UPDATED",
+      "CUSTOMER_ACCOUNT_DEACTIVATED",
+      "SESSIONS_REVOKED",
+      "CONTACT_REQUEST_DECLINED",
+      "CONTACT_REQUEST_CANCELLED",
+      "CONTACT_REMOVED",
+      "CONTACT_BLOCKED",
+      "CONVERSATION_STARTED",
+      "MESSAGE_RECEIVED",
+    ];
+    for (const type of types) {
+      await expect(list({ type })).resolves.toMatchObject({ items: expect.any(Array) });
+    }
+  });
+
+  it("signing out everywhere leaves a security notice, not a record of your own action", async () => {
+    // As Nadia (this block's beforeEach); her tokens stop working, so she signs in again to read it.
+    await api.post("/staff-auth/logout-all");
+    await signInAs(nadia.email);
+
+    const [notice] = await all({ type: "SESSIONS_REVOKED" });
+    expect(notice).toMatchObject({ title: "Signed out everywhere", ownAction: false, status: "SENT" });
   });
 
   it("refuses a bad query with a 400", async () => {
@@ -394,6 +442,9 @@ describe("notifications: other create, update and delete actions", () => {
   /** The newest notification of `type` in the signed-in account's feed. */
   const newest = async (type: NotificationType) => (await all({ type }))[0];
   const countOf = async (type: NotificationType) => (await all({ type })).length;
+  /** The feed without the reader's records of their own actions. */
+  const news = async (query: Query = {}) => (await all(query)).filter((item) => !item.ownAction);
+  const own = async (query: Query = {}) => (await all(query)).filter((item) => item.ownAction);
 
   it("seeds a few for the staff, and attachments for Amina", async () => {
     await signInAs(nadia.email);
@@ -401,11 +452,13 @@ describe("notifications: other create, update and delete actions", () => {
     for (const type of ["PASSWORD_CHANGED", "STAFF_ACCOUNT_CREATED", "CONTACT_REQUEST_RECEIVED", "SUPPORT_CONVERSATION_STARTED"] as const) {
       expect(nadias.has(type)).toBe(true);
     }
-    // Nadia moved Anas to another branch in the seeds: she isn't told, Youssef is.
-    expect(nadias.has("STAFF_ACCOUNT_UPDATED")).toBe(false);
-    // Youssef created Tarek's account: the other admins heard, he didn't.
+    // Nadia moved Anas to another branch in the seeds: she has her record of it, Youssef is told.
+    expect(await news({ type: "STAFF_ACCOUNT_UPDATED" })).toEqual([]);
+    expect((await own({ type: "STAFF_ACCOUNT_UPDATED" })).length).toBeGreaterThan(0);
+    // Youssef created Tarek's account: the other admins heard, he has his record.
     await signInAs(youssef.email);
-    expect(await countOf("STAFF_ACCOUNT_CREATED")).toBe(0);
+    expect(await news({ type: "STAFF_ACCOUNT_CREATED" })).toEqual([]);
+    expect((await own({ type: "STAFF_ACCOUNT_CREATED" })).length).toBeGreaterThan(0);
     expect(await newest("STAFF_ACCOUNT_UPDATED")).toMatchObject({ payload: { name: "Anas Berrada", changed: ["branch"] } });
     await signInAs(sami.email);
     expect(await newest("BRANCH_STAFF_ADDED")).toMatchObject({ title: "Added to a branch", payload: { name: "Beirut Central" }, readAt: null });
@@ -413,27 +466,56 @@ describe("notifications: other create, update and delete actions", () => {
     expect(await countOf("SHIPMENT_FILE_ADDED")).toBeGreaterThan(0);
   });
 
-  it("branches: the other admins hear about it, the branch's staff too; never the admin who did it", async () => {
+  it("branches: the other admins hear about it, the branch's staff too; the admin who did it gets a record", async () => {
     await signInAs(nadia.email);
-    const nadiaBefore = (await all()).length;
     const branch = await api.post<Organization>("/organizations", { name: "Tripoli Port" });
     await api.post(`/organizations/${branch.id}/staff/${rami.id}`);
     await api.patch(`/organizations/${branch.id}`, { description: "Opened in October" });
     await api.delete(`/organizations/${branch.id}/staff/${rami.id}`);
+    // Empty again: deleted for real.
     await api.delete(`/organizations/${branch.id}`);
-    expect((await all()).length).toBe(nadiaBefore);
+    const records = (await own()).filter(
+      (item) => "organizationId" in item.payload && item.payload.organizationId === branch.id,
+    );
+    expect(records.map((item) => item.type).sort()).toEqual(
+      ["BRANCH_CREATED", "BRANCH_DELETED", "BRANCH_STAFF_ADDED", "BRANCH_STAFF_REMOVED", "BRANCH_UPDATED"].sort(),
+    );
+    expect(records.find((item) => item.type === "BRANCH_STAFF_ADDED")).toMatchObject({
+      message: "You added Rami Khoury to Tripoli Port.",
+      payload: { staffName: "Rami Khoury" },
+    });
 
     await signInAs(youssef.email);
     expect(await newest("BRANCH_CREATED")).toMatchObject({ title: "New branch", payload: { organizationId: branch.id, name: "Tripoli Port" } });
     expect(await newest("BRANCH_UPDATED")).toMatchObject({ title: "Branch updated" });
-    expect(await newest("BRANCH_DEACTIVATED")).toMatchObject({ title: "Branch deactivated" });
+    expect(await newest("BRANCH_DELETED")).toMatchObject({ title: "Branch deleted", message: "Tripoli Port was deleted." });
 
     await signInAs(rami.email);
     expect(await newest("BRANCH_STAFF_ADDED")).toMatchObject({ payload: { name: "Tripoli Port" } });
     expect(await newest("BRANCH_UPDATED")).toMatchObject({ title: "Your branch was updated" });
     expect(await newest("BRANCH_STAFF_REMOVED")).toMatchObject({ message: "You're no longer part of Tripoli Port." });
-    // Removed before the branch went: not told about it.
-    expect(await countOf("BRANCH_DEACTIVATED")).toBe(0);
+    // Removed before the branch went, and a deletion is for the admins: not told about it.
+    expect(await countOf("BRANCH_DELETED")).toBe(0);
+  });
+
+  it("branches: deleting one still in use is a 409 (4003); moving staff tells them they left their old branch", async () => {
+    await signInAs(nadia.email);
+    // Sami is in Beirut Central (seeds), so it's in use.
+    const from = internalUsers.find((user) => user.id === sami.id)!.organizationId!;
+    await expect(api.delete(`/organizations/${from}`)).rejects.toMatchObject({ status: 409, errorCode: 4003 });
+
+    const branch = await api.post<Organization>("/organizations", { name: "Byblos" });
+    await api.post(`/organizations/${branch.id}/staff/${sami.id}`);
+    // Already there: nothing new.
+    await api.post(`/organizations/${branch.id}/staff/${sami.id}`);
+    await expect(api.delete(`/organizations/${from}/staff/${sami.id}`)).rejects.toMatchObject({ status: 404, errorCode: 4004 });
+
+    await signInAs(sami.email);
+    expect(await newest("BRANCH_STAFF_REMOVED")).toMatchObject({ payload: { organizationId: from } });
+    const added = (await all({ type: "BRANCH_STAFF_ADDED" })).filter(
+      (item) => item.type === "BRANCH_STAFF_ADDED" && item.payload.organizationId === branch.id,
+    );
+    expect(added).toHaveLength(1);
   });
 
   it("staff accounts: an update reaches the person and the other admins; a deactivation only the admins", async () => {
@@ -461,7 +543,7 @@ describe("notifications: other create, update and delete actions", () => {
     await expect(signInAs(created.email)).rejects.toMatchObject({ status: 401 });
   });
 
-  it("contacts: a request reaches the addressee, an acceptance the requester; a block nobody", async () => {
+  it("contacts: a request reaches the addressee, an acceptance the requester; a block or removal only the one who did it", async () => {
     await signInAs(rami.email);
     const contact = await api.post<Contact>("/contacts", { addresseeId: youssef.id });
     await signInAs(youssef.email);
@@ -472,15 +554,17 @@ describe("notifications: other create, update and delete actions", () => {
     await api.patch(`/contacts/${contact.id}/accept`);
     await api.patch(`/contacts/${contact.id}/block`);
 
+    expect(await newest("CONTACT_BLOCKED")).toMatchObject({ ownAction: true, message: "You blocked Rami Khoury." });
+
     await signInAs(rami.email);
     expect(await newest("CONTACT_REQUEST_ACCEPTED")).toMatchObject({ payload: { contactId: contact.id, name: "Youssef Benali" } });
     const ramiCount = (await all()).length;
     await signInAs(youssef.email);
-    const youssefCount = (await all()).length;
     await api.delete(`/contacts/${contact.id}`);
-    expect((await all()).length).toBe(youssefCount);
+    expect(await newest("CONTACT_REMOVED")).toMatchObject({ ownAction: true, payload: { internalUserId: rami.id } });
     await signInAs(rami.email);
     expect((await all()).length).toBe(ramiCount);
+    expect(await countOf("CONTACT_BLOCKED")).toBe(0);
   });
 
   it("passwords: the owner hears about it, even when they changed it themselves", async () => {
@@ -522,5 +606,26 @@ describe("notifications: other create, update and delete actions", () => {
     await api.post("/chat/support");
     await signInAs(zineb.email);
     expect(await countOf("SUPPORT_CONVERSATION_STARTED")).toBe(before);
+  });
+});
+
+describe("notifications: live, over the mock socket", () => {
+  it("pushes a new notification to its recipient's tab as notification.new, and no one else's", async () => {
+    await signInAs(nadia.email);
+    const connection = createMockChatConnection();
+    const received: AppNotification[] = [];
+    connection.on("notification.new", (notification) => received.push(notification));
+    connection.connect();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const owner = { id: nadia.id, accountType: "staff" as const };
+    notifyAction({ type: "SESSIONS_REVOKED", account: owner }, owner);
+    const other = { id: maya.id, accountType: "staff" as const };
+    notifyAction({ type: "SESSIONS_REVOKED", account: other }, other);
+    connection.close();
+
+    expect(received).toEqual([
+      expect.objectContaining({ type: "SESSIONS_REVOKED", title: "Signed out everywhere", ownAction: false }),
+    ]);
   });
 });

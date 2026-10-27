@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { StaffProfileModule } from '../staff-profile/staff-profile.module';
 import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { StaffAuthService } from './staff-auth.service';
@@ -17,6 +18,7 @@ import { InternalUsersModule } from '../internal-users/internal-users.module';
       signOptions: { expiresIn: jwtConfig().accessTokenExpiresIn },
     }),
     InternalUsersModule,
+    StaffProfileModule,
   ],
   controllers: [StaffAuthController],
   providers: [StaffAuthService, InternalRefreshTokenService],

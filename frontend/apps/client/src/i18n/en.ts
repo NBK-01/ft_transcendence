@@ -119,6 +119,7 @@ const en = {
   notifications: {
     bellLabel: "Notifications, {{count}} unread",
     markAllRead: "Mark all as read",
+    open: "Open",
     markAllError: "Couldn't mark your notifications as read. Try again.",
     loadMore: "Load more",
     unread: "Unread",
@@ -154,6 +155,33 @@ const en = {
       passwordChanged: {
         title: "Password changed",
         message: "If this wasn't you, reset your password right away.",
+      },
+      supportStarted: {
+        title: "Support conversation started",
+        message: "Our support team will answer you in Messages.",
+      },
+      welcome: {
+        title: "Welcome to ShipTrack",
+        message: "Your account is ready. Request a shipment whenever you like.",
+      },
+      profileUpdated: {
+        title: "Profile updated",
+        details: "You updated your profile details.",
+        avatar: "You changed your profile photo.",
+      },
+      sessionsRevoked: {
+        title: "Signed out everywhere",
+        message: "Every session on your account was ended. If this wasn't you, change your password now.",
+      },
+      message: { title: "New message", message: "{{name}} from support sent you a message." },
+    },
+    /** The reader is the one who acted (ownAction): a record of what they did. */
+    own: {
+      shipment: {
+        pending_sourcing: "You sent this request. We're finding a supplier.",
+        pending_payment: "You accepted the offer. Pay to confirm it.",
+        pending_payment_confirmation: "You paid. We'll confirm the payment shortly.",
+        other: "You made this change.",
       },
     },
   },

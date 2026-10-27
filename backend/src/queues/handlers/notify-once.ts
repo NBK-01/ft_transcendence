@@ -4,16 +4,21 @@ import { CreateNotificationInput } from '../../notifications/notifications.servi
 import { JobServices } from '../interfaces/job-handler.interface';
 
 /**
- * Delivery is local-only for now: the row in the recipient's feed is the
- * notification, so once it's saved it's delivered. A socket push or an FCM
- * send goes here later, before markSent; if it throws, BullMQ retries the
- * job and only rows that aren't SENT yet go out again.
+ * The row in the recipient's feed is the notification; delivering it marks
+ * it SENT and pushes it to their open tabs (notification.new), which shows
+ * it at once. A tab that's closed finds it in the feed. A push that can fail
+ * (e.g. FCM) would go before markSent, so a failure leaves the row for
+ * BullMQ's retry.
  */
 async function deliver(
   notification: Notification,
   services: JobServices,
 ): Promise<void> {
   await services.notificationsService.markSent(notification.id);
+  services.notificationsGateway.push({
+    ...notification,
+    status: NotificationStatus.SENT,
+  });
 }
 
 /**

@@ -6,11 +6,13 @@ import { InternalUser } from '../internal-users/internal-user.entity';
 import { Organization } from '../organizations/organization.entity';
 import { Contact } from '../contacts/contact.entity';
 import { User } from '../users/user.entity';
+import { Conversation } from '../chat/entities/conversation.entity';
 import { Notification } from './entities/notification.entity';
 import { NotificationsService } from './notifications.service';
 import { NotificationsController } from './notifications.controller';
 import { ShipmentLookupService } from './shipment-lookup.service';
 import { ActionLookupService } from './action-lookup.service';
+import { NotificationsGateway } from './notifications.gateway';
 
 @Module({
   imports: [
@@ -23,10 +25,21 @@ import { ActionLookupService } from './action-lookup.service';
       Organization,
       Contact,
       User,
+      Conversation,
     ]),
   ],
   controllers: [NotificationsController],
-  providers: [NotificationsService, ShipmentLookupService, ActionLookupService],
-  exports: [NotificationsService, ShipmentLookupService, ActionLookupService],
+  providers: [
+    NotificationsService,
+    ShipmentLookupService,
+    ActionLookupService,
+    NotificationsGateway,
+  ],
+  exports: [
+    NotificationsService,
+    ShipmentLookupService,
+    ActionLookupService,
+    NotificationsGateway,
+  ],
 })
 export class NotificationsModule {}

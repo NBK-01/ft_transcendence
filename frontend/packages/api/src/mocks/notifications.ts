@@ -1,9 +1,9 @@
 import { http } from "msw/http";
 
 import { NOTIFICATION_NOT_FOUND } from "../notifications";
-import type { AccountType, AppNotification, MessageResponse, NotificationCount, NotificationType } from "../types";
+import type { AccountType, MessageResponse, NotificationCount, NotificationType } from "../types";
 import { customerForToken } from "./auth";
-import { rows, type Row } from "./notification-store";
+import { rows, toDto, type Row } from "./notification-store";
 import { error, ok, paginated } from "./respond";
 import { staffForToken } from "./staff-auth";
 
@@ -15,9 +15,10 @@ import { staffForToken } from "./staff-auth";
  * (400 if it isn't a UUID), then the notification (404).
  *
  * The rows live in notification-store.ts. The mocks that change things add
- * them there like the backend's jobs do (shipment events, branches, staff
- * accounts, contacts, support conversations, shipment files, passwords), and
- * seed the last days. In-memory, like the rest.
+ * them there like the backend's jobs do (shipment events, and every create,
+ * update and delete: branches, staff, contacts, conversations and messages,
+ * files, sign-ups, profiles, passwords and sessions, API keys), and seed the
+ * last days. In-memory, like the rest.
  */
 
 const NOTIFICATION_TYPES: readonly NotificationType[] = [
@@ -25,6 +26,7 @@ const NOTIFICATION_TYPES: readonly NotificationType[] = [
   "BRANCH_CREATED",
   "BRANCH_UPDATED",
   "BRANCH_DEACTIVATED",
+  "BRANCH_DELETED",
   "BRANCH_STAFF_ADDED",
   "BRANCH_STAFF_REMOVED",
   "STAFF_ACCOUNT_CREATED",
@@ -34,7 +36,20 @@ const NOTIFICATION_TYPES: readonly NotificationType[] = [
   "CONTACT_REQUEST_ACCEPTED",
   "SUPPORT_CONVERSATION_STARTED",
   "SHIPMENT_FILE_ADDED",
+  "SHIPMENT_BRANCH_ASSIGNED",
   "PASSWORD_CHANGED",
+  "API_KEY_CREATED",
+  "API_KEY_REVOKED",
+  "CUSTOMER_REGISTERED",
+  "PROFILE_UPDATED",
+  "CUSTOMER_ACCOUNT_DEACTIVATED",
+  "SESSIONS_REVOKED",
+  "CONTACT_REQUEST_DECLINED",
+  "CONTACT_REQUEST_CANCELLED",
+  "CONTACT_REMOVED",
+  "CONTACT_BLOCKED",
+  "CONVERSATION_STARTED",
+  "MESSAGE_RECEIVED",
 ];
 
 /* ---------------------------------------------------------------------------
@@ -69,9 +84,6 @@ const isUnread = (row: Row) => row.status !== "READ";
 
 const newestFirst = (a: Row, b: Row) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id);
 
-/** NotificationFactory.toDto: no owner, dedupe key or delivery details. Rebuilt field by field, so TypeScript can't pair type and payload again. */
-const toDto = ({ id, type, status, title, message, payload, createdAt, readAt }: Row) =>
-  ({ id, type, status, title, message, payload, createdAt, readAt }) as AppNotification;
 
 /** ListNotificationsQueryDto under the ValidationPipe: every failing field, as a 400 without a code. */
 function queryProblems(params: URLSearchParams) {

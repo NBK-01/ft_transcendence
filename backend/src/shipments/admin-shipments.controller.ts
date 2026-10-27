@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
   UploadedFile,
@@ -21,12 +22,15 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { RequirePermission } from '../common/decorators/access-control.decorator';
+import {
+  RequireAnyPermission,
+  RequirePermission,
+} from '../common/decorators/access-control.decorator';
+import { AssignBranchDto } from './dto/assign-branch.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequestUser } from '../common/context/auth-context.types';
 import { MissingRequiredDataException } from '../common/exceptions/validation-exceptions';
 import { AdminShipmentsService } from './admin-shipments.service';
-import { ShipmentsService } from './shipments.service';
 import { MAX_UPLOAD_FILES, UPLOAD_HARD_LIMITS } from './shipments.controller';
 import { ATTACHMENT_KINDS } from './constants/shipment-state';
 import { ListAdminShipmentsQueryDto } from './dto/list-admin-shipments-query.dto';
@@ -40,53 +44,89 @@ import {
   ShipmentFileDto,
 } from './dto/shipment.dto';
 
+/** Staff who read every shipment, or only their own branch's (see AccessControlService.branchScope). */
+const READ_PERMISSIONS = ['shipments:read:all', 'shipments:read:org'];
+
 /**
- * Staff side of shipments. Only partner-created shipments belong to a branch
- * (organizationId; the list can filter by it), so reads still use
- * shipments:read:all and every change uses shipments:update:org
- * (admin holds both; admins also pass every permission check anyway).
+ * Staff side of shipments. Admins and support (shipments:read:all) work on
+ * every shipment; a dispatcher (shipments:read:org) only on their branch's,
+ * which a partner created or an admin assigned (PATCH :trackingId/branch).
+ * Changes need shipments:update:org, within the same scope.
  */
 @ApiTags('Admin shipments')
 @ApiBearerAuth()
 @Controller('admin/shipments')
 export class AdminShipmentsController {
-  constructor(
-    private readonly adminShipmentsService: AdminShipmentsService,
-    private readonly shipmentsService: ShipmentsService,
-  ) {}
+  constructor(private readonly adminShipmentsService: AdminShipmentsService) {}
 
-  @RequirePermission('shipments:read:all')
+  @RequireAnyPermission(READ_PERMISSIONS)
   @Get()
   @ApiOperation({
     summary:
-      'List all shipments, most recently updated first (filter status=pending_sourcing for the sourcing queue)',
+      'List shipments, most recently updated first (filter status=pending_sourcing for the sourcing queue)',
+    description:
+      "Every shipment with shipments:read:all; with shipments:read:org (a dispatcher), only their branch's, whatever organizationId says.",
   })
-  async list(@Query() query: ListAdminShipmentsQueryDto) {
-    return this.adminShipmentsService.list(query);
+  async list(
+    @CurrentUser() staff: RequestUser,
+    @Query() query: ListAdminShipmentsQueryDto,
+  ) {
+    return this.adminShipmentsService.list(staff.id, query);
   }
 
-  @RequirePermission('shipments:read:all')
+  @RequireAnyPermission(READ_PERMISSIONS)
   @Get(':trackingId')
   @ApiOperation({ summary: 'Get one shipment, with its client' })
   @ApiResponse({ status: 200, type: AdminShipmentDetailDto })
-  async getOne(@Param('trackingId') trackingId: string) {
-    return this.adminShipmentsService.getDetail(trackingId);
+  @ApiResponse({ status: 404, description: 'Unknown, or outside your branch' })
+  async getOne(
+    @CurrentUser() staff: RequestUser,
+    @Param('trackingId') trackingId: string,
+  ) {
+    return this.adminShipmentsService.getDetailFor(staff.id, trackingId);
   }
 
-  @RequirePermission('shipments:read:all')
+  @RequireAnyPermission(READ_PERMISSIONS)
   @Get(':trackingId/events')
   @ApiOperation({ summary: "The shipment's timeline, newest first" })
   @ApiResponse({ status: 200, type: [ShipmentEventDto] })
-  async listEvents(@Param('trackingId') trackingId: string) {
-    return this.shipmentsService.listEvents(trackingId);
+  async listEvents(
+    @CurrentUser() staff: RequestUser,
+    @Param('trackingId') trackingId: string,
+  ) {
+    return this.adminShipmentsService.listEvents(staff.id, trackingId);
   }
 
-  @RequirePermission('shipments:read:all')
+  @RequireAnyPermission(READ_PERMISSIONS)
   @Get(':trackingId/files')
   @ApiOperation({ summary: "The shipment's attachments, newest first" })
   @ApiResponse({ status: 200, type: [ShipmentFileDto] })
-  async listFiles(@Param('trackingId') trackingId: string) {
-    return this.shipmentsService.listFiles(trackingId);
+  async listFiles(
+    @CurrentUser() staff: RequestUser,
+    @Param('trackingId') trackingId: string,
+  ) {
+    return this.adminShipmentsService.listFiles(staff.id, trackingId);
+  }
+
+  @RequirePermission('organizations:manage')
+  @Patch(':trackingId/branch')
+  @ApiOperation({
+    summary: "Hand a customer's order to a branch, or take it off one (null)",
+  })
+  @ApiResponse({ status: 200, type: AdminShipmentDetailDto })
+  @ApiResponse({
+    status: 409,
+    description:
+      "A partner's shipment, which stays with its branch (3008), or a deactivated branch (4005)",
+  })
+  async assignBranch(
+    @Param('trackingId') trackingId: string,
+    @Body() dto: AssignBranchDto,
+  ) {
+    return this.adminShipmentsService.assignBranch(
+      trackingId,
+      dto.organizationId,
+    );
   }
 
   @RequirePermission('shipments:update:org')
@@ -185,6 +225,7 @@ export class AdminShipmentsController {
   })
   @ApiResponse({ status: 201, type: ShipmentFileDto })
   async uploadFile(
+    @CurrentUser() staff: RequestUser,
     @Param('trackingId') trackingId: string,
     @Body() dto: UploadFileDto,
     @UploadedFile() file?: Express.Multer.File,
@@ -192,22 +233,30 @@ export class AdminShipmentsController {
     if (!file) {
       throw new MissingRequiredDataException('file');
     }
-    return this.adminShipmentsService.uploadFile(trackingId, dto, file);
+    return this.adminShipmentsService.uploadFile(
+      staff.id,
+      trackingId,
+      dto,
+      file,
+    );
   }
 
   @RequirePermission('shipments:update:org')
   @Delete(':trackingId/files/:fileId')
   @ApiOperation({
-    summary:
-      'Remove a file (offer photos only while pending_client_decision)',
+    summary: 'Remove a file (offer photos only while pending_client_decision)',
   })
-  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({
+    status: 404,
+    description: 'Not found, or outside your branch',
+  })
   @ApiResponse({ status: 409, description: "Can't be deleted right now" })
   async deleteFile(
+    @CurrentUser() staff: RequestUser,
     @Param('trackingId') trackingId: string,
     @Param('fileId') fileId: string,
   ) {
-    await this.adminShipmentsService.deleteFile(trackingId, fileId);
+    await this.adminShipmentsService.deleteFile(staff.id, trackingId, fileId);
     return { message: 'File removed' };
   }
 }

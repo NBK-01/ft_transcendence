@@ -12,6 +12,7 @@ import { FileStorageService } from '../file-storage/file-storage.service';
 import { UserNotFoundException } from './exceptions';
 import { AccountType } from '../common/context/auth-context.types';
 import { ActionSignals } from '../notifications/action-signals';
+import { ProfileChange } from '../notifications/constants/notification.constants';
 
 @Injectable()
 export class UsersService {
@@ -100,6 +101,14 @@ export class UsersService {
       phoneNumber,
       name: `${firstName ?? ''} ${lastName ?? ''}`.trim(),
     });
+    const changed =
+      firstName !== user.firstName ||
+      lastName !== user.lastName ||
+      dateOfBirth !== user.dateOfBirth ||
+      phoneNumber !== user.phoneNumber;
+    if (changed) {
+      this.signalProfileUpdated(userId, 'details');
+    }
 
     const updated = await this.findById(userId);
     const avatarUrl = await this.resolveAvatarUrl(updated?.avatarKey);
@@ -130,6 +139,9 @@ export class UsersService {
       isActive: false,
       forceLogoutAfter: new Date(),
     });
+    this.eventEmitter.emit(ActionSignals.CUSTOMER_DEACTIVATED, {
+      customerId: userId,
+    });
   }
 
   /** Returns the previous avatarKey (if any) so the caller can delete the now-orphaned storage object. */
@@ -143,6 +155,7 @@ export class UsersService {
     }
     const previousKey = user.avatarKey ?? null;
     await this.userRepository.update(userId, { avatarKey: avatar.key });
+    this.signalProfileUpdated(userId, 'avatar');
     return { previousKey };
   }
 
@@ -159,8 +172,17 @@ export class UsersService {
     const previousKey = user.avatarKey ?? null;
     if (previousKey) {
       await this.userRepository.update(userId, { avatarKey: null });
+      this.signalProfileUpdated(userId, 'avatar');
     }
     return { previousKey };
+  }
+
+  private signalProfileUpdated(userId: string, change: ProfileChange): void {
+    this.eventEmitter.emit(ActionSignals.PROFILE_UPDATED, {
+      accountType: AccountType.CUSTOMER,
+      accountId: userId,
+      change,
+    });
   }
 
   async updatePasswordHash(

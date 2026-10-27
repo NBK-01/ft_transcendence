@@ -7,6 +7,10 @@ import { RolePermission } from './entities/role-permission.entity';
 
 const ADMIN_ROLE_NAME = 'admin';
 
+/** See AccessControlService.branchScope. */
+export type BranchScope =
+  { all: true } | { all: false; organizationId: string | null };
+
 @Injectable()
 export class AccessControlService {
   constructor(
@@ -90,6 +94,25 @@ export class AccessControlService {
   }
 
   /** This project's equivalent of oori's super-admin bypass — there's no super-admin tier here, 'admin' is the top. */
+  /**
+   * Which shipments a staff member works on: every one (admins, and roles
+   * with shipments:read:all), or only their own branch's (shipments:read:org,
+   * e.g. a dispatcher). `organizationId` is null for someone in no branch:
+   * they see none.
+   */
+  async branchScope(internalUserId: string): Promise<BranchScope> {
+    if (
+      (await this.isAdmin(internalUserId)) ||
+      (await this.hasPermission(internalUserId, 'shipments:read:all'))
+    ) {
+      return { all: true };
+    }
+    const user = await this.internalUserRepo.findOne({
+      where: { id: internalUserId },
+    });
+    return { all: false, organizationId: user?.organizationId ?? null };
+  }
+
   async isAdmin(internalUserId: string): Promise<boolean> {
     return this.hasRole(internalUserId, ADMIN_ROLE_NAME);
   }

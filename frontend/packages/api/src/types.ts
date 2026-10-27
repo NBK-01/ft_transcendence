@@ -98,6 +98,36 @@ export type StaffUser = {
   roleName: string | null;
 };
 
+/** GET /staff-auth/me (backend StaffMeDto): the signed-in staff member as they are now. */
+export type StaffMe = StaffUser & {
+  organizationId: string | null;
+  organization: { id: string; name: string; isActive: boolean } | null;
+  /** A signed URL (it expires: don't keep it); null shows their initials. */
+  avatarUrl: string | null;
+  /** Their role's permissions (an admin passes every check anyway). */
+  permissions: string[];
+};
+
+/** GET /staff-profile/:id (backend StaffProfileDto): a colleague, as any staff member may see them. */
+export type StaffProfile = {
+  id: string;
+  name: string;
+  email: string;
+  roleName: string | null;
+  organization: { id: string; name: string } | null;
+  avatarUrl: string | null;
+  isActive: boolean;
+  /** Online now: only for their accepted contacts (and yourself); null otherwise. */
+  online: boolean | null;
+  createdAt: string;
+};
+
+/** PATCH /staff-profile body: what staff may change about themselves. */
+export type UpdateStaffProfileInput = { name: string };
+
+/** POST /staff-profile/avatar (and DELETE, with null). */
+export type StaffAvatarResult = { avatarUrl: string | null };
+
 /** POST /staff-auth/login body. */
 export type StaffLoginInput = { email: string; password: string };
 
@@ -163,6 +193,9 @@ export type SupportMessageEvent = { conversationId: string; preview: string };
 
 /** Socket event `presence.changed`. */
 export type PresenceEvent = { accountId: string; accountType: AccountType; online: boolean };
+
+/** GET /contacts/presence (backend ContactPresenceDto): whether an accepted contact is online now. */
+export type ContactPresence = { internalUserId: string; online: boolean };
 
 /** Returned by endpoints that only confirm an action. */
 export type MessageResponse = { message: string };
@@ -499,8 +532,9 @@ export type NotificationStatus = "PENDING" | "SENT" | "FAILED" | "READ";
 /**
  * What a notification is about (backend NotificationType). SHIPMENT_UPDATE is
  * a new step on a shipment's timeline; the others say that something was
- * created, changed or deleted, and go to whoever it affects, never to whoever
- * did it (PASSWORD_CHANGED, a security notice, is the exception).
+ * created, changed or deleted, and go to whoever it affects. Whoever did it
+ * gets a record of it (`ownAction`), except for the security notices and
+ * messages.
  */
 export type NotificationType =
   | "SHIPMENT_UPDATE"
@@ -508,8 +542,10 @@ export type NotificationType =
   | "BRANCH_CREATED"
   /** Details changed or reactivated. To the other admins and the branch's staff. */
   | "BRANCH_UPDATED"
-  /** Deactivated (PATCH isActive false, or DELETE). To the other admins and the branch's staff. */
+  /** Deactivated (PATCH isActive false). To the other admins and the branch's staff. */
   | "BRANCH_DEACTIVATED"
+  /** Deleted (DELETE, only an empty branch). To the other admins. */
+  | "BRANCH_DELETED"
   /** To the staff member added. */
   | "BRANCH_STAFF_ADDED"
   /** To the staff member removed. */
@@ -528,12 +564,34 @@ export type NotificationType =
   | "SUPPORT_CONVERSATION_STARTED"
   /** To the shipment's customer. */
   | "SHIPMENT_FILE_ADDED"
+  /** An admin handed a customer's order to a branch (or took it off one). To that branch's staff. */
+  | "SHIPMENT_BRANCH_ASSIGNED"
   /** To the account's owner, even when they did it. */
   | "PASSWORD_CHANGED"
   /** An admin created a partner API key. To the other admins. */
   | "API_KEY_CREATED"
   /** An admin revoked one. To the other admins. */
-  | "API_KEY_REVOKED";
+  | "API_KEY_REVOKED"
+  /** A customer signed up. A welcome to them, and to the admins. */
+  | "CUSTOMER_REGISTERED"
+  /** Profile details or photo changed. To the account's owner. */
+  | "PROFILE_UPDATED"
+  /** A customer closed their account. To the admins. */
+  | "CUSTOMER_ACCOUNT_DEACTIVATED"
+  /** "Sign out everywhere": a security notice to the account's owner. */
+  | "SESSIONS_REVOKED"
+  /** Only a record for whoever declined the request. */
+  | "CONTACT_REQUEST_DECLINED"
+  /** Only a record for whoever withdrew their request. */
+  | "CONTACT_REQUEST_CANCELLED"
+  /** Only a record for whoever removed the contact. */
+  | "CONTACT_REMOVED"
+  /** Only a record for whoever blocked the contact. */
+  | "CONTACT_BLOCKED"
+  /** A staff member opened a direct conversation. To the other one. */
+  | "CONVERSATION_STARTED"
+  /** New messages: to the other side of the conversation, at most one per sender every 10 minutes. */
+  | "MESSAGE_RECEIVED";
 
 /** SHIPMENT_UPDATE: a new step on a shipment's timeline. Link to the shipment, and word it from its status. */
 export type ShipmentUpdatePayload = {
@@ -541,10 +599,17 @@ export type ShipmentUpdatePayload = {
   status: ShipmentState;
   /** A shipment created straight at `confirmed` (by a partner, through the public API): "new shipment", not "payment confirmed". */
   isNew?: true;
+  /** Who moved it; missing on events from before it was recorded. */
+  actorType?: ShipmentActorType;
 };
 
 /** A branch, by its name when it happened. */
-export type BranchPayload = { organizationId: string; name: string };
+export type BranchPayload = {
+  organizationId: string;
+  name: string;
+  /** On BRANCH_STAFF_ADDED / _REMOVED: the member's name (missing on older rows). */
+  staffName?: string;
+};
 
 /** A staff account. */
 export type StaffAccountPayload = { internalUserId: string; name: string };
@@ -560,12 +625,27 @@ export type StaffAccountUpdatedPayload = StaffAccountPayload & {
   organizationName: string | null;
 };
 
-/** The other person: who sent the request, or who accepted it. */
+/** The other person, for the reader: who sent the request, who accepted it, who they declined… */
 export type ContactNotificationPayload = { contactId: string; internalUserId: string; name: string };
+
+export type CustomerPayload = { customerId: string; name: string };
+
+/** What changed on a profile (backend ProfileChange). */
+export type ProfileChange = "details" | "avatar";
+
+export type ProfilePayload = { change: ProfileChange };
+
+/** A direct conversation, and the other person in it for the reader. */
+export type ConversationPayload = { conversationId: string; internalUserId: string; name: string };
+
+export type MessagePayload = { conversationId: string; conversationType: ConversationType; senderName: string };
 
 export type SupportConversationPayload = { conversationId: string; customerName: string };
 
 export type ShipmentFilePayload = { trackingId: string; kind: AttachmentKind; fileName: string };
+
+/** The branch an order now belongs to; null when it was taken off one. */
+export type ShipmentBranchPayload = { trackingId: string; organizationId: string | null; branchName: string | null };
 
 /** A partner API key, masked: never the key itself. */
 export type ApiKeyPayload = {
@@ -582,6 +662,7 @@ export type NotificationPayloads = {
   BRANCH_CREATED: BranchPayload;
   BRANCH_UPDATED: BranchPayload;
   BRANCH_DEACTIVATED: BranchPayload;
+  BRANCH_DELETED: BranchPayload;
   BRANCH_STAFF_ADDED: BranchPayload;
   BRANCH_STAFF_REMOVED: BranchPayload;
   STAFF_ACCOUNT_CREATED: StaffAccountPayload;
@@ -591,9 +672,20 @@ export type NotificationPayloads = {
   CONTACT_REQUEST_ACCEPTED: ContactNotificationPayload;
   SUPPORT_CONVERSATION_STARTED: SupportConversationPayload;
   SHIPMENT_FILE_ADDED: ShipmentFilePayload;
+  SHIPMENT_BRANCH_ASSIGNED: ShipmentBranchPayload;
   PASSWORD_CHANGED: Record<string, never>;
   API_KEY_CREATED: ApiKeyPayload;
   API_KEY_REVOKED: ApiKeyPayload;
+  CUSTOMER_REGISTERED: CustomerPayload;
+  PROFILE_UPDATED: ProfilePayload;
+  CUSTOMER_ACCOUNT_DEACTIVATED: CustomerPayload;
+  SESSIONS_REVOKED: Record<string, never>;
+  CONTACT_REQUEST_DECLINED: ContactNotificationPayload;
+  CONTACT_REQUEST_CANCELLED: ContactNotificationPayload;
+  CONTACT_REMOVED: ContactNotificationPayload;
+  CONTACT_BLOCKED: ContactNotificationPayload;
+  CONVERSATION_STARTED: ConversationPayload;
+  MESSAGE_RECEIVED: MessagePayload;
 };
 
 /**
@@ -610,6 +702,8 @@ export type AppNotification = {
     title: string;
     message: string;
     payload: NotificationPayloads[T];
+    /** The reader is the one who acted: a record of their own action ("You created…"), not news. */
+    ownAction: boolean;
     createdAt: string;
     /** Null until read. */
     readAt: string | null;

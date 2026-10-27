@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { AccountType } from '../common/context/auth-context.types';
+import { ActionSignals } from '../notifications/action-signals';
 import { InternalUsersService } from '../internal-users/internal-users.service';
 import {
   InternalRefreshTokenService,
@@ -23,6 +26,7 @@ export class StaffAuthService {
     private readonly internalUsersService: InternalUsersService,
     private readonly internalRefreshTokenService: InternalRefreshTokenService,
     private readonly authContext: AuthContextService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async login(dto: StaffLoginDto, metadata?: TokenMetadata) {
@@ -73,6 +77,11 @@ export class StaffAuthService {
         rawToken,
         staff,
       );
+    // Like login: a deactivated account gets no new tokens (401, 7003, which
+    // signs the staff app out). After the token check, so only its holder learns it.
+    if (!staff.isActive) {
+      throw new InternalUserInactiveException();
+    }
     return this.internalRefreshTokenService.rotateRefreshToken(
       tokenRecord,
       staff,
@@ -101,6 +110,10 @@ export class StaffAuthService {
   async logoutAll(userId: string): Promise<{ message: string }> {
     const count =
       await this.internalRefreshTokenService.deleteAllUserTokens(userId);
+    this.eventEmitter.emit(ActionSignals.SESSIONS_REVOKED, {
+      accountType: AccountType.STAFF,
+      accountId: userId,
+    });
     return { message: `Logged out of ${count} session(s)` };
   }
 

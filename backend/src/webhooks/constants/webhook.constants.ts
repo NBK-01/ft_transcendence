@@ -8,13 +8,15 @@ export enum WebhookProvider {
 /**
  * One row per delivery of a webhook (see WebhookLog):
  *
- *   RECEIVED (stored, queued) → PROCESSING (a job has it) → PROCESSED | FAILED
+ *   RECEIVED (stored, queued) → PROCESSING (a job has it) → PROCESSED | SUPERSEDED | FAILED
  *   DUPLICATE: a redelivery of an event we already have; it's logged, never processed.
  */
 export enum WebhookLogStatus {
   RECEIVED = 'RECEIVED',
   PROCESSING = 'PROCESSING',
   PROCESSED = 'PROCESSED',
+  /** Older than an event already applied to the same shipment: skipped, so the shipment doesn't go back. */
+  SUPERSEDED = 'SUPERSEDED',
   FAILED = 'FAILED',
   DUPLICATE = 'DUPLICATE',
 }
@@ -24,6 +26,9 @@ export const CARRIER_SIGNATURE_HEADER = 'carrier-signature';
 
 /** A signature older or newer than this (in seconds) is refused, so a captured request can't be replayed later. */
 export const REPLAY_WINDOW_SECONDS = 5 * 60;
+
+/** How far ahead of our clock an event's occurredAt may be (the carrier's clock may run a little fast). */
+export const OCCURRED_AT_MAX_SKEW_MS = REPLAY_WINDOW_SECONDS * 1000;
 
 /** The carrier events we act on. Others are acknowledged and ignored. */
 export const CARRIER_TRACKING_UPDATED = 'tracking.updated';

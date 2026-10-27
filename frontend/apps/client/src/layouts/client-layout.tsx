@@ -11,6 +11,8 @@ import { Button } from "@trans/ui/components/button";
 import { Skeleton } from "@trans/ui/components/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@trans/ui/components/tooltip";
 
+import { useNotificationToasts } from "../features/notifications/use-notification-toasts";
+
 const MESSAGES_PATH = "/app/messages";
 
 /**
@@ -49,6 +51,7 @@ export function ClientLayout() {
   const signOut = useLogout();
   const unseenSupportMessage = useUnseenSupportMessage();
   const unreadNotifications = useUnreadNotificationCount().data?.count ?? 0;
+  useNotificationToasts();
 
   const nav: NavGroup[] = [
     {
