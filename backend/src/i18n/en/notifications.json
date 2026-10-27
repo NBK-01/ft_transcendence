@@ -145,6 +145,16 @@
       "message": "You deactivated the branch {name}."
     }
   },
+  "BRANCH_DELETED": {
+    "admins": {
+      "title": "Branch deleted",
+      "message": "{name} was deleted."
+    },
+    "actor": {
+      "title": "Branch deleted",
+      "message": "You deleted the branch {name}."
+    }
+  },
   "BRANCH_STAFF_ADDED": {
     "self": {
       "title": "Added to a branch",

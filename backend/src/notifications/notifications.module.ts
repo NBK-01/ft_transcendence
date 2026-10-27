@@ -12,6 +12,7 @@ import { NotificationsService } from './notifications.service';
 import { NotificationsController } from './notifications.controller';
 import { ShipmentLookupService } from './shipment-lookup.service';
 import { ActionLookupService } from './action-lookup.service';
+import { NotificationsGateway } from './notifications.gateway';
 
 @Module({
   imports: [
@@ -28,7 +29,17 @@ import { ActionLookupService } from './action-lookup.service';
     ]),
   ],
   controllers: [NotificationsController],
-  providers: [NotificationsService, ShipmentLookupService, ActionLookupService],
-  exports: [NotificationsService, ShipmentLookupService, ActionLookupService],
+  providers: [
+    NotificationsService,
+    ShipmentLookupService,
+    ActionLookupService,
+    NotificationsGateway,
+  ],
+  exports: [
+    NotificationsService,
+    ShipmentLookupService,
+    ActionLookupService,
+    NotificationsGateway,
+  ],
 })
 export class NotificationsModule {}

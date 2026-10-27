@@ -113,6 +113,7 @@ const en = {
   notifications: {
     bellLabel: "Notifications, {{count}} unread",
     markAllRead: "Mark all as read",
+    open: "Open",
     markAllError: "Couldn't mark your notifications as read. Try again.",
     loadMore: "Load more",
     unread: "Unread",

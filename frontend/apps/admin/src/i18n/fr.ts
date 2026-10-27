@@ -524,6 +524,7 @@ const fr: AdminResources = {
     bellLabel: "Notifications, non lues : {{count}}",
     description: "Les nouvelles des expéditions, des agences, des comptes du personnel et de vos contacts.",
     markAllRead: "Tout marquer comme lu",
+    open: "Ouvrir",
     markAllError: "Impossible de marquer vos notifications comme lues. Réessayez.",
     loadMore: "Afficher plus",
     unread: "Non lue",
@@ -547,6 +548,10 @@ const fr: AdminResources = {
       branchDeactivated: {
         title: "Agence désactivée : {{name}}",
         message: "Elle n'est plus proposée lors de l'affectation du personnel. Ses membres restent affectés.",
+      },
+      branchDeleted: {
+        title: "Agence supprimée : {{name}}",
+        message: "Elle n'avait plus de personnel, d'expéditions ni de clés d'API.",
       },
       branchStaffAdded: { title: "Ajouté(e) à {{name}}", message: "Vous faites maintenant partie de cette agence." },
       branchStaffRemoved: { title: "Retiré(e) de {{name}}", message: "Vous ne faites plus partie de cette agence." },
@@ -630,6 +635,7 @@ const fr: AdminResources = {
       branchCreated: { title: "Agence créée : {{name}}", message: "Vous avez créé cette agence." },
       branchUpdated: { title: "Agence mise à jour : {{name}}", message: "Vous avez mis à jour cette agence." },
       branchDeactivated: { title: "Agence désactivée : {{name}}", message: "Vous avez désactivé cette agence." },
+      branchDeleted: { title: "Agence supprimée : {{name}}", message: "Vous avez supprimé cette agence." },
       branchStaffAdded: { title: "Membre ajouté à {{name}}", message: "Vous avez ajouté {{staffName}} à cette agence." },
       branchStaffRemoved: { title: "Membre retiré de {{name}}", message: "Vous avez retiré {{staffName}} de cette agence." },
       staffCreated: {

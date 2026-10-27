@@ -225,6 +225,12 @@ export const RESOLVERS: { [T in ActionType]: Resolver<T> } = {
   }),
   [NotificationType.BRANCH_UPDATED]: branchChange,
   [NotificationType.BRANCH_DEACTIVATED]: branchChange,
+  // An empty branch (OrganizationsService.remove): nobody but the admins to tell.
+  [NotificationType.BRANCH_DELETED]: async ({ data }, lookup) => ({
+    payload: { organizationId: data.organizationId, name: data.name },
+    args: { name: data.name },
+    audiences: [{ copy: 'admins', recipients: await lookup.findAdmins() }],
+  }),
   [NotificationType.BRANCH_STAFF_ADDED]: branchMembership,
   [NotificationType.BRANCH_STAFF_REMOVED]: branchMembership,
   [NotificationType.STAFF_ACCOUNT_CREATED]: toAdmins,

@@ -32,8 +32,10 @@ export enum NotificationType {
   BRANCH_CREATED = 'BRANCH_CREATED',
   /** Details changed or reactivated. To the other admins and the branch's staff. */
   BRANCH_UPDATED = 'BRANCH_UPDATED',
-  /** Deactivated (PATCH isActive false, or DELETE). To the other admins and the branch's staff. */
+  /** Deactivated (PATCH isActive false). To the other admins and the branch's staff. */
   BRANCH_DEACTIVATED = 'BRANCH_DEACTIVATED',
+  /** Deleted (DELETE, only an empty branch). To the other admins. */
+  BRANCH_DELETED = 'BRANCH_DELETED',
   /** To the staff member added. */
   BRANCH_STAFF_ADDED = 'BRANCH_STAFF_ADDED',
   /** To the staff member removed. */
@@ -178,6 +180,7 @@ export interface NotificationPayloads {
   [NotificationType.BRANCH_CREATED]: BranchPayload;
   [NotificationType.BRANCH_UPDATED]: BranchPayload;
   [NotificationType.BRANCH_DEACTIVATED]: BranchPayload;
+  [NotificationType.BRANCH_DELETED]: BranchPayload;
   [NotificationType.BRANCH_STAFF_ADDED]: BranchPayload;
   [NotificationType.BRANCH_STAFF_REMOVED]: BranchPayload;
   [NotificationType.STAFF_ACCOUNT_CREATED]: StaffAccountPayload;

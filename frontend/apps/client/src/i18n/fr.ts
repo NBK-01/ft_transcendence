@@ -114,6 +114,7 @@ const fr: ClientResources = {
   notifications: {
     bellLabel: "Notifications, {{count}} non lues",
     markAllRead: "Tout marquer comme lu",
+    open: "Ouvrir",
     markAllError: "Impossible de marquer vos notifications comme lues. Réessayez.",
     loadMore: "Charger plus",
     unread: "Non lu",

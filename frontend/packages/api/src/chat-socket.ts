@@ -3,15 +3,20 @@ import type { Socket } from "socket.io-client";
 
 import { ensureAccessToken, renewAccessToken, socketPath } from "./client";
 import { tokens } from "./session";
-import type { ChatMessage, PresenceEvent, SupportMessageEvent } from "./types";
+import type { AppNotification, ChatMessage, PresenceEvent, SupportMessageEvent } from "./types";
 
-/** What the backend's ChatGateway sends. `exception` is a refused action (ApiErrorBody-like, e.g. 11003). */
+/**
+ * What the backend's ChatGateway sends, and its NotificationsGateway on the
+ * same socket (`notification.new`, see useLiveNotifications). `exception` is a
+ * refused action (ApiErrorBody-like, e.g. 11003).
+ */
 export type ChatEvents = {
   connect: () => void;
   disconnect: () => void;
   "message.new": (message: ChatMessage) => void;
   "support.message.new": (event: SupportMessageEvent) => void;
   "presence.changed": (event: PresenceEvent) => void;
+  "notification.new": (notification: AppNotification) => void;
   exception: (error: { statusCode?: number; errorCode?: number; messages?: string[] }) => void;
 };
 

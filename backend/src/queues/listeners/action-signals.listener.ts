@@ -6,7 +6,7 @@ import {
   ActionSignals,
   ApiKeySignal,
   CustomerDeactivatedSignal,
-  OrganizationDeactivatedSignal,
+  OrganizationDeletedSignal,
   OrganizationStaffSignal,
   PasswordChangedSignal,
   ProfileUpdatedSignal,
@@ -34,28 +34,21 @@ export class ActionSignalsListener {
     private readonly lookup: ActionLookupService,
   ) {}
 
-  /** DELETE /organizations/:id, which deactivates. The branch's staff are taken now. */
-  @OnEvent(ActionSignals.ORGANIZATION_DEACTIVATED)
-  onOrganizationDeactivated({
+  /** DELETE /organizations/:id: a branch is deleted once, so its id names the occurrence. */
+  @OnEvent(ActionSignals.ORGANIZATION_DELETED)
+  onOrganizationDeleted({
     organizationId,
-  }: OrganizationDeactivatedSignal): void {
+    name,
+  }: OrganizationDeletedSignal): void {
     const actor = this.notifier.actor();
-    this.notifier.notify(async () => {
-      const organization = await this.lookup.findOrganization(organizationId);
-      if (!organization) {
-        return null;
-      }
-      return {
-        type: NotificationType.BRANCH_DEACTIVATED,
-        occurrence: occurrenceOf(organization.id, organization.updatedAt),
+    this.notifier.notify(() =>
+      Promise.resolve({
+        type: NotificationType.BRANCH_DELETED,
+        occurrence: `${organizationId}-deleted`,
         actor,
-        data: {
-          organizationId,
-          name: organization.name,
-          staffIds: await this.lookup.findBranchStaffIds(organizationId),
-        },
-      };
-    });
+        data: { organizationId, name },
+      }),
+    );
   }
 
   @OnEvent(ActionSignals.ORGANIZATION_STAFF_ADDED)

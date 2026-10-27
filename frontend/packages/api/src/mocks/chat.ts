@@ -6,7 +6,7 @@ import { tokens } from "../session";
 import type { AccountType, ChatMessage, Conversation, MessageResponse } from "../types";
 import { areConnected } from "./contacts";
 import { internalUsers, MOCK_USER } from "./data";
-import { notifyAction } from "./notification-store";
+import { notifyAction, onNotificationPushed, toDto } from "./notification-store";
 import { error, ok, paginated } from "./respond";
 import { staffForToken } from "./staff-auth";
 
@@ -267,8 +267,9 @@ function replierFor(conversation: Conversation, senderId: string): { id: string;
 
 /**
  * The in-memory socket. Same events as ChatGateway, for this tab only: you get
- * `message.new` for conversations you joined, and `support.message.new` for
- * support conversations if you have support access (never for a staff DM).
+ * `message.new` for conversations you joined, `support.message.new` for
+ * support conversations if you have support access (never for a staff DM),
+ * and NotificationsGateway's `notification.new` for each new one of yours.
  */
 export function createMockChatConnection(): ChatConnection {
   const listeners = new Map<keyof ChatEvents, Set<(payload?: unknown) => void>>();
@@ -276,6 +277,7 @@ export function createMockChatConnection(): ChatConnection {
   const timers = new Set<ReturnType<typeof setTimeout>>();
   let replies = 0;
   let connected = false;
+  let stopPushes = () => {};
 
   const emit = (event: keyof ChatEvents, payload?: unknown) => {
     for (const listener of listeners.get(event) ?? []) listener(payload);
@@ -332,8 +334,13 @@ export function createMockChatConnection(): ChatConnection {
         connected = true;
         emit("connect");
       }, 0);
+      stopPushes = onNotificationPushed((row) => {
+        const caller = me();
+        if (connected && caller?.id === row.userId && caller.type === row.accountType) emit("notification.new", toDto(row));
+      });
     },
     close() {
+      stopPushes();
       for (const timer of timers) clearTimeout(timer);
       timers.clear();
       connected = false;

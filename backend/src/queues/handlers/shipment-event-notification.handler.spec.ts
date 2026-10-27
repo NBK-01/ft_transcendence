@@ -22,6 +22,7 @@ import {
 } from '../../notifications/shipment-lookup.service';
 import { ActionLookupService } from '../../notifications/action-lookup.service';
 import { WebhooksService } from '../../webhooks/webhooks.service';
+import { NotificationsGateway } from '../../notifications/notifications.gateway';
 import { ShipmentEventNotificationEvent } from '../events/shipment-event-notification.event';
 import { JobServices } from '../interfaces/job-handler.interface';
 import {
@@ -187,6 +188,9 @@ beforeEach(() => {
       ),
     } as unknown as ActionLookupService,
     webhooksService: {} as WebhooksService,
+    notificationsGateway: {
+      push: jest.fn(),
+    } as unknown as NotificationsGateway,
     i18n,
   };
 });
@@ -565,6 +569,24 @@ describe('shipmentEventNotificationHandler: running again', () => {
         .all()
         .every((row) => row.status === NotificationStatus.SENT),
     ).toBe(true);
+  });
+});
+
+describe('shipmentEventNotificationHandler: live delivery', () => {
+  it('pushes each delivered row to its recipient’s open tabs, as SENT, and only once', async () => {
+    writtenBy(ShipmentActorType.CUSTOMER, ShipmentState.PENDING_SOURCING);
+    const push = services.notificationsGateway.push as jest.Mock;
+
+    await run();
+    await run();
+
+    expect(push).toHaveBeenCalledTimes(3);
+    expect(push.mock.calls.map(([row]) => row.userId).sort()).toEqual(
+      [CUSTOMER_ID, ADMIN.id, SUPPORT.id].sort(),
+    );
+    for (const [row] of push.mock.calls) {
+      expect(row.status).toBe(NotificationStatus.SENT);
+    }
   });
 });
 

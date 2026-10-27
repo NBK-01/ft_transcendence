@@ -4,6 +4,7 @@ import { NotificationsService } from '../../notifications/notifications.service'
 import { ShipmentLookupService } from '../../notifications/shipment-lookup.service';
 import { ActionLookupService } from '../../notifications/action-lookup.service';
 import { WebhooksService } from '../../webhooks/webhooks.service';
+import { NotificationsGateway } from '../../notifications/notifications.gateway';
 import { JobType } from '../constants/job-type';
 import { UnknownJobTypeException } from '../exceptions';
 import { StandardJobsProcessor } from './standard-jobs.processor';
@@ -16,6 +17,7 @@ describe('JobsProcessor', () => {
     {} as ActionLookupService,
     {} as WebhooksService,
     {} as I18nService,
+    {} as NotificationsGateway,
   );
 
   /** A SHIPMENT_EVENT_NOTIFICATION job, as BullMQ hands it over after `attemptsMade` failed runs. */

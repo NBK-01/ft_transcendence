@@ -114,6 +114,7 @@ const ar: ClientResources = {
   notifications: {
     bellLabel: "الإشعارات، {{count}} غير مقروءة",
     markAllRead: "تعليم الكل كمقروء",
+    open: "فتح",
     markAllError: "تعذّر تعليم إشعاراتك كمقروءة. حاول مرة أخرى.",
     loadMore: "تحميل المزيد",
     unread: "غير مقروء",

@@ -502,8 +502,10 @@ export type NotificationType =
   | "BRANCH_CREATED"
   /** Details changed or reactivated. To the other admins and the branch's staff. */
   | "BRANCH_UPDATED"
-  /** Deactivated (PATCH isActive false, or DELETE). To the other admins and the branch's staff. */
+  /** Deactivated (PATCH isActive false). To the other admins and the branch's staff. */
   | "BRANCH_DEACTIVATED"
+  /** Deleted (DELETE, only an empty branch). To the other admins. */
+  | "BRANCH_DELETED"
   /** To the staff member added. */
   | "BRANCH_STAFF_ADDED"
   /** To the staff member removed. */
@@ -615,6 +617,7 @@ export type NotificationPayloads = {
   BRANCH_CREATED: BranchPayload;
   BRANCH_UPDATED: BranchPayload;
   BRANCH_DEACTIVATED: BranchPayload;
+  BRANCH_DELETED: BranchPayload;
   BRANCH_STAFF_ADDED: BranchPayload;
   BRANCH_STAFF_REMOVED: BranchPayload;
   STAFF_ACCOUNT_CREATED: StaffAccountPayload;

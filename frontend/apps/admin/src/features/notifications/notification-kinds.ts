@@ -189,6 +189,8 @@ const KINDS: { [T in NotificationType]: Kind<T> } = {
     own: own("branchDeactivated"),
     href: ({ payload }) => branchPath(payload.organizationId),
   },
+  // It's gone: nowhere to link.
+  BRANCH_DELETED: { icon: Building2, wording: named("branchDeleted"), own: own("branchDeleted"), href: () => null },
   BRANCH_STAFF_ADDED: {
     icon: Building2,
     wording: named("branchStaffAdded"),

@@ -17,7 +17,7 @@ import { ConversationType } from './entities/conversation.entity';
 import { AccessControlService } from '../access-control/access-control.service';
 import { InternalUsersService } from '../internal-users/internal-users.service';
 import { AccountType, RequestUser } from '../common/context/auth-context.types';
-import { CHAT_SUPPORT_ACCESS_PERMISSION } from './chat.constants';
+import { CHAT_SUPPORT_ACCESS_PERMISSION, personalRoom } from './chat.constants';
 import { websocketConfig } from '../config/websocket.config';
 import { WsExceptionFilter } from './ws-exception.filter';
 
@@ -232,7 +232,7 @@ export class ChatGateway
   }
 
   private personalRoom(user: RequestUser): string {
-    return `user:${user.accountType}:${user.id}`;
+    return personalRoom(user);
   }
 
   private organizationRoom(organizationId: string): string {

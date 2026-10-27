@@ -41,20 +41,19 @@ describe('ActionSignalsListener', () => {
 
   const settle = () => new Promise(setImmediate);
 
-  it('a branch deleted (deactivated): its name and staff as of now, the id and updatedAt as the occurrence', async () => {
-    listener.onOrganizationDeactivated({ organizationId: 'org-1' });
+  it('a branch deleted: the name it had (the row is gone), once', async () => {
+    listener.onOrganizationDeleted({
+      organizationId: 'org-1',
+      name: 'Beirut Central',
+    });
     await settle();
 
     expect(built).toEqual([
       {
-        type: NotificationType.BRANCH_DEACTIVATED,
-        occurrence: `org-1-${ORG_UPDATED_AT.getTime()}`,
+        type: NotificationType.BRANCH_DELETED,
+        occurrence: 'org-1-deleted',
         actor: ADMIN,
-        data: {
-          organizationId: 'org-1',
-          name: 'Beirut Central',
-          staffIds: ['member-1', 'member-2'],
-        },
+        data: { organizationId: 'org-1', name: 'Beirut Central' },
       },
     ]);
   });
@@ -109,11 +108,10 @@ describe('ActionSignalsListener', () => {
 
   it('says nothing when the row is gone by then', async () => {
     lookup.findOrganization.mockResolvedValue(null);
-    listener.onOrganizationDeactivated({ organizationId: 'org-1' });
     listener.onStaffAdded({ organizationId: 'org-1', internalUserId: 'm' });
     await settle();
 
-    expect(built).toEqual([null, null]);
+    expect(built).toEqual([null]);
   });
 });
 

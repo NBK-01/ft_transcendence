@@ -21,6 +21,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const keys: ApiKey[] = [];
 
+/** A branch's keys, revoked ones included: they'd be deleted with it (organizations.ts). */
+export const apiKeyCountOf = (organizationId: string) => keys.filter((key) => key.organization.id === organizationId).length;
+
 const hex = (bytes: number) =>
   Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (byte) => byte.toString(16).padStart(2, "0")).join("");
 

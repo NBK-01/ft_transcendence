@@ -52,6 +52,7 @@ export {
   UNREAD_COUNT_REFETCH_MS,
   unreadCountOptions,
   useDismissNotification,
+  useLiveNotifications,
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
   useNotifications,

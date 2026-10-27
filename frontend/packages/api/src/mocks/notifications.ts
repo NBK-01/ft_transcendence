@@ -1,9 +1,9 @@
 import { http } from "msw/http";
 
 import { NOTIFICATION_NOT_FOUND } from "../notifications";
-import type { AccountType, AppNotification, MessageResponse, NotificationCount, NotificationType } from "../types";
+import type { AccountType, MessageResponse, NotificationCount, NotificationType } from "../types";
 import { customerForToken } from "./auth";
-import { rows, type Row } from "./notification-store";
+import { rows, toDto, type Row } from "./notification-store";
 import { error, ok, paginated } from "./respond";
 import { staffForToken } from "./staff-auth";
 
@@ -26,6 +26,7 @@ const NOTIFICATION_TYPES: readonly NotificationType[] = [
   "BRANCH_CREATED",
   "BRANCH_UPDATED",
   "BRANCH_DEACTIVATED",
+  "BRANCH_DELETED",
   "BRANCH_STAFF_ADDED",
   "BRANCH_STAFF_REMOVED",
   "STAFF_ACCOUNT_CREATED",
@@ -82,9 +83,6 @@ const isUnread = (row: Row) => row.status !== "READ";
 
 const newestFirst = (a: Row, b: Row) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id);
 
-/** NotificationFactory.toDto: no owner, dedupe key or delivery details. Rebuilt field by field, so TypeScript can't pair type and payload again. */
-const toDto = ({ id, type, status, title, message, payload, ownAction, createdAt, readAt }: Row) =>
-  ({ id, type, status, title, message, payload, ownAction, createdAt, readAt }) as AppNotification;
 
 /** ListNotificationsQueryDto under the ValidationPipe: every failing field, as a 400 without a code. */
 function queryProblems(params: URLSearchParams) {

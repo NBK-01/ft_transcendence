@@ -9,8 +9,8 @@ import { ProfileChange } from './constants/notification.constants';
  * turns them into notifications; nothing else depends on them.
  */
 export const ActionSignals = {
-  /** OrganizationsService.deactivate (DELETE /organizations/:id). */
-  ORGANIZATION_DEACTIVATED: 'organization.deactivated',
+  /** OrganizationsService.remove (DELETE /organizations/:id), with its name: the row is gone. */
+  ORGANIZATION_DELETED: 'organization.deleted',
   /** OrganizationsService.assignStaff. */
   ORGANIZATION_STAFF_ADDED: 'organization.staff-added',
   /** OrganizationsService.removeStaff, with the branch they were in. */
@@ -29,8 +29,9 @@ export const ActionSignals = {
   SESSIONS_REVOKED: 'sessions.revoked',
 } as const;
 
-export interface OrganizationDeactivatedSignal {
+export interface OrganizationDeletedSignal {
   organizationId: string;
+  name: string;
 }
 
 export interface OrganizationStaffSignal {

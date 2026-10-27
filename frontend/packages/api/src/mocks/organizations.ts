@@ -1,9 +1,11 @@
 import { http } from "msw/http";
 
 import type { Organization } from "../types";
-import { internalUsers, ORGANIZATIONS } from "./data";
+import { apiKeyCountOf } from "./api-keys";
+import { internalUsers, isUuid, ORGANIZATIONS } from "./data";
 import { notifyAction, type Who } from "./notification-store";
 import { error, ok } from "./respond";
+import { mockShipments } from "./shipments";
 import { staffCaller } from "./staff-auth";
 
 /**
@@ -15,6 +17,8 @@ import { staffCaller } from "./staff-auth";
 /** Backend OrganizationErrorCodes. */
 const ORGANIZATION_NOT_FOUND = 4001;
 const ORGANIZATION_ALREADY_EXISTS = 4002;
+const ORGANIZATION_IN_USE = 4003;
+const STAFF_NOT_IN_ORGANIZATION = 4004;
 /** Backend InternalUserErrorCodes. */
 const USER_NOT_FOUND = 8001;
 
@@ -28,6 +32,16 @@ const actorOf = (request: Request): Who | null => {
   const { caller } = staffCaller(request);
   return caller ? { id: caller.id, accountType: "staff" } : null;
 };
+
+/** ParseUUIDPipe on every :id: a 400 before anything is looked up. */
+const badIds = (...ids: unknown[]) =>
+  ids.some((id) => !isUuid(String(id))) ? error(400, ["Validation failed (uuid is expected)"]) : null;
+
+/** What still points at a branch: deleting it would orphan or delete these. */
+const inUse = (organizationId: string) =>
+  internalUsers.some((user) => user.organizationId === organizationId) ||
+  mockShipments().some((shipment) => shipment.organization?.id === organizationId) ||
+  apiKeyCountOf(organizationId) > 0;
 
 const nameTaken = (name: string, exceptId?: string) =>
   ORGANIZATIONS.some((org) => org.name === name && org.id !== exceptId);
@@ -103,13 +117,18 @@ export const organizationHandlers = [
     return ok(org);
   }),
 
-  // Soft delete: the branch stays, marked inactive.
+  // A real delete, only for a branch nothing points at; deactivating is PATCH isActive false.
   http.delete("*/api/organizations/:id", ({ params, request }) => {
+    const invalid = badIds(params.id);
+    if (invalid) return invalid;
     const org = ORGANIZATIONS.find((candidate) => candidate.id === params.id);
     if (!org) return notFound(params.id);
-    Object.assign(org, { isActive: false, updatedAt: new Date().toISOString() });
-    notifyAction({ type: "BRANCH_DEACTIVATED", organization: org }, actorOf(request));
-    return ok({ message: "Organization deactivated" });
+    if (inUse(org.id)) {
+      return error(409, [`${org.name} still has staff, shipments or API keys. Deactivate it instead.`], ORGANIZATION_IN_USE);
+    }
+    ORGANIZATIONS.splice(ORGANIZATIONS.indexOf(org), 1);
+    notifyAction({ type: "BRANCH_DELETED", organization: org }, actorOf(request));
+    return ok({ message: "Organization deleted" });
   }),
 
   http.get("*/api/organizations/:id/staff", ({ params }) => {
@@ -117,27 +136,35 @@ export const organizationHandlers = [
     return ok(internalUsers.filter((user) => user.organizationId === params.id));
   }),
 
-  // Moves the staff member: they leave whatever branch they were in.
+  // Moves the staff member: they leave whatever branch they were in (and are told). Already there: nothing changes.
   http.post("*/api/organizations/:id/staff/:userId", ({ params, request }) => {
+    const invalid = badIds(params.id, params.userId);
+    if (invalid) return invalid;
     const org = ORGANIZATIONS.find((candidate) => candidate.id === params.id);
     if (!org) return notFound(params.id);
     const user = internalUsers.find((candidate) => candidate.id === params.userId);
     if (!user) return error(404, [`Staff member ${String(params.userId)} not found`], USER_NOT_FOUND);
-    Object.assign(user, { organizationId: params.id, updatedAt: new Date().toISOString() });
+    if (user.organizationId === org.id) return ok({ message: "Staff member assigned" });
+    const previous = ORGANIZATIONS.find((candidate) => candidate.id === user.organizationId);
+    Object.assign(user, { organizationId: org.id, updatedAt: new Date().toISOString() });
+    if (previous) notifyAction({ type: "BRANCH_STAFF_REMOVED", organization: previous, staffId: user.id }, actorOf(request));
     notifyAction({ type: "BRANCH_STAFF_ADDED", organization: org, staffId: user.id }, actorOf(request));
     return ok({ message: "Staff member assigned" });
   }),
 
-  // Like the real one, ignores :id and clears the member's branch.
-  // The notification names the branch they were in, whatever :id says.
+  // Only from the branch they're in: anyone else is a 404 (4004).
   http.delete("*/api/organizations/:id/staff/:userId", ({ params, request }) => {
+    const invalid = badIds(params.id, params.userId);
+    if (invalid) return invalid;
+    const branch = ORGANIZATIONS.find((org) => org.id === params.id);
+    if (!branch) return notFound(params.id);
     const user = internalUsers.find((candidate) => candidate.id === params.userId);
     if (!user) return error(404, [`Staff member ${String(params.userId)} not found`], USER_NOT_FOUND);
-    const branch = ORGANIZATIONS.find((org) => org.id === user.organizationId);
-    Object.assign(user, { organizationId: null, updatedAt: new Date().toISOString() });
-    if (branch) {
-      notifyAction({ type: "BRANCH_STAFF_REMOVED", organization: branch, staffId: user.id }, actorOf(request));
+    if (user.organizationId !== branch.id) {
+      return error(404, [`Staff member ${user.id} isn't in this organization`], STAFF_NOT_IN_ORGANIZATION);
     }
+    Object.assign(user, { organizationId: null, updatedAt: new Date().toISOString() });
+    notifyAction({ type: "BRANCH_STAFF_REMOVED", organization: branch, staffId: user.id }, actorOf(request));
     return ok({ message: "Staff member removed" });
   }),
 ];

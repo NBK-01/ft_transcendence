@@ -21,6 +21,7 @@ import {
 } from '../../notifications/notifications.service';
 import { ActionLookupService } from '../../notifications/action-lookup.service';
 import { WebhooksService } from '../../webhooks/webhooks.service';
+import { NotificationsGateway } from '../../notifications/notifications.gateway';
 import { ShipmentLookupService } from '../../notifications/shipment-lookup.service';
 import {
   ActionNotificationEvent,
@@ -170,6 +171,9 @@ beforeEach(() => {
     shipmentLookupService: {} as ShipmentLookupService,
     actionLookupService: lookup as unknown as ActionLookupService,
     webhooksService: {} as WebhooksService,
+    notificationsGateway: {
+      push: jest.fn(),
+    } as unknown as NotificationsGateway,
     i18n,
   };
 });
@@ -243,6 +247,12 @@ const EVENTS: { [T in ActionType]: ActionNotificationEvent & { type: T } } = {
       name: 'Beirut Central',
       staffIds: [MEMBER.id, INACTIVE_MEMBER.id],
     },
+  },
+  [NotificationType.BRANCH_DELETED]: {
+    type: NotificationType.BRANCH_DELETED,
+    occurrence: 'org-2-deleted',
+    actor: ADMIN,
+    data: { organizationId: 'org-2', name: 'Marseille Joliette' },
   },
   [NotificationType.BRANCH_STAFF_ADDED]: {
     type: NotificationType.BRANCH_STAFF_ADDED,
@@ -408,6 +418,7 @@ const EXPECTED: Record<ActionType, NotificationRecipient[]> = {
   [NotificationType.BRANCH_CREATED]: [OTHER_ADMIN],
   [NotificationType.BRANCH_UPDATED]: [MEMBER, OTHER_ADMIN],
   [NotificationType.BRANCH_DEACTIVATED]: [MEMBER, OTHER_ADMIN],
+  [NotificationType.BRANCH_DELETED]: [OTHER_ADMIN],
   [NotificationType.BRANCH_STAFF_ADDED]: [MEMBER],
   [NotificationType.BRANCH_STAFF_REMOVED]: [MEMBER],
   [NotificationType.STAFF_ACCOUNT_CREATED]: [OTHER_ADMIN],

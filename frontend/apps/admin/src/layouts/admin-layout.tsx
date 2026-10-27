@@ -14,6 +14,7 @@ import { useOrganizations } from "../features/branches/api";
 import { tabOf, useContacts } from "../features/contacts/api";
 import { useBranchFilter } from "../features/branches/use-branch-filter";
 import { NotificationBell } from "../features/notifications/notification-bell";
+import { useNotificationToasts } from "../features/notifications/use-notification-toasts";
 
 const ALL = "all";
 
@@ -55,6 +56,7 @@ export function AdminLayout() {
   const { user } = useStaffSession();
   const { isAdmin, can } = useStaffAccess();
   const signOut = useStaffLogout();
+  useNotificationToasts();
   // Requests waiting for an answer, as a count on the Contacts nav item.
   const contacts = useContacts();
   const requests = (contacts.data ?? []).filter((contact) => user && tabOf(contact, user.id) === "received").length;

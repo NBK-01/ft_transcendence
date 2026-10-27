@@ -32,6 +32,18 @@ export type Row = AppNotification & {
 
 export const rows: Row[] = [];
 
+/** NotificationFactory.toDto: no owner, dedupe key or delivery details. Rebuilt field by field, so TypeScript can't pair type and payload again. */
+export const toDto = ({ id, type, status, title, message, payload, ownAction, createdAt, readAt }: Row) =>
+  ({ id, type, status, title, message, payload, ownAction, createdAt, readAt }) as AppNotification;
+
+/** Told about each new row: the mock socket pushes it to its recipient, like NotificationsGateway. */
+const pushListeners = new Set<(row: Row) => void>();
+
+export function onNotificationPushed(listener: (row: Row) => void) {
+  pushListeners.add(listener);
+  return () => void pushListeners.delete(listener);
+}
+
 /** An account: who acted, or who's told. */
 export type Who = { id: string; accountType: AccountType };
 
@@ -59,7 +71,7 @@ function push(
   ownAction = false,
 ) {
   const createdAt = at ?? new Date().toISOString();
-  rows.push({
+  const row = {
     id: nextId(),
     userId: recipient.id,
     accountType: recipient.accountType,
@@ -73,7 +85,10 @@ function push(
     sentAt: createdAt,
     readAt: read ? new Date(Date.parse(createdAt) + 3_600_000).toISOString() : null,
     dismissedAt: null,
-  } as Row);
+  } as Row;
+  rows.push(row);
+  // Seed data (`at` given) is history, not news.
+  if (!at) for (const listener of pushListeners) listener(row);
 }
 
 /** Whether the account may be notified: staff while active. No mock customer is deactivated. */
@@ -216,7 +231,7 @@ type Branch = { id: string; name: string };
 
 /** One action, with what the mock knows when it happens (the backend reads some of it when its job runs). */
 export type ActionNotice =
-  | { type: "BRANCH_CREATED" | "BRANCH_UPDATED" | "BRANCH_DEACTIVATED"; organization: Branch }
+  | { type: "BRANCH_CREATED" | "BRANCH_UPDATED" | "BRANCH_DEACTIVATED" | "BRANCH_DELETED"; organization: Branch }
   | { type: "BRANCH_STAFF_ADDED" | "BRANCH_STAFF_REMOVED"; organization: Branch; staffId: string }
   | { type: "STAFF_ACCOUNT_CREATED" | "STAFF_ACCOUNT_DEACTIVATED"; staff: InternalUser }
   | { type: "STAFF_ACCOUNT_UPDATED"; staff: InternalUser; changed: StaffChange[] }
@@ -263,6 +278,10 @@ const ACTION_COPY = {
     staff: ["Your branch was deactivated", "{name} is no longer active."],
     admins: ["Branch deactivated", "{name} was deactivated."],
     actor: ["Branch deactivated", "You deactivated the branch {name}."],
+  },
+  BRANCH_DELETED: {
+    admins: ["Branch deleted", "{name} was deleted."],
+    actor: ["Branch deleted", "You deleted the branch {name}."],
   },
   BRANCH_STAFF_ADDED: {
     self: ["Added to a branch", "You're now part of {name}."],
@@ -355,10 +374,11 @@ const admins = () => staffWith("organizations:manage");
 function resolve(notice: ActionNotice): Resolution {
   switch (notice.type) {
     case "BRANCH_CREATED":
+    case "BRANCH_DELETED":
       return {
         payload: { organizationId: notice.organization.id, name: notice.organization.name },
         args: { name: notice.organization.name },
-        audiences: [{ copy: ACTION_COPY.BRANCH_CREATED.admins, recipients: admins() }],
+        audiences: [{ copy: ACTION_COPY[notice.type].admins, recipients: admins() }],
       };
     case "BRANCH_UPDATED":
     case "BRANCH_DEACTIVATED": {

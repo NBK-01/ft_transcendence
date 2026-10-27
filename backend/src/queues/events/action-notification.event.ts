@@ -30,6 +30,7 @@ export interface ActionDataMap {
     name: string;
     staffIds: string[];
   };
+  [NotificationType.BRANCH_DELETED]: { organizationId: string; name: string };
   [NotificationType.BRANCH_STAFF_ADDED]: {
     organizationId: string;
     name: string;
