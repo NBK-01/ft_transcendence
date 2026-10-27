@@ -1,8 +1,8 @@
-import { Info, Package } from "lucide-react";
+import { Building2, Info, Package } from "lucide-react";
 import { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useAdminShipments } from "@trans/api";
+import { useAdminShipments, useStaffAccess } from "@trans/api";
 import { DataTable } from "@trans/ui/blocks/data-table";
 import { EmptyState } from "@trans/ui/blocks/empty-state";
 import { PageHeader } from "@trans/ui/blocks/page-header";
@@ -20,13 +20,15 @@ import {
 } from "../features/shipments/use-shipment-filters";
 
 /**
- * /shipments: every client's shipments, most recently updated first (needs
- * "shipments:read:all"). The API searches, filters and pages; the URL holds
- * what's asked for, so the overview can link to one status.
+ * /shipments: every client's shipments, most recently updated first
+ * ("shipments:read:all"), or for a dispatcher their branch's only
+ * ("shipments:read:org"; the API scopes it). The API searches, filters and
+ * pages; the URL holds what's asked for, so the overview can link to one status.
  */
 export function ShipmentsPage() {
   const { t } = useTranslation(["common", "app"]);
-  const { branchId } = useBranchFilter();
+  const { branchId, locked } = useBranchFilter();
+  const { organization } = useStaffAccess();
   const { q, status, page, tableState, setTableState, replacePage } = useShipmentFilters();
   const shipments = useAdminShipments({ q, status, organizationId: branchId ?? undefined, page, limit: PAGE_SIZE });
   const columns = useShipmentColumns();
@@ -56,10 +58,32 @@ export function ShipmentsPage() {
     [t],
   );
 
+  const title = <title>{`${t("nav.shipments")} · ${t("brand.name")}`}</title>;
+  if (locked && organization === null) {
+    return (
+      <div className="flex flex-col gap-8">
+        {title}
+        <PageHeader title={t("nav.shipments")} />
+        <EmptyState
+          icon={Building2}
+          title={t("app:shipments.list.noBranchTitle")}
+          description={t("app:shipments.list.noBranchBody")}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-8">
-      <title>{`${t("nav.shipments")} · ${t("brand.name")}`}</title>
-      <PageHeader title={t("nav.shipments")} description={t("app:pages.shipments")} />
+      {title}
+      <PageHeader
+        title={t("nav.shipments")}
+        description={
+          locked && organization
+            ? t("app:pages.shipmentsScoped", { branch: organization.name })
+            : t("app:pages.shipments")
+        }
+      />
       <div className="flex flex-col gap-3">
         {/* Only partner-created shipments have a branch: say why customer orders drop out of the list. */}
         {branchId && (

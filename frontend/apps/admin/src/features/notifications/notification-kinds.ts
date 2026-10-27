@@ -29,6 +29,7 @@ import {
   type StaffChange,
 } from "@trans/api";
 
+import { SHIPMENT_READ } from "../auth/shipment-read";
 import { useBranchFilter } from "../branches/use-branch-filter";
 
 /**
@@ -81,8 +82,9 @@ function shipmentLine({ status, isNew, actorType }: Of<"SHIPMENT_UPDATE">["paylo
   return CUSTOMER_STEPS.has(status) ? status : "other";
 }
 
+/** Admins and support open any shipment, a dispatcher their branch's (the ones they're told about). */
 const shipmentPath = (trackingId: string, reader: Reader) =>
-  reader.can("shipments:read:all") ? `/shipments/${encodeURIComponent(trackingId)}` : null;
+  SHIPMENT_READ.some(reader.can) ? `/shipments/${encodeURIComponent(trackingId)}` : null;
 const branchPath = (organizationId: string) => `/branches/${encodeURIComponent(organizationId)}`;
 const usersPath = (reader: Reader) => (reader.isAdmin ? "/users" : null);
 

@@ -1,24 +1,35 @@
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 
-import type { AdminShipmentDetail } from "@trans/api";
+import { useAdminShipmentEvents, useStaffAccess, type AdminShipmentDetail } from "@trans/api";
 import { ShipmentStateBadge } from "@trans/ui/blocks/shipment-state";
+import { Button } from "@trans/ui/components/button";
 import { CopyButton } from "@trans/ui/components/copy-button";
 
 import { useBranchFilter } from "../branches/use-branch-filter";
+import { AssignBranchDialog } from "./assign-branch-dialog";
 import { DetailItem } from "./detail-parts";
 import { useDetailFormat } from "./use-detail-format";
 
 /**
  * The shared PageHeader's frame, but the title is the tracking ID in mono with
  * a copy button and the status, and under it who ordered it, which branch
- * has it (only partner-created shipments do) and when.
+ * has it (a partner's, or the one an admin handed a customer's order to) and
+ * when. Admins can change the branch of a customer's order here.
  */
 export function ShipmentHeader({ shipment }: { shipment: AdminShipmentDetail }) {
   const { t } = useTranslation("app");
   const format = useDetailFormat();
   const { withBranch } = useBranchFilter();
+  const { can } = useStaffAccess();
   const { trackingId, client, organization, createdAt, updatedAt } = shipment;
+  // Newest first: the last step is how it started. A partner's shipment starts at confirmed, and keeps its branch.
+  const events = useAdminShipmentEvents(trackingId).data;
+  const fromPartner = events?.at(-1)?.status === "confirmed";
+  const canAssign = can("organizations:manage") && events !== undefined && !fromPartner;
+  const [assigning, setAssigning] = useState(false);
+  const assignButton = useRef<HTMLButtonElement>(null);
 
   return (
     <header className="flex flex-col gap-5 border-b border-gray-alpha-400 pb-6">
@@ -45,16 +56,23 @@ export function ShipmentHeader({ shipment }: { shipment: AdminShipmentDetail }) 
           </span>
         </DetailItem>
         <DetailItem label={t("shipment.branch")}>
-          {organization ? (
-            <Link
-              to={withBranch(`/branches/${encodeURIComponent(organization.id)}`)}
-              className="focus-ring block truncate rounded-sm hover:underline"
-            >
-              <bdi>{organization.name}</bdi>
-            </Link>
-          ) : (
-            <span className="block text-gray-900">{t("shipment.noBranch")}</span>
-          )}
+          <span className="flex items-center gap-2">
+            {organization ? (
+              <Link
+                to={withBranch(`/branches/${encodeURIComponent(organization.id)}`)}
+                className="focus-ring block truncate rounded-sm hover:underline"
+              >
+                <bdi>{organization.name}</bdi>
+              </Link>
+            ) : (
+              <span className="block text-gray-900">{t("shipment.noBranch")}</span>
+            )}
+            {canAssign && (
+              <Button ref={assignButton} variant="tertiary" size="tiny" onClick={() => setAssigning(true)}>
+                {t("shipment.assignBranch.action")}
+              </Button>
+            )}
+          </span>
         </DetailItem>
         <DetailItem label={t("shipment.created")}>
           <time dateTime={createdAt}>{format.dateTime(createdAt)}</time>
@@ -63,6 +81,14 @@ export function ShipmentHeader({ shipment }: { shipment: AdminShipmentDetail }) 
           <time dateTime={updatedAt}>{format.dateTime(updatedAt)}</time>
         </DetailItem>
       </dl>
+      {canAssign && (
+        <AssignBranchDialog
+          open={assigning}
+          onOpenChange={setAssigning}
+          shipment={shipment}
+          returnFocusTo={assignButton}
+        />
+      )}
     </header>
   );
 }

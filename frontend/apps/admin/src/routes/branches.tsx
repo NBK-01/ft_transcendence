@@ -1,9 +1,9 @@
-import { Ban, Building2, MoreHorizontal, Pencil, Plus, RotateCcw } from "lucide-react";
+import { Ban, Building2, MoreHorizontal, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 
-import { isForbidden, useStaffAccess, type Organization } from "@trans/api";
+import { isApiError, isForbidden, useStaffAccess, type Organization } from "@trans/api";
 import { ConfirmDelete } from "@trans/ui/blocks/confirm-delete";
 import { createDataTableColumnHelper, DataTable } from "@trans/ui/blocks/data-table";
 import { DataTableColumnHeader } from "@trans/ui/blocks/data-table-column-header";
@@ -21,7 +21,12 @@ import {
 import { toast } from "@trans/ui/components/toaster";
 import { useReturnFocus } from "@trans/ui/hooks/use-return-focus";
 
-import { useOrganizations, useSetOrganizationActive } from "../features/branches/api";
+import {
+  ORGANIZATION_IN_USE,
+  useDeleteOrganization,
+  useOrganizations,
+  useSetOrganizationActive,
+} from "../features/branches/api";
 import { BranchFormDialog } from "../features/branches/branch-form-dialog";
 import { useBranchFilter } from "../features/branches/use-branch-filter";
 import { useInternalUsers } from "../features/users/api";
@@ -66,6 +71,28 @@ export function BranchesPage() {
   const deactivate = async (branch: Organization) => {
     await setActive({ id: branch.id, isActive: false });
     toast.success(t("app:branches.deactivated", { name: branch.name }));
+  };
+
+  // Deleting: only an empty branch (no staff, shipments or API keys); a 409 says why not.
+  const { mutateAsync: deleteBranch } = useDeleteOrganization();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState<Organization | null>(null);
+  const [inUse, setInUse] = useState(false);
+  const askDelete = useCallback((branch: Organization) => {
+    setDeleting(branch);
+    setInUse(false);
+    setDeleteOpen(true);
+  }, []);
+
+  /** Throws when the request fails, so ConfirmDelete keeps the dialog open with its error. */
+  const remove = async (branch: Organization) => {
+    try {
+      await deleteBranch(branch.id);
+    } catch (error) {
+      setInUse(isApiError(error) && error.errorCode === ORGANIZATION_IN_USE);
+      throw error;
+    }
+    toast.success(t("app:branches.deleted", { name: branch.name }));
   };
 
   const reactivate = useCallback(
@@ -185,6 +212,10 @@ export function BranchesPage() {
                         {t("app:branches.reactivate")}
                       </DropdownMenuItem>
                     )}
+                    <DropdownMenuItem variant="destructive" onSelect={() => askDelete(row.original)}>
+                      <Trash2 aria-hidden="true" />
+                      {t("app:branches.delete")}
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               ),
@@ -194,7 +225,19 @@ export function BranchesPage() {
           ]
         : []),
     ]);
-  }, [t, i18n.language, showMembers, canManage, memberCount, withBranch, openDialog, rememberFocus, askDeactivate, reactivate]);
+  }, [
+    t,
+    i18n.language,
+    showMembers,
+    canManage,
+    memberCount,
+    withBranch,
+    openDialog,
+    rememberFocus,
+    askDeactivate,
+    askDelete,
+    reactivate,
+  ]);
 
   const filters = useMemo(
     () => [
@@ -261,6 +304,17 @@ export function BranchesPage() {
         actionLabel={t("app:branches.deactivate")}
         errorText={t("app:branches.statusError")}
         onConfirm={() => (deactivating ? deactivate(deactivating) : undefined)}
+        returnFocusTo={returnFocusRef}
+      />
+      <ConfirmDelete
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={t("app:branches.deleteTitle", { name: deleting?.name ?? "" })}
+        description={t("app:branches.deleteBody")}
+        confirmText={deleting?.name}
+        actionLabel={t("app:branches.delete")}
+        errorText={t(inUse ? "app:branches.deleteInUse" : "app:branches.deleteError")}
+        onConfirm={() => (deleting ? remove(deleting) : undefined)}
         returnFocusTo={returnFocusRef}
       />
     </div>

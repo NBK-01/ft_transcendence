@@ -6,7 +6,14 @@ const fr: AdminResources = {
     operations: "Opérations",
     manage: "Gestion",
   },
+  nav: {
+    myBranch: "Mon agence",
+    branchLabel: "Agence : {{name}}",
+    noBranch: "Aucune agence",
+  },
   pages: {
+    shipmentsScoped:
+      "Les expéditions de {{branch}} : celles créées par ses partenaires et les commandes clients qu'un administrateur lui a confiées.",
     dashboard: "Vue en direct des expéditions, agences et équipes.",
     shipments: "Les expéditions de tous les clients, les plus récemment mises à jour en premier.",
     messages: "Conversations entre le personnel et les clients.",
@@ -88,11 +95,14 @@ const fr: AdminResources = {
       },
       search: "Rechercher un n° de suivi…",
       noBranch: "Aucune agence",
-      branchOnly: "Seules les expéditions qu'une agence crée via l'API publique lui appartiennent. Les commandes des clients n'ont pas d'agence : elles sont masquées tant qu'une agence est choisie.",
+      branchOnly:
+        "Une agence a les expéditions que ses partenaires créent via l'API publique, et les commandes clients qu'un administrateur lui confie.",
       emptyTitle: "Aucune expédition pour l'instant",
       emptyBody: "Les commandes des clients apparaissent ici dès qu'elles sont passées.",
       emptyBranchTitle: "Aucune expédition pour cette agence",
-      emptyBranchBody: "Les expéditions que cette agence crée via l'API publique apparaissent ici.",
+      emptyBranchBody: "Les expéditions de ses partenaires et les commandes clients qui lui sont confiées apparaissent ici.",
+      noBranchTitle: "Vous n'êtes dans aucune agence",
+      noBranchBody: "Quand un administrateur vous ajoutera à une agence, ses expéditions apparaîtront ici.",
     },
   },
   contacts: {
@@ -216,6 +226,18 @@ const fr: AdminResources = {
     },
   },
   shipment: {
+    assignBranch: {
+      action: "Modifier",
+      title: "Agence de {{trackingId}}",
+      description: "Les dispatcheurs de l'agence pourront alors traiter cette commande.",
+      label: "Agence",
+      none: "Aucune agence",
+      submit: "Enregistrer",
+      saved: "Agence enregistrée.",
+      locked: "L'expédition d'un partenaire reste à l'agence qui l'a créée.",
+      inactive: "Cette agence est désactivée. Réactivez-la d'abord.",
+      error: "Impossible de changer l'agence. Réessayez.",
+    },
     copyTrackingId: "Copier le numéro de suivi",
     customer: "Client",
     branch: "Agence",
@@ -460,6 +482,13 @@ const fr: AdminResources = {
     },
   },
   branches: {
+    delete: "Supprimer",
+    deleteTitle: "Supprimer {{name}} ?",
+    deleteBody:
+      "C'est définitif. Seule une agence sans personnel, expéditions ni clés d'API peut être supprimée ; sinon, désactivez-la.",
+    deleted: "{{name}} a été supprimée.",
+    deleteInUse: "Elle a encore du personnel, des expéditions ou des clés d'API. Désactivez-la plutôt.",
+    deleteError: "Impossible de supprimer l'agence. Réessayez.",
     columns: { name: "Nom", contactEmail: "E-mail de contact", members: "Membres", status: "Statut", created: "Créée le" },
     status: { active: "Active", deactivated: "Désactivée" },
     noContact: "Aucun e-mail de contact",
