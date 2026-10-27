@@ -4,9 +4,10 @@ import type { ChatConnection, ChatEvents } from "../chat-socket";
 import { roleCan } from "../permissions";
 import { tokens } from "../session";
 import type { AccountType, ChatMessage, Conversation, MessageResponse } from "../types";
-import { areConnected } from "./contacts";
+import { acceptedContactIdsOf, areConnected } from "./contacts";
 import { internalUsers, MOCK_USER } from "./data";
 import { notifyAction, onNotificationPushed, toDto } from "./notification-store";
+import { togglePresence } from "./presence";
 import { error, ok, paginated } from "./respond";
 import { staffForToken } from "./staff-auth";
 
@@ -265,11 +266,16 @@ function replierFor(conversation: Conversation, senderId: string): { id: string;
   return senderId === conversation.customerId ? { id: maya.id, type: "staff" } : { id: conversation.customerId!, type: "customer" };
 }
 
+/** How often a contact comes or goes while the mock socket is connected. */
+const PRESENCE_FLIP_MS = 20_000;
+
 /**
  * The in-memory socket. Same events as ChatGateway, for this tab only: you get
  * `message.new` for conversations you joined, `support.message.new` for
  * support conversations if you have support access (never for a staff DM),
- * and NotificationsGateway's `notification.new` for each new one of yours.
+ * NotificationsGateway's `notification.new` for each new one of yours, and,
+ * for staff, `presence.changed` as one of your contacts comes or goes (one
+ * every PRESENCE_FLIP_MS, taking turns).
  */
 export function createMockChatConnection(): ChatConnection {
   const listeners = new Map<keyof ChatEvents, Set<(payload?: unknown) => void>>();
@@ -278,6 +284,8 @@ export function createMockChatConnection(): ChatConnection {
   let replies = 0;
   let connected = false;
   let stopPushes = () => {};
+  let flips = 0;
+  let flipper: ReturnType<typeof setInterval> | undefined;
 
   const emit = (event: keyof ChatEvents, payload?: unknown) => {
     for (const listener of listeners.get(event) ?? []) listener(payload);
@@ -338,9 +346,17 @@ export function createMockChatConnection(): ChatConnection {
         const caller = me();
         if (connected && caller?.id === row.userId && caller.type === row.accountType) emit("notification.new", toDto(row));
       });
+      flipper = setInterval(() => {
+        const caller = me();
+        const contactIds = caller?.type === "staff" ? acceptedContactIdsOf(caller.id) : [];
+        const accountId = contactIds[flips++ % Math.max(contactIds.length, 1)];
+        if (!connected || !accountId) return;
+        emit("presence.changed", { accountId, accountType: "staff", online: togglePresence(accountId) });
+      }, PRESENCE_FLIP_MS);
     },
     close() {
       stopPushes();
+      clearInterval(flipper);
       for (const timer of timers) clearTimeout(timer);
       timers.clear();
       connected = false;

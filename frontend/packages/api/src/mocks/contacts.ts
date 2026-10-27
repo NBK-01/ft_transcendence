@@ -3,6 +3,7 @@ import { http } from "msw/http";
 import type { Contact, ContactStatus, InternalUser, MessageResponse } from "../types";
 import { internalUsers, isUuid } from "./data";
 import { notifyAction } from "./notification-store";
+import { isOnline } from "./presence";
 import { error, ok } from "./respond";
 import { staffCaller } from "./staff-auth";
 
@@ -121,7 +122,20 @@ const partyContact = (id: unknown, actorId: string) => {
 export const areConnected = (a: string, b: string) =>
   contacts.some((row) => row.status === "accepted" && isParty(row, a) && isParty(row, b));
 
+/** ContactsService.listAcceptedContactIds: the other person in each of your accepted contacts. */
+export const acceptedContactIdsOf = (internalUserId: string) =>
+  contacts
+    .filter((row) => row.status === "accepted" && isParty(row, internalUserId))
+    .map((row) => (row.requesterId === internalUserId ? row.addresseeId : row.requesterId));
+
 export const contactHandlers = [
+  // GET /contacts/presence: the caller's accepted contacts, online or not (presence.ts).
+  http.get("*/api/contacts/presence", ({ request }) => {
+    const { caller, response } = staffCaller(request);
+    if (!caller) return response;
+    return ok(acceptedContactIdsOf(caller.id).map((internalUserId) => ({ internalUserId, online: isOnline(internalUserId) })));
+  }),
+
   http.get("*/api/contacts", ({ request }) => {
     const { caller, response } = staffCaller(request);
     if (!caller) return response;

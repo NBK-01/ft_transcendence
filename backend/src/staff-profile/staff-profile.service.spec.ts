@@ -11,6 +11,8 @@ import { InternalUsersService } from '../internal-users/internal-users.service';
 import { ActionSignals } from '../notifications/action-signals';
 import { Organization } from '../organizations/organization.entity';
 import { StaffProfileService } from './staff-profile.service';
+import { ContactsService } from '../contacts/contacts.service';
+import { PresenceService } from '../chat/presence.service';
 
 /**
  * A staff member's own name and photo, and a colleague's profile. Runs the
@@ -78,6 +80,9 @@ function setup() {
       return Promise.resolve();
     },
   };
+  /** Pairs in accepted contact, as "a:b", and who's online. */
+  const contacts = new Set<string>();
+  const online = new Set<string>();
   const service = new StaffProfileService(
     internalUsers,
     {
@@ -85,8 +90,16 @@ function setup() {
         Promise.resolve(['shipments:read:org', 'shipments:update:org']),
     } as unknown as AccessControlService,
     storage as unknown as FileStorageService,
+    {
+      areConnected: (a: string, b: string) =>
+        Promise.resolve(contacts.has(`${a}:${b}`) || contacts.has(`${b}:${a}`)),
+    } as unknown as ContactsService,
+    {
+      isOnline: (_type: AccountType, id: string) =>
+        Promise.resolve(online.has(id)),
+    } as unknown as PresenceService,
   );
-  return { service, users, storage, signals };
+  return { service, users, storage, signals, contacts, online };
 }
 
 const photo = {
@@ -180,10 +193,11 @@ describe('StaffProfileService: your own name and photo', () => {
 });
 
 describe("StaffProfileService.profileOf: a colleague's page", () => {
-  it('shows what any staff member may see: no permissions, no branch status', async () => {
-    const { service } = setup();
+  it('shows what any staff member may see: no permissions, no branch status, and no online status to a non-contact', async () => {
+    const { service, online } = setup();
+    online.add('rami');
 
-    await expect(service.profileOf('rami')).resolves.toEqual({
+    await expect(service.profileOf('nadia', 'rami')).resolves.toEqual({
       id: 'rami',
       name: 'Rami Khoury',
       email: 'rami@example.com',
@@ -191,7 +205,24 @@ describe("StaffProfileService.profileOf: a colleague's page", () => {
       organization: { id: 'org-1', name: 'Beirut Central' },
       avatarUrl: null,
       isActive: true,
+      online: null,
       createdAt: new Date('2026-09-01T09:00:00Z'),
+    });
+  });
+
+  it('shows whether they are online to their accepted contacts, and to themselves', async () => {
+    const { service, contacts, online } = setup();
+    contacts.add('nadia:rami');
+
+    await expect(service.profileOf('nadia', 'rami')).resolves.toMatchObject({
+      online: false,
+    });
+    online.add('rami');
+    await expect(service.profileOf('nadia', 'rami')).resolves.toMatchObject({
+      online: true,
+    });
+    await expect(service.profileOf('rami', 'rami')).resolves.toMatchObject({
+      online: true,
     });
   });
 });

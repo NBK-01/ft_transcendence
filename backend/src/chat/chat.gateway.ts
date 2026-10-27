@@ -11,7 +11,8 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { ConnectionAuthenticator } from './connection-authenticator';
-import { PresenceService } from './presence.service';
+import { PRESENCE_HEARTBEAT_MS, PresenceService } from './presence.service';
+import { ContactsService } from '../contacts/contacts.service';
 import { ChatService } from './chat.service';
 import { ConversationType } from './entities/conversation.entity';
 import { AccessControlService } from '../access-control/access-control.service';
@@ -28,6 +29,8 @@ interface SocketData {
   user: RequestUser;
   organizationId: string | null;
   revalidationInterval: ReturnType<typeof setInterval>;
+  /** Keeps presence alive while the socket is idle (see PRESENCE_HEARTBEAT_MS). */
+  presenceHeartbeat: ReturnType<typeof setInterval>;
 }
 
 @WebSocketGateway({
@@ -40,12 +43,14 @@ export class ChatGateway
   @WebSocketServer()
   private readonly server!: Server;
 
+  // eslint-disable-next-line max-params
   constructor(
     private readonly connectionAuthenticator: ConnectionAuthenticator,
     private readonly presenceService: PresenceService,
     private readonly chatService: ChatService,
     private readonly accessControlService: AccessControlService,
     private readonly internalUsersService: InternalUsersService,
+    private readonly contactsService: ContactsService,
   ) {}
 
   /**
@@ -83,12 +88,13 @@ export class ChatGateway
     this.storeOnSocket(client, user, organizationId);
     await client.join(this.personalRoom(user));
     await this.presenceService.markOnline(user.accountType, user.id, client.id);
-    this.broadcastPresenceChanged(user, organizationId, true);
+    await this.broadcastPresenceChanged(user, true);
   }
 
   async handleDisconnect(client: Socket): Promise<void> {
     const data = this.dataOf(client);
     clearInterval(data?.revalidationInterval);
+    clearInterval(data?.presenceHeartbeat);
     if (!data?.user) {
       return;
     }
@@ -98,7 +104,7 @@ export class ChatGateway
       client.id,
     );
     if (wentFullyOffline) {
-      this.broadcastPresenceChanged(data.user, data.organizationId, false);
+      await this.broadcastPresenceChanged(data.user, false);
     }
   }
 
@@ -158,6 +164,13 @@ export class ChatGateway
         () => this.revalidate(client, user),
         REVALIDATION_INTERVAL_MS,
       ),
+      presenceHeartbeat: setInterval(
+        () =>
+          void this.presenceService
+            .refreshPresence(user.accountType, user.id)
+            .catch(() => undefined),
+        PRESENCE_HEARTBEAT_MS,
+      ),
     };
     client.data = data;
   }
@@ -183,7 +196,7 @@ export class ChatGateway
     }
   }
 
-  /** Joins the support-pool room (if permitted) and the org room (if assigned to one) — returns the organizationId so handleDisconnect can broadcast to the same room later. */
+  /** Joins the support-pool room (if permitted) and the org room (if assigned to one); returns the organizationId. */
   private async joinStaffRooms(
     client: Socket,
     user: RequestUser,
@@ -208,31 +221,37 @@ export class ChatGateway
   }
 
   /**
-   * Targets both rooms in a single emit (array form) rather than two separate
-   * .emit() calls — a staff member is a member of both their own personal
-   * room and their org room, and two separate emits each deliver once,
-   * duplicating the event for that one socket. Socket.IO's array form
-   * dedupes by socket id before sending, so each recipient gets exactly one.
+   * To the person's own tabs and, for staff, to their accepted contacts'
+   * (the only ones who see their online status: GET /contacts/presence).
+   * One emit to every room (array form) rather than one per room: Socket.IO
+   * dedupes by socket id, so each recipient gets it once.
    */
-  private broadcastPresenceChanged(
+  private async broadcastPresenceChanged(
     user: RequestUser,
-    organizationId: string | null,
     online: boolean,
-  ): void {
+  ): Promise<void> {
     const payload = {
       accountId: user.id,
       accountType: user.accountType,
       online,
     };
-    const rooms = [this.personalRoom(user)];
-    if (organizationId) {
-      rooms.push(this.organizationRoom(organizationId));
-    }
+    const contactIds =
+      user.accountType === AccountType.STAFF
+        ? await this.contactsService.listAcceptedContactIds(user.id)
+        : [];
+    const rooms = [
+      this.personalRoom(user),
+      ...contactIds.map((id) =>
+        this.personalRoom({ id, accountType: AccountType.STAFF }),
+      ),
+    ];
     this.server.to(rooms).emit('presence.changed', payload);
   }
 
-  private personalRoom(user: RequestUser): string {
-    return personalRoom(user);
+  private personalRoom(
+    account: Pick<RequestUser, 'id' | 'accountType'>,
+  ): string {
+    return personalRoom(account);
   }
 
   private organizationRoom(organizationId: string): string {

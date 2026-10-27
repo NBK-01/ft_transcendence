@@ -102,9 +102,31 @@ export type StaffUser = {
 export type StaffMe = StaffUser & {
   organizationId: string | null;
   organization: { id: string; name: string; isActive: boolean } | null;
+  /** A signed URL (it expires: don't keep it); null shows their initials. */
+  avatarUrl: string | null;
   /** Their role's permissions (an admin passes every check anyway). */
   permissions: string[];
 };
+
+/** GET /staff-profile/:id (backend StaffProfileDto): a colleague, as any staff member may see them. */
+export type StaffProfile = {
+  id: string;
+  name: string;
+  email: string;
+  roleName: string | null;
+  organization: { id: string; name: string } | null;
+  avatarUrl: string | null;
+  isActive: boolean;
+  /** Online now: only for their accepted contacts (and yourself); null otherwise. */
+  online: boolean | null;
+  createdAt: string;
+};
+
+/** PATCH /staff-profile body: what staff may change about themselves. */
+export type UpdateStaffProfileInput = { name: string };
+
+/** POST /staff-profile/avatar (and DELETE, with null). */
+export type StaffAvatarResult = { avatarUrl: string | null };
 
 /** POST /staff-auth/login body. */
 export type StaffLoginInput = { email: string; password: string };
@@ -171,6 +193,9 @@ export type SupportMessageEvent = { conversationId: string; preview: string };
 
 /** Socket event `presence.changed`. */
 export type PresenceEvent = { accountId: string; accountType: AccountType; online: boolean };
+
+/** GET /contacts/presence (backend ContactPresenceDto): whether an accepted contact is online now. */
+export type ContactPresence = { internalUserId: string; online: boolean };
 
 /** Returned by endpoints that only confirm an action. */
 export type MessageResponse = { message: string };

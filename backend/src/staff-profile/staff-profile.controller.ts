@@ -82,7 +82,10 @@ export class StaffProfileController {
   @ApiOperation({ summary: "A colleague's profile" })
   @ApiResponse({ status: 200, type: StaffProfileDto })
   @ApiResponse({ status: 404, description: 'No such staff member (8001)' })
-  async profileOf(@Param('id', ParseUUIDPipe) id: string) {
-    return this.staffProfileService.profileOf(id);
+  async profileOf(
+    @CurrentUser() staff: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.staffProfileService.profileOf(staff.id, id);
   }
 }

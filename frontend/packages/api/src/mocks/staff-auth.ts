@@ -1,8 +1,9 @@
 import { http } from "msw/http";
 
-import { INSUFFICIENT_PERMISSIONS, ROLE_PERMISSIONS, roleCan, type StaffRole } from "../permissions";
-import type { MessageResponse, StaffAuthResponse, StaffMe, TokenPair } from "../types";
-import { internalUsers, ORGANIZATIONS, staffPasswords } from "./data";
+import { INSUFFICIENT_PERMISSIONS, roleCan } from "../permissions";
+import type { MessageResponse, StaffAuthResponse, TokenPair } from "../types";
+import { customerForToken } from "./auth";
+import { internalUsers, staffPasswords } from "./data";
 import { notifyAction } from "./notification-store";
 import { error, ok } from "./respond";
 
@@ -20,6 +21,8 @@ import { error, ok } from "./respond";
 const INVALID_CREDENTIALS = 8003;
 const INVALID_REFRESH_TOKEN = 8004;
 const ACCOUNT_INACTIVE = 7003;
+/** Backend AccessControlErrorCodes.NotInternalUser (403): a customer's token on a staff route. */
+const NOT_INTERNAL_USER = 7002;
 
 const ACCESS_PREFIX = "mock-staff-access-";
 const REFRESH_PREFIX = "mock-staff-refresh-";
@@ -55,9 +58,13 @@ export const staffForToken = (token: string | null | undefined) => {
   return user?.isActive ? user : undefined;
 };
 
-/** @RequireStaff(): the signed-in, active staff member, or the 401 the backend would send. */
+/** @RequireStaff(): the signed-in, active staff member, or the 401 or 403 the backend would send. */
 export const staffCaller = (request: Request) => {
-  const caller = accountOf(bearer(request), ACCESS_PREFIX);
+  const token = bearer(request);
+  const caller = accountOf(token, ACCESS_PREFIX);
+  if (!caller && customerForToken(token)) {
+    return { response: error(403, ["This action is restricted to staff accounts"], NOT_INTERNAL_USER) };
+  }
   if (!caller) return { response: unauthorized() };
   if (!caller.isActive) return { response: error(401, ["This staff account has been deactivated"], ACCOUNT_INACTIVE) };
   return { caller };
@@ -79,8 +86,8 @@ function roleAllows(roleName: string | null, method: string, pathname: string) {
 
 /**
  * Runs before the staff-only handlers, in the same order as the backend's
- * guards: no staff token → 401; a deactivated account → 401 (7003); a role
- * without access → 403 (7001). Otherwise it returns nothing, so MSW moves on
+ * guards: no valid token → 401; a customer's token → 403 (7002); a
+ * deactivated account → 401 (7003); a role without access → 403 (7001). Otherwise it returns nothing, so MSW moves on
  * to the matching handler. The role is read from the account as it is now,
  * like the backend does, not from when the token was issued.
  *  - Staff accounts, roles and API keys (@RequireRole("admin")): admins only.
@@ -141,26 +148,6 @@ export const staffAuthHandlers = [
     const { refreshToken } = (await request.json()) as { refreshToken?: string };
     if (refreshToken) revoked.add(refreshToken);
     return ok<MessageResponse>({ message: "Logged out" });
-  }),
-
-  // StaffAuthService.me: the account as it is now, with its branch and its role's permissions.
-  http.get("*/api/staff-auth/me", ({ request }) => {
-    const { caller, response } = staffCaller(request);
-    if (!caller) return response;
-    const branch = ORGANIZATIONS.find((org) => org.id === caller.organizationId);
-    const permissions =
-      caller.roleName && Object.hasOwn(ROLE_PERMISSIONS, caller.roleName)
-        ? [...ROLE_PERMISSIONS[caller.roleName as StaffRole]]
-        : [];
-    return ok<StaffMe>({
-      id: caller.id,
-      email: caller.email,
-      name: caller.name,
-      roleName: caller.roleName,
-      organizationId: caller.organizationId,
-      organization: branch ? { id: branch.id, name: branch.name, isActive: branch.isActive } : null,
-      permissions,
-    });
   }),
 
   http.post("*/api/staff-auth/logout-all", ({ request }) => {

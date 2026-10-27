@@ -6,7 +6,7 @@ import { ChatAccessService } from './chat-access.service';
 import { ChatController } from './chat.controller';
 import { ChatGateway } from './chat.gateway';
 import { ConnectionAuthenticator } from './connection-authenticator';
-import { PresenceService } from './presence.service';
+import { PresenceModule } from './presence.module';
 import { WsExceptionFilter } from './ws-exception.filter';
 import { Conversation } from './entities/conversation.entity';
 import { ConversationParticipant } from './entities/conversation-participant.entity';
@@ -21,6 +21,7 @@ import { jwtConfig } from '../config/jwt.config';
   imports: [
     TypeOrmModule.forFeature([Conversation, ConversationParticipant, Message]),
     ContactsModule,
+    PresenceModule,
     AccessControlModule,
     UsersModule,
     InternalUsersModule,
@@ -35,7 +36,6 @@ import { jwtConfig } from '../config/jwt.config';
     ChatAccessService,
     ChatGateway,
     ConnectionAuthenticator,
-    PresenceService,
     WsExceptionFilter,
   ],
   exports: [ChatService, ChatAccessService],

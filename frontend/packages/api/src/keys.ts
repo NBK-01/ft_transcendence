@@ -18,6 +18,10 @@ export const keys = {
   staffAuth: {
     me: ["staff-auth", "me"] as const,
   },
+  staffProfiles: {
+    all: ["staff-profiles"] as const,
+    detail: (id: string) => [...keys.staffProfiles.all, id] as const,
+  },
   internalUsers: {
     all: ["internal-users"] as const,
     list: () => [...keys.internalUsers.all, "list"] as const,
@@ -34,6 +38,7 @@ export const keys = {
   contacts: {
     all: ["contacts"] as const,
     list: () => [...keys.contacts.all, "list"] as const,
+    presence: () => [...keys.contacts.all, "presence"] as const,
   },
   organizations: {
     all: ["organizations"] as const,

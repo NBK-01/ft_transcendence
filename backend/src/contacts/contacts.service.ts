@@ -80,6 +80,21 @@ export class ContactsService {
   }
 
   /** The one place "are these two staff connected" is answered — Chat re-checks this on every message send. */
+  /** The staff a staff member is in accepted contact with: who sees their online status. */
+  async listAcceptedContactIds(internalUserId: string): Promise<string[]> {
+    const contacts = await this.contactRepository.find({
+      where: [
+        { requesterId: internalUserId, status: ContactStatus.ACCEPTED },
+        { addresseeId: internalUserId, status: ContactStatus.ACCEPTED },
+      ],
+    });
+    return contacts.map((contact) =>
+      contact.requesterId === internalUserId
+        ? contact.addresseeId
+        : contact.requesterId,
+    );
+  }
+
   async areConnected(
     internalUserIdA: string,
     internalUserIdB: string,

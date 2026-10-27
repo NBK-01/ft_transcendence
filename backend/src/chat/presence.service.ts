@@ -4,15 +4,18 @@ import Redis from 'ioredis';
 import { AccountType } from '../common/context/auth-context.types';
 
 const PRESENCE_TTL_SECONDS = 90;
+
+/** How often a connected socket refreshes its presence: well inside the TTL. */
+export const PRESENCE_HEARTBEAT_MS = 30_000;
 const PRESENCE_KEY_PREFIX = 'presence';
 
 /**
  * Backed by the existing shared Redis client (same one rate-limiting/OAuth
  * codes already use). TTL'd rather than relying solely on a clean
  * disconnect — an unclean one (process killed, not a graceful close) would
- * otherwise leave a stale "online" entry forever. refreshPresence() is
- * called on every inbound gateway event so the TTL never lapses while a
- * connection is genuinely alive.
+ * otherwise leave a stale "online" entry forever. ChatGateway refreshes it
+ * on every inbound event and on a heartbeat (PRESENCE_HEARTBEAT_MS), so the
+ * TTL never lapses while a connection is alive, even an idle one.
  */
 @Injectable()
 export class PresenceService {
@@ -58,6 +61,24 @@ export class PresenceService {
       this.presenceKey(accountType, accountId),
     );
     return count > 0;
+  }
+
+  /** Which of these accounts are online, in one round trip. */
+  async onlineAmong(
+    accountType: AccountType,
+    accountIds: string[],
+  ): Promise<Set<string>> {
+    if (!accountIds.length) {
+      return new Set();
+    }
+    const pipeline = this.redis.pipeline();
+    for (const id of accountIds) {
+      pipeline.scard(this.presenceKey(accountType, id));
+    }
+    const counts = (await pipeline.exec()) ?? [];
+    return new Set(
+      accountIds.filter((_, index) => Number(counts[index]?.[1] ?? 0) > 0),
+    );
   }
 
   private presenceKey(accountType: AccountType, accountId: string): string {

@@ -17,7 +17,8 @@ import { ChatGateway } from './chat.gateway';
 import { ChatService } from './chat.service';
 import { ConnectionAuthenticator } from './connection-authenticator';
 import { ConversationType } from './entities/conversation.entity';
-import { PresenceService } from './presence.service';
+import { PRESENCE_HEARTBEAT_MS, PresenceService } from './presence.service';
+import { ContactsService } from '../contacts/contacts.service';
 import { WsExceptionFilter } from './ws-exception.filter';
 import {
   ChatErrorCodes,
@@ -112,12 +113,21 @@ function setup() {
     ),
   } as unknown as AccessControlService;
 
+  /** Each staff member's accepted contacts: who hears about their presence. */
+  const contactIds = new Map<string, string[]>();
+  const contactsService = {
+    listAcceptedContactIds: jest.fn((id: string) =>
+      Promise.resolve(contactIds.get(id) ?? []),
+    ),
+  } as unknown as ContactsService;
+
   const gateway = new ChatGateway(
     connectionAuthenticator,
     presenceService,
     chatService,
     accessControlService,
     internalUsersService,
+    contactsService,
   );
 
   const addCustomer = (id: string) => {
@@ -160,6 +170,7 @@ function setup() {
   return {
     gateway,
     connectionAuthenticator,
+    contactIds,
     presenceService,
     chatService,
     accessControlService,
@@ -379,9 +390,10 @@ describe('handleConnection: room joins', () => {
     expect(to).toHaveBeenCalledWith(['user:staff:staff-1']);
   });
 
-  it('staff assigned to an organization additionally join the org room, and presence goes to both rooms', async () => {
-    const { gateway, addStaff } = setup();
+  it("staff in an organization also join its room; presence goes to their own room and their accepted contacts', not the branch's", async () => {
+    const { gateway, addStaff, contactIds } = setup();
     addStaff('staff-1', { organizationId: 'org-1' });
+    contactIds.set('staff-1', ['staff-2', 'staff-3']);
     const { to } = wireServer(gateway);
     const socket = connectedSocket(staffUser('staff-1'));
 
@@ -390,7 +402,33 @@ describe('handleConnection: room joins', () => {
     expect(socket.join).toHaveBeenCalledTimes(2);
     expect(socket.join).toHaveBeenCalledWith('org:org-1');
     expect(socket.join).toHaveBeenCalledWith('user:staff:staff-1');
-    expect(to).toHaveBeenCalledWith(['user:staff:staff-1', 'org:org-1']);
+    expect(to).toHaveBeenCalledWith([
+      'user:staff:staff-1',
+      'user:staff:staff-2',
+      'user:staff:staff-3',
+    ]);
+  });
+
+  it('keeps presence alive while connected (a heartbeat), and stops on disconnect', async () => {
+    jest.useFakeTimers();
+    try {
+      const { gateway, addStaff, presenceService } = setup();
+      addStaff('staff-1');
+      wireServer(gateway);
+      const socket = connectedSocket(staffUser('staff-1'));
+      await gateway.handleConnection(socket);
+      const refresh = presenceService.refreshPresence as jest.Mock;
+
+      jest.advanceTimersByTime(PRESENCE_HEARTBEAT_MS * 2);
+      expect(refresh).toHaveBeenCalledTimes(2);
+      expect(refresh).toHaveBeenCalledWith(AccountType.STAFF, 'staff-1');
+
+      await gateway.handleDisconnect(socket);
+      jest.advanceTimersByTime(PRESENCE_HEARTBEAT_MS * 2);
+      expect(refresh).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('staff with support-pool access additionally join the support pool room, which is not part of the presence broadcast', async () => {
@@ -627,8 +665,9 @@ describe('exception handling (WsExceptionFilter, bound on the gateway)', () => {
 
 describe('handleDisconnect', () => {
   it('fully offline (last device): broadcasts presence to all rooms in a single to()/emit() call, not one per room (regression: this used to double-emit)', async () => {
-    const { gateway, presenceService } = setup();
+    const { gateway, presenceService, contactIds } = setup();
     (presenceService.markOffline as jest.Mock).mockResolvedValue(true);
+    contactIds.set('staff-1', ['staff-2']);
     const { to, emit } = wireServer(gateway);
     const socket = connectedSocket(staffUser('staff-1'), {
       organizationId: 'org-1',
@@ -643,7 +682,10 @@ describe('handleDisconnect', () => {
       'socket-1',
     );
     expect(to).toHaveBeenCalledTimes(1);
-    expect(to).toHaveBeenCalledWith(['user:staff:staff-1', 'org:org-1']);
+    expect(to).toHaveBeenCalledWith([
+      'user:staff:staff-1',
+      'user:staff:staff-2',
+    ]);
     expect(emit).toHaveBeenCalledTimes(1);
     expect(emit).toHaveBeenCalledWith('presence.changed', {
       accountId: 'staff-1',
@@ -696,7 +738,7 @@ describe('handleDisconnect', () => {
 });
 
 describe('current gaps (pinned, not endorsed)', () => {
-  it('presence is broadcast to the personal + org rooms, but never to the support-pool room, so support staff watching the pool never see a colleague go offline from there', async () => {
+  it('presence is broadcast to the personal room and accepted contacts, but never to the support-pool room, so support staff watching the pool never see a colleague go offline from there', async () => {
     const { gateway, addStaff } = setup();
     addStaff('staff-1', { supportAccess: true });
     const { to } = wireServer(gateway);

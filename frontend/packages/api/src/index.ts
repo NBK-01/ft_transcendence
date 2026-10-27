@@ -117,4 +117,6 @@ export {
   type Permission,
   type StaffRole,
 } from "./permissions";
+export { useRemoveStaffAvatar, useStaffProfile, useUpdateStaffProfile, useUploadStaffAvatar } from "./staff-profile";
+export { useContactPresence, useLivePresence } from "./presence";
 export type * from "./types";

@@ -35,6 +35,14 @@ export class StaffProfileDto {
   @ApiProperty()
   isActive!: boolean;
 
+  @ApiProperty({
+    type: Boolean,
+    nullable: true,
+    description:
+      'Whether they are online now: only for their accepted contacts (and yourself), null otherwise',
+  })
+  online!: boolean | null;
+
   @ApiProperty({ type: Date })
   createdAt!: Date;
 }

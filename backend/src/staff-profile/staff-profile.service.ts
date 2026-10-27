@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { AccessControlService } from '../access-control/access-control.service';
+import { PresenceService } from '../chat/presence.service';
+import { AccountType } from '../common/context/auth-context.types';
+import { ContactsService } from '../contacts/contacts.service';
 import { FileStorageService } from '../file-storage/file-storage.service';
 import { InternalUser } from '../internal-users/internal-user.entity';
 import { InternalUserNotFoundException } from '../internal-users/exceptions';
@@ -18,6 +21,8 @@ export class StaffProfileService {
     private readonly internalUsersService: InternalUsersService,
     private readonly accessControlService: AccessControlService,
     private readonly fileStorageService: FileStorageService,
+    private readonly contactsService: ContactsService,
+    private readonly presenceService: PresenceService,
   ) {}
 
   /** The signed-in staff member as they are now: a rename, a new role or branch shows without signing in again. */
@@ -73,8 +78,12 @@ export class StaffProfileService {
     return { avatarUrl: null };
   }
 
-  /** A colleague's profile page: what any staff member may see of another. */
-  async profileOf(id: string): Promise<StaffProfileDto> {
+  /**
+   * A colleague's profile page: what any staff member may see of another.
+   * Whether they're online only shows to their accepted contacts, like on
+   * the contacts list.
+   */
+  async profileOf(viewerId: string, id: string): Promise<StaffProfileDto> {
     const staff = await this.findWithBranch(id);
     return {
       id: staff.id,
@@ -86,8 +95,22 @@ export class StaffProfileService {
         : null,
       avatarUrl: await this.avatarUrl(staff),
       isActive: staff.isActive,
+      online: await this.onlineFor(viewerId, staff.id),
       createdAt: staff.createdAt,
     };
+  }
+
+  private async onlineFor(
+    viewerId: string,
+    id: string,
+  ): Promise<boolean | null> {
+    if (viewerId === id) {
+      return true;
+    }
+    if (!(await this.contactsService.areConnected(viewerId, id))) {
+      return null;
+    }
+    return this.presenceService.isOnline(AccountType.STAFF, id);
   }
 
   private async findWithBranch(id: string): Promise<InternalUser> {
