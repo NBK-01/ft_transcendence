@@ -2,6 +2,7 @@ import { ImagePlus, X } from "lucide-react";
 import { useEffect, useId, useRef, useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 
+import { SHIPMENT_IMAGE_TYPES } from "@trans/api";
 import { Button } from "@trans/ui/components/button";
 import { FieldError } from "@trans/ui/components/field";
 import { cn } from "@trans/ui/lib/utils";
@@ -44,7 +45,9 @@ export function PhotoPicker({ onChange, error }: { onChange: (files: File[]) => 
   const add = (files: FileList | null) => {
     if (!files) return;
     const incoming = [...files];
-    const accepted = incoming.filter((file) => file.type.startsWith("image/") && file.size <= MAX_PHOTO_BYTES);
+    const accepted = incoming.filter(
+      (file) => (SHIPMENT_IMAGE_TYPES as readonly string[]).includes(file.type) && file.size <= MAX_PHOTO_BYTES,
+    );
     const room = MAX_PHOTOS - photos.length;
     const kept = accepted.slice(0, room);
 
@@ -79,7 +82,7 @@ export function PhotoPicker({ onChange, error }: { onChange: (files: File[]) => 
         ref={inputRef}
         id={inputId}
         type="file"
-        accept="image/*"
+        accept={SHIPMENT_IMAGE_TYPES.join(",")}
         multiple
         className="sr-only"
         onChange={(event) => {

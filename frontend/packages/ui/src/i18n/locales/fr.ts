@@ -54,6 +54,7 @@ const fr: CommonResources = {
     profile: "Profil",
     dashboard: "Vue d'ensemble",
     users: "Utilisateurs",
+    roles: "Rôles",
     branches: "Agences",
     apiKeys: "Clés API",
     signOut: "Se déconnecter",

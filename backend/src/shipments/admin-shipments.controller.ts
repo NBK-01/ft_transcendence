@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -238,5 +239,24 @@ export class AdminShipmentsController {
       dto,
       file,
     );
+  }
+
+  @RequirePermission('shipments:update:org')
+  @Delete(':trackingId/files/:fileId')
+  @ApiOperation({
+    summary: 'Remove a file (offer photos only while pending_client_decision)',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Not found, or outside your branch',
+  })
+  @ApiResponse({ status: 409, description: "Can't be deleted right now" })
+  async deleteFile(
+    @CurrentUser() staff: RequestUser,
+    @Param('trackingId') trackingId: string,
+    @Param('fileId') fileId: string,
+  ) {
+    await this.adminShipmentsService.deleteFile(staff.id, trackingId, fileId);
+    return { message: 'File removed' };
   }
 }

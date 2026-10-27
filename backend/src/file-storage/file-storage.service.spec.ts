@@ -22,6 +22,7 @@ import { UsersService } from '../users/users.service';
 import { FileStorageService } from './file-storage.service';
 import { S3StorageProvider } from './providers/s3-storage.provider';
 import {
+  FileDeleteFailedException,
   FileStorageErrorCodes,
   FileTooLargeException,
   FileUploadFailedException,
@@ -102,6 +103,13 @@ const expectFailedUpload = (promise: Promise<unknown>) =>
     HttpStatus.INTERNAL_SERVER_ERROR,
     FileStorageErrorCodes.FileUploadFailed,
   );
+const expectFailedDelete = (promise: Promise<unknown>) =>
+  expectDomainError(
+    promise,
+    FileDeleteFailedException,
+    HttpStatus.INTERNAL_SERVER_ERROR,
+    FileStorageErrorCodes.FileDeleteFailed,
+  );
 const expectInvalidType = (promise: Promise<unknown>) =>
   expectDomainError(
     promise,
@@ -117,7 +125,32 @@ const expectTooLarge = (promise: Promise<unknown>) =>
     FileStorageErrorCodes.FileTooLarge,
   );
 
-const AVATAR_PNG = Buffer.from('fake-png-bytes');
+/**
+ * Real magic-byte signatures — validation now sniffs the actual bytes
+ * (detectFileType), so fixtures must start with a real signature or they're
+ * rejected regardless of the mimetype/extension the test wants to pretend.
+ */
+const PNG_BYTES = Buffer.from([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0,
+]);
+const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0]);
+const WEBP_BYTES = Buffer.concat([
+  Buffer.from('RIFF', 'ascii'),
+  Buffer.from([0, 0, 0, 0]),
+  Buffer.from('WEBP', 'ascii'),
+]);
+const PDF_BYTES = Buffer.from('%PDF-1.4\n%fake', 'ascii');
+/** Matches no known signature — stands in for any unsupported real file type. */
+const UNKNOWN_BYTES = Buffer.from('this is not a recognized file signature');
+
+/** A signature, padded with trailing zero bytes to hit an exact total size. */
+function padded(signature: Buffer, size: number): Buffer {
+  const buffer = Buffer.alloc(size);
+  signature.copy(buffer);
+  return buffer;
+}
+
+const AVATAR_PNG = PNG_BYTES;
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
 
 describe('uploadAvatar', () => {
@@ -162,24 +195,24 @@ describe('uploadAvatar', () => {
   });
 
   it.each([
-    ['image/jpeg', 'jpeg'],
-    ['image/png', 'png'],
-    ['image/webp', 'webp'],
-  ])('accepts %s', async (contentType) => {
+    ['image/jpeg', JPEG_BYTES],
+    ['image/png', PNG_BYTES],
+    ['image/webp', WEBP_BYTES],
+  ])('accepts %s', async (contentType, bytes) => {
     const { service, sendMock } = setup();
 
     await expect(
-      service.uploadAvatar(AVATAR_PNG, 'user-1', 'f', contentType),
+      service.uploadAvatar(bytes, 'user-1', 'f', contentType),
     ).resolves.toBeDefined();
     expect(sendMock).toHaveBeenCalledTimes(1);
   });
 
-  it('refuses an unsupported content type (400, 9001) and never calls S3', async () => {
+  it('refuses an unsupported real file type (400, 9001) and never calls S3, regardless of the declared content type', async () => {
     const { service, sendMock } = setup();
 
     await expectInvalidType(
       service.uploadAvatar(
-        AVATAR_PNG,
+        UNKNOWN_BYTES,
         'user-1',
         'malware.exe',
         'application/x-msdownload',
@@ -193,7 +226,7 @@ describe('uploadAvatar', () => {
 
     await expect(
       service.uploadAvatar(
-        Buffer.alloc(AVATAR_MAX_BYTES),
+        padded(PNG_BYTES, AVATAR_MAX_BYTES),
         'user-1',
         'big.png',
         'image/png',
@@ -207,7 +240,7 @@ describe('uploadAvatar', () => {
 
     await expectTooLarge(
       service.uploadAvatar(
-        Buffer.alloc(AVATAR_MAX_BYTES + 1),
+        padded(PNG_BYTES, AVATAR_MAX_BYTES + 1),
         'user-1',
         'big.png',
         'image/png',
@@ -242,7 +275,7 @@ describe('uploadShipmentFile', () => {
     const { service, sendMock } = setup();
 
     const result = await service.uploadShipmentFile(
-      Buffer.from('doc'),
+      PDF_BYTES,
       'TRK-100',
       'proof.pdf',
       'application/pdf',
@@ -264,14 +297,14 @@ describe('uploadShipmentFile', () => {
 
     const [a, b] = await Promise.all([
       service.uploadShipmentFile(
-        Buffer.from('x'),
+        PNG_BYTES,
         'TRK-1',
         'a.png',
         'image/png',
         'image',
       ),
       service.uploadShipmentFile(
-        Buffer.from('x'),
+        PNG_BYTES,
         'TRK-1',
         'a.png',
         'image/png',
@@ -283,21 +316,15 @@ describe('uploadShipmentFile', () => {
   });
 
   it.each([
-    ['image', 'application/pdf'],
-    ['document', 'video/mp4'],
+    ['image', PDF_BYTES, 'application/pdf'],
+    ['document', UNKNOWN_BYTES, 'video/mp4'],
   ] as const)(
-    'refuses a content type not allowed for category %s (400, 9001)',
-    async (category, contentType) => {
+    'refuses a real file type not allowed for category %s (400, 9001)',
+    async (category, bytes, contentType) => {
       const { service, sendMock } = setup();
 
       await expectInvalidType(
-        service.uploadShipmentFile(
-          Buffer.from('x'),
-          'TRK-1',
-          'f',
-          contentType,
-          category,
-        ),
+        service.uploadShipmentFile(bytes, 'TRK-1', 'f', contentType, category),
       );
       expect(sendMock).not.toHaveBeenCalled();
     },
@@ -308,7 +335,7 @@ describe('uploadShipmentFile', () => {
 
     await expect(
       service.uploadShipmentFile(
-        Buffer.from('x'),
+        PDF_BYTES,
         'TRK-1',
         'f.pdf',
         'application/pdf',
@@ -322,7 +349,7 @@ describe('uploadShipmentFile', () => {
 
     await expectTooLarge(
       service.uploadShipmentFile(
-        Buffer.alloc(10 * 1024 * 1024 + 1),
+        padded(PNG_BYTES, 10 * 1024 * 1024 + 1),
         'TRK-1',
         'f.png',
         'image/png',
@@ -338,7 +365,7 @@ describe('uploadShipmentFile', () => {
 
     await expectFailedUpload(
       service.uploadShipmentFile(
-        Buffer.from('x'),
+        PNG_BYTES,
         'TRK-1',
         'f.png',
         'image/png',
@@ -353,20 +380,16 @@ describe('validateShipmentFile (standalone, used by callers before a batch uploa
     const { service } = setup();
 
     expect(() =>
-      service.validateShipmentFile(Buffer.from('x'), 'image/jpeg', 'image'),
+      service.validateShipmentFile(JPEG_BYTES, 'image'),
     ).not.toThrow();
   });
 
-  it('throws before any upload happens for a disallowed type', () => {
+  it('throws before any upload happens for a disallowed real file type', () => {
     const { service } = setup();
 
-    expect(() =>
-      service.validateShipmentFile(
-        Buffer.from('x'),
-        'application/pdf',
-        'image',
-      ),
-    ).toThrow(InvalidFileTypeException);
+    expect(() => service.validateShipmentFile(PDF_BYTES, 'image')).toThrow(
+      InvalidFileTypeException,
+    );
   });
 });
 
@@ -385,11 +408,11 @@ describe('deleteFile', () => {
     });
   });
 
-  it('an S3 failure surfaces as 500/9003, not the raw AWS error', async () => {
+  it('an S3 failure surfaces as 500/9004, not the raw AWS error', async () => {
     const { service, sendMock } = setup();
     sendMock.mockRejectedValueOnce(new Error('NoSuchKey'));
 
-    await expectFailedUpload(service.deleteFile('avatars/missing.png'));
+    await expectFailedDelete(service.deleteFile('avatars/missing.png'));
   });
 });
 
@@ -435,7 +458,7 @@ describe('signed URL generation (getAvatarUrl / getFileUrl)', () => {
 
 /** The real UsersController + UsersService over one in-memory user, storing into the real FileStorageService/S3StorageProvider above. */
 function avatarRoute() {
-  const { service } = setup();
+  const { service, sendMock } = setup();
   const users: Partial<User>[] = [
     { id: 'user-1', email: 'maria@example.com', avatarKey: null },
   ];
@@ -464,17 +487,25 @@ function avatarRoute() {
   };
   const upload = (file?: Express.Multer.File) =>
     controller.uploadAvatar(file, me);
+  const remove = () => controller.deleteAvatar(me);
   const avatarFile = (
     name: string,
-    mimetype = 'image/png',
-    size = 100,
+    bytes: Buffer = PNG_BYTES,
   ): Express.Multer.File =>
     ({
-      buffer: Buffer.alloc(size, 1),
+      buffer: bytes,
       originalname: name,
-      mimetype,
+      mimetype: 'image/png',
     }) as Express.Multer.File;
-  return { users, controller, usersService, upload, avatarFile };
+  return {
+    users,
+    controller,
+    usersService,
+    upload,
+    remove,
+    avatarFile,
+    sendMock,
+  };
 }
 
 describe('POST /users/profile/avatar (route, end to end)', () => {
@@ -492,7 +523,7 @@ describe('POST /users/profile/avatar (route, end to end)', () => {
     await upload(avatarFile('first.png'));
     const firstKey = users[0].avatarKey;
 
-    await upload(avatarFile('second.webp', 'image/webp'));
+    await upload(avatarFile('second.webp', WEBP_BYTES));
 
     expect(users[0].avatarKey).not.toBe(firstKey);
   });
@@ -502,7 +533,7 @@ describe('POST /users/profile/avatar (route, end to end)', () => {
     await upload(avatarFile('first.png'));
     const firstKey = users[0].avatarKey;
 
-    await expectInvalidType(upload(avatarFile('cv.pdf', 'application/pdf')));
+    await expectInvalidType(upload(avatarFile('cv.pdf', PDF_BYTES)));
 
     expect(users[0].avatarKey).toBe(firstKey);
   });
@@ -526,6 +557,42 @@ describe('POST /users/profile/avatar (route, end to end)', () => {
     const profile = await usersService.getProfile('user-1');
 
     expect(profile.avatarUrl).toBe('https://signed.example/object');
+  });
+});
+
+describe('DELETE /users/profile/avatar (route, end to end)', () => {
+  it('clears the stored key and deletes the object from storage', async () => {
+    const { users, upload, remove, avatarFile, sendMock } = avatarRoute();
+    await upload(avatarFile('me.png'));
+    sendMock.mockClear();
+
+    const result = await remove();
+
+    expect(users[0].avatarKey).toBeNull();
+    expect(result).toEqual({ message: 'Avatar removed' });
+    expect(sendMock).toHaveBeenCalledTimes(1);
+    expect(sendMock.mock.calls[0][0]).toBeInstanceOf(DeleteObjectCommand);
+  });
+
+  it('is idempotent: no avatar set is a clean no-op, not an error', async () => {
+    const { users, remove, sendMock } = avatarRoute();
+
+    const result = await remove();
+
+    expect(result).toEqual({ message: 'Avatar removed' });
+    expect(users[0].avatarKey).toBeFalsy();
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it('a failed storage delete is swallowed — the avatar is still cleared', async () => {
+    const { users, upload, remove, avatarFile, sendMock } = avatarRoute();
+    await upload(avatarFile('me.png'));
+    sendMock.mockRejectedValueOnce(new Error('NoSuchKey'));
+
+    const result = await remove();
+
+    expect(result).toEqual({ message: 'Avatar removed' });
+    expect(users[0].avatarKey).toBeNull();
   });
 });
 

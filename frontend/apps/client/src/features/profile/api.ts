@@ -51,6 +51,18 @@ export function useUploadAvatar() {
   });
 }
 
+/** DELETE /users/profile/avatar (real) — idempotent: no avatar set is a clean no-op. */
+export function useDeleteAvatar() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.delete<MessageResponse>("/users/profile/avatar"),
+    onSuccess: () => {
+      queryClient.setQueryData<Profile>(profileKeys.me, (profile) => (profile ? { ...profile, avatarUrl: null } : profile));
+      return queryClient.invalidateQueries({ queryKey: keys.auth.me });
+    },
+  });
+}
+
 /**
  * DELETE /auth/account — self-deactivation, not a hard delete (blocks future
  * login, ends every session server-side). On success ends the session here

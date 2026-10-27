@@ -30,9 +30,15 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { OAuthExchangeDto } from './dto/oauth-exchange.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { RequireCustomer } from '../common/decorators/access-control.decorator';
-import { GoogleAuthGuard } from './guards/google-auth.guard';
+import {
+  GOOGLE_AUTH_FAILURE,
+  GoogleAuthGuard,
+  RequestWithGoogleFailure,
+} from './guards/google-auth.guard';
 import { AuthContextService } from '../common/context';
 import { UsersService } from '../users/users.service';
+import { DomainException } from '../common/exceptions/base/error-types';
+import { AuthErrorCodes } from './exceptions/auth-exceptions';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -52,8 +58,8 @@ export class AuthController {
     description: 'Registered — verification code sent to email',
   })
   @ApiResponse({ status: 409, description: 'User already exists' })
-  async register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  async register(@Body() dto: RegisterDto, @Req() req: Request) {
+    return this.authService.register(dto, this.langFrom(req));
   }
 
   @Public()
@@ -69,8 +75,8 @@ export class AuthController {
   @Post('resend-otp')
   @ApiOperation({ summary: 'Resend the account-verification OTP' })
   @ApiResponse({ status: 200, description: 'OTP resent' })
-  async resendOtp(@Body() dto: ResendOtpDto) {
-    return this.authService.resendOtp(dto);
+  async resendOtp(@Body() dto: ResendOtpDto, @Req() req: Request) {
+    return this.authService.resendOtp(dto, this.langFrom(req));
   }
 
   @Public()
@@ -94,25 +100,39 @@ export class AuthController {
   @UseGuards(GoogleAuthGuard)
   @Get('google/callback')
   @ApiOperation({
-    summary: 'Google OAuth callback — redirects with a one-time code',
+    summary:
+      'Google OAuth callback — redirects with a one-time code, or an error code if the guard or the callback itself failed',
   })
   async googleCallback(
-    @Req() req: Request,
+    @Req() req: RequestWithGoogleFailure,
     @Res() res: Response,
   ): Promise<void> {
     const frontendUrl = this.configService.get<string>(
       'FRONTEND_URL',
       'http://localhost:5173',
     );
+    const redirectWithError = (error: unknown) => {
+      const code =
+        error instanceof DomainException
+          ? error.code
+          : AuthErrorCodes.GoogleAuthFailed;
+      res.redirect(`${frontendUrl}/auth/oauth-callback?error=${code}`);
+    };
+
+    // The guard (GoogleAuthGuard.handleRequest) couldn't authenticate at all:
+    // denied consent, an unverified email, or a provider error.
+    const guardFailure = req[GOOGLE_AUTH_FAILURE];
+    if (guardFailure !== undefined) {
+      redirectWithError(guardFailure);
+      return;
+    }
+
     try {
       const profile = req.user as OAuthProfile;
       const code = await this.authService.handleGoogleCallback(profile);
       res.redirect(`${frontendUrl}/auth/oauth-callback?code=${code}`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'oauth_failed';
-      res.redirect(
-        `${frontendUrl}/auth/oauth-callback?error=${encodeURIComponent(message)}`,
-      );
+      redirectWithError(error);
     }
   }
 
@@ -170,8 +190,8 @@ export class AuthController {
     status: 200,
     description: 'Reset link sent if the email exists',
   })
-  async forgotPassword(@Body() dto: ForgotPasswordDto) {
-    return this.authService.forgotPassword(dto);
+  async forgotPassword(@Body() dto: ForgotPasswordDto, @Req() req: Request) {
+    return this.authService.forgotPassword(dto, this.langFrom(req));
   }
 
   @Public()
@@ -223,5 +243,10 @@ export class AuthController {
       deviceInfo: req.get('user-agent') ?? undefined,
       ipAddress: req.ip,
     };
+  }
+
+  /** Same source GlobalExceptionFilter reads for every other translated message — keep them in sync. */
+  private langFrom(req: Request): string {
+    return req.get('accept-language') ?? 'en';
   }
 }

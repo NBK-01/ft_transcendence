@@ -10,6 +10,7 @@ import { PageHeader } from "@trans/ui/blocks/page-header";
 import { Button } from "@trans/ui/components/button";
 import { Field, FieldError } from "@trans/ui/components/field";
 import { Input } from "@trans/ui/components/input";
+import { Progress } from "@trans/ui/components/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@trans/ui/components/tabs";
 import { toast } from "@trans/ui/components/toaster";
 
@@ -21,7 +22,7 @@ type Mode = "link" | "photos";
 
 /** /app/shipments/new — ask for a product by link or by photos. Becomes a pending_sourcing order. */
 export function NewShipmentPage() {
-  const { t } = useTranslation(["common", "app"]);
+  const { t, i18n } = useTranslation(["common", "app"]);
   const navigate = useNavigate();
   const create = useCreateShipment();
 
@@ -31,6 +32,8 @@ export function NewShipmentPage() {
   // one state for the picker's own "required" validation, one for a submit-time API error.
   const [photosFieldError, setPhotosFieldError] = useState<string>();
   const [photosFormError, setPhotosFormError] = useState<string>();
+  // 0 to 1 while the photos are sent; null otherwise.
+  const [photosProgress, setPhotosProgress] = useState<number | null>(null);
 
   const form = useForm<NewShipmentLinkValues>({
     resolver: zodResolver(newShipmentLinkSchema),
@@ -57,7 +60,15 @@ export function NewShipmentPage() {
     setPhotosFieldError(undefined);
     setPhotosFormError(undefined);
     if (photos.length === 0) return setPhotosFieldError("app:shipments.newForm.photosRequired");
-    create.mutate({ images: photos }, { onSuccess, onError: (err) => setPhotosFormError(apiErrorMessage(err)) });
+    setPhotosProgress(0);
+    create.mutate(
+      { images: photos, onProgress: setPhotosProgress },
+      {
+        onSuccess,
+        onError: (err) => setPhotosFormError(apiErrorMessage(err)),
+        onSettled: () => setPhotosProgress(null),
+      },
+    );
   };
 
   const submit = mode === "link" ? submitLink : submitPhotos;
@@ -97,6 +108,15 @@ export function NewShipmentPage() {
           {t("app:shipments.newForm.whatNext")}
         </p>
 
+        {mode === "photos" && photosProgress !== null && (
+          <Progress
+            value={photosProgress}
+            label={t("app:shipments.newForm.progress")}
+            caption={t("app:shipments.newForm.uploading", {
+              percent: new Intl.NumberFormat(`${i18n.language}-u-nu-latn`, { style: "percent" }).format(photosProgress),
+            })}
+          />
+        )}
         {mode === "link" && errors.root?.message && <FieldError message={errors.root.message} />}
         {mode === "photos" && photosFormError && <FieldError message={photosFormError} />}
 

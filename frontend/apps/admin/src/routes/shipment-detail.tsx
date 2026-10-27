@@ -2,7 +2,7 @@ import { ArrowLeft, PackageX } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router";
 
-import { isApiError, isForbidden, useAdminShipment, type AdminShipmentDetail } from "@trans/api";
+import { isApiError, isForbidden, useAdminShipment, useStaffAccess, type AdminShipmentDetail } from "@trans/api";
 import { EmptyState } from "@trans/ui/blocks/empty-state";
 import {
   Breadcrumb,
@@ -55,6 +55,7 @@ export function ShipmentDetailPage() {
  */
 function ShipmentDetail({ shipment }: { shipment: AdminShipmentDetail }) {
   const { t } = useTranslation("common");
+  const canDeletePhotos = useStaffAccess().can("shipments:update:org") && shipment.status === "pending_client_decision";
   return (
     <div className="flex flex-col gap-8">
       <title>{`${shipment.trackingId} · ${t("brand.name")}`}</title>
@@ -66,7 +67,9 @@ function ShipmentDetail({ shipment }: { shipment: AdminShipmentDetail }) {
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_26rem]">
         <div className="flex min-w-0 flex-col gap-6">
           <RequestSection request={shipment.request} />
-          {shipment.offer && <OfferSection offer={shipment.offer} />}
+          {shipment.offer && (
+            <OfferSection offer={shipment.offer} trackingId={shipment.trackingId} canDeletePhotos={canDeletePhotos} />
+          )}
           {shipment.payment && <PaymentSection payment={shipment.payment} />}
           <DeliverySection shipment={shipment} />
         </div>

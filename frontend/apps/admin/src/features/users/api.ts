@@ -11,6 +11,8 @@ import {
 
 /** Backend InternalUserErrorCodes.InternalUserAlreadyExists (409): the email is taken. */
 export const EMAIL_TAKEN = 8002;
+/** Backend InternalUserErrorCodes.CannotRemoveLastAdmin (409): refuses deactivating, demoting, or deleting the last active admin. */
+export const CANNOT_REMOVE_LAST_ADMIN = 8007;
 
 /** GET /internal-users: every staff account (unpaginated, so the table sorts and filters in the browser). */
 /** GET /internal-users: admin-only, so pages other roles can open pass `enabled: isAdmin`. */
@@ -65,6 +67,18 @@ export function useSetStaffActive() {
       return { updated: ids.length - failed, failed };
     },
     onSettled: () => invalidateStaff(queryClient),
+  });
+}
+
+/**
+ * DELETE /internal-users/:id — permanent, distinct from deactivate. Refuses
+ * the last active admin (409, CANNOT_REMOVE_LAST_ADMIN).
+ */
+export function useDeleteInternalUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<{ message: string }>(`/internal-users/${encodeURIComponent(id)}`),
+    onSuccess: () => invalidateStaff(queryClient),
   });
 }
 

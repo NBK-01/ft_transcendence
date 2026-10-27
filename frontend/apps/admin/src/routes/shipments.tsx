@@ -29,8 +29,16 @@ export function ShipmentsPage() {
   const { t } = useTranslation(["common", "app"]);
   const { branchId, locked } = useBranchFilter();
   const { organization } = useStaffAccess();
-  const { q, status, page, tableState, setTableState, replacePage } = useShipmentFilters();
-  const shipments = useAdminShipments({ q, status, organizationId: branchId ?? undefined, page, limit: PAGE_SIZE });
+  const { q, status, page, sort, order, tableState, setTableState, replacePage } = useShipmentFilters();
+  const shipments = useAdminShipments({
+    q,
+    status,
+    organizationId: branchId ?? undefined,
+    page,
+    limit: PAGE_SIZE,
+    sort,
+    order,
+  });
   const columns = useShipmentColumns();
 
   // ?page=9 with only 2 pages (an old link, or the list shrank): go to the last page, without

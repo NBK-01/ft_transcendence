@@ -14,7 +14,10 @@ import {
   UploadOptions,
   UploadResult,
 } from '../interfaces/storage-provider.interface';
-import { FileUploadFailedException } from '../exceptions/file-storage-exceptions';
+import {
+  FileDeleteFailedException,
+  FileUploadFailedException,
+} from '../exceptions/file-storage-exceptions';
 
 /**
  * AWS SDK v3, constructed with an explicit endpoint/forcePathStyle — this is
@@ -67,7 +70,7 @@ export class S3StorageProvider implements StorageProvider {
       );
     } catch (error) {
       this.logger.error(this.messageOf(error));
-      throw new FileUploadFailedException();
+      throw new FileDeleteFailedException();
     }
   }
 

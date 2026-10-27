@@ -1,8 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsUUID } from 'class-validator';
-import { ListShipmentsQueryDto } from './list-shipments-query.dto';
+import { IsEnum, IsOptional, IsUUID } from 'class-validator';
+import {
+  ListShipmentsQueryDto,
+  ShipmentSortField,
+  SortOrder,
+} from './list-shipments-query.dto';
 
-/** GET /admin/shipments: the customer's filters, plus the branch. */
+/** GET /admin/shipments: the customer's filters, plus the branch and sorting. */
 export class ListAdminShipmentsQueryDto extends ListShipmentsQueryDto {
   @ApiProperty({
     required: false,
@@ -13,4 +17,18 @@ export class ListAdminShipmentsQueryDto extends ListShipmentsQueryDto {
   @IsOptional()
   @IsUUID()
   organizationId?: string;
+
+  @ApiProperty({
+    required: false,
+    enum: ShipmentSortField,
+    default: ShipmentSortField.UPDATED_AT,
+  })
+  @IsOptional()
+  @IsEnum(ShipmentSortField)
+  sort?: ShipmentSortField;
+
+  @ApiProperty({ required: false, enum: SortOrder, default: SortOrder.DESC })
+  @IsOptional()
+  @IsEnum(SortOrder)
+  order?: SortOrder;
 }

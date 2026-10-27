@@ -1,6 +1,9 @@
+import { Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import type { PaymentSummary, ShipmentRequest, SupplierOffer } from "@trans/api";
+import { useDeleteShipmentFile, type ImageRef, type PaymentSummary, type ShipmentRequest, type SupplierOffer } from "@trans/api";
+import { ConfirmDelete } from "@trans/ui/blocks/confirm-delete";
+import { Button } from "@trans/ui/components/button";
 
 import { DetailItem, DetailSection, NewTabLink } from "./detail-parts";
 import { formatMoney } from "./format";
@@ -53,8 +56,20 @@ export function RequestSection({ request }: { request: ShipmentRequest }) {
   );
 }
 
-/** The supplier offer the customer decides on: the newest one they haven't rejected. */
-export function OfferSection({ offer }: { offer: SupplierOffer }) {
+/**
+ * The supplier offer the customer decides on: the newest one they haven't
+ * rejected. `canDeletePhotos` (shipments:update:org, and only while
+ * pending_client_decision) shows a delete button on each photo.
+ */
+export function OfferSection({
+  offer,
+  trackingId,
+  canDeletePhotos = false,
+}: {
+  offer: SupplierOffer;
+  trackingId: string;
+  canDeletePhotos?: boolean;
+}) {
   const { t, i18n } = useTranslation("app");
   const format = useDetailFormat();
 
@@ -80,11 +95,39 @@ export function OfferSection({ offer }: { offer: SupplierOffer }) {
         )}
         {offer.images.length > 0 && (
           <DetailItem label={t("shipment.offer.photos")} className="col-span-full">
-            <PhotoGrid images={offer.images} />
+            <PhotoGrid
+              images={offer.images}
+              renderAction={
+                canDeletePhotos ? (image) => <DeleteOfferPhotoButton trackingId={trackingId} image={image} /> : undefined
+              }
+            />
           </DetailItem>
         )}
       </dl>
     </DetailSection>
+  );
+}
+
+function DeleteOfferPhotoButton({ trackingId, image }: { trackingId: string; image: ImageRef }) {
+  const { t } = useTranslation("app");
+  const deleteFile = useDeleteShipmentFile();
+  return (
+    <ConfirmDelete
+      trigger={
+        <Button
+          variant="secondary"
+          size="tiny"
+          shape="circle"
+          aria-label={t("shipment.offer.deletePhoto", { name: image.name })}
+        >
+          <Trash2 aria-hidden="true" />
+        </Button>
+      }
+      title={t("shipment.offer.deletePhotoTitle")}
+      description={t("shipment.offer.deletePhotoBody")}
+      errorText={t("shipment.offer.deletePhotoError")}
+      onConfirm={() => deleteFile.mutateAsync({ trackingId, fileId: image.id })}
+    />
   );
 }
 

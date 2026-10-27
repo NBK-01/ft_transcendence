@@ -1,10 +1,12 @@
-import { FileCheck2, FileImage, FileText, Upload, type LucideIcon } from "lucide-react";
+import { FileCheck2, FileImage, FileText, Trash2, Upload, type LucideIcon } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useAdminShipmentFiles, useStaffAccess, type AttachmentKind } from "@trans/api";
+import { useAdminShipmentFiles, useDeleteShipmentFile, useStaffAccess, type AttachmentKind, type ShipmentFile } from "@trans/api";
+import { ConfirmDelete } from "@trans/ui/blocks/confirm-delete";
 import { Button } from "@trans/ui/components/button";
 import { Skeleton } from "@trans/ui/components/skeleton";
+import { toast } from "@trans/ui/components/toaster";
 import { useReturnFocus } from "@trans/ui/hooks/use-return-focus";
 
 import { DetailSection, NewTabLink, SectionError } from "./detail-parts";
@@ -76,6 +78,7 @@ export function FilesSection({ trackingId }: { trackingId: string }) {
                     <time dateTime={file.uploadedAt}>{format.dateTime(file.uploadedAt)}</time>
                   </span>
                 </div>
+                {canUpload && <DeleteFileButton trackingId={trackingId} file={file} />}
               </li>
             );
           })}
@@ -90,6 +93,32 @@ export function FilesSection({ trackingId }: { trackingId: string }) {
         />
       )}
     </DetailSection>
+  );
+}
+
+function DeleteFileButton({ trackingId, file }: { trackingId: string; file: ShipmentFile }) {
+  const { t } = useTranslation("app");
+  const deleteFile = useDeleteShipmentFile();
+  return (
+    <ConfirmDelete
+      trigger={
+        <Button
+          variant="tertiary"
+          size="tiny"
+          shape="square"
+          aria-label={t("shipment.files.delete", { name: file.name })}
+        >
+          <Trash2 aria-hidden="true" />
+        </Button>
+      }
+      title={t("shipment.files.deleteTitle", { name: file.name })}
+      description={t("shipment.files.deleteBody")}
+      errorText={t("shipment.files.deleteError")}
+      onConfirm={async () => {
+        await deleteFile.mutateAsync({ trackingId, fileId: file.id });
+        toast.success(t("shipment.files.deleted", { name: file.name }));
+      }}
+    />
   );
 }
 

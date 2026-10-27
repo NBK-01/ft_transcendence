@@ -8,10 +8,13 @@ build/
 storybook-static/
 *.tsbuildinfo
 
-# Env (commit .env.example only)
+# Env (commit .env.example and .env.production only — the latter has no
+# secrets, just the fixed VITE_* build flags the Docker frontend build needs,
+# so it never depends on whatever's in a developer's own untracked .env)
 .env
 .env.*
 !.env.example
+!.env.production
 
 # Logs
 *.log

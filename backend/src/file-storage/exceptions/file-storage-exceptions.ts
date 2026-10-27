@@ -5,12 +5,14 @@ export enum FileStorageErrorCodes {
   InvalidFileType = 9001,
   FileTooLarge = 9002,
   FileUploadFailed = 9003,
+  FileDeleteFailed = 9004,
 }
 
 export enum FileStorageErrorMessages {
   InvalidFileType = 'errors.INVALID_FILE_TYPE',
   FileTooLarge = 'errors.FILE_TOO_LARGE',
   FileUploadFailed = 'errors.FILE_UPLOAD_FAILED',
+  FileDeleteFailed = 'errors.FILE_DELETE_FAILED',
 }
 
 export class InvalidFileTypeException extends DomainException {
@@ -46,6 +48,17 @@ export class FileUploadFailedException extends DomainException {
       { key: FileStorageErrorMessages.FileUploadFailed },
       HttpStatus.INTERNAL_SERVER_ERROR,
       FileStorageErrorCodes.FileUploadFailed,
+    );
+  }
+}
+
+/** Wraps S3Client delete errors — the real error is logged server-side (see S3StorageProvider), not exposed to the caller. */
+export class FileDeleteFailedException extends DomainException {
+  constructor() {
+    super(
+      { key: FileStorageErrorMessages.FileDeleteFailed },
+      HttpStatus.INTERNAL_SERVER_ERROR,
+      FileStorageErrorCodes.FileDeleteFailed,
     );
   }
 }

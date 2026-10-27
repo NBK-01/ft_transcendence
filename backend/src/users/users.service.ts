@@ -159,6 +159,24 @@ export class UsersService {
     return { previousKey };
   }
 
+  /**
+   * Clears the avatar, if any. Idempotent — calling it with no avatar set is
+   * just a no-op, not an error. Returns the removed key (if any) so the
+   * caller can best-effort delete the now-orphaned storage object.
+   */
+  async removeAvatar(userId: string): Promise<{ previousKey: string | null }> {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new UserNotFoundException(userId);
+    }
+    const previousKey = user.avatarKey ?? null;
+    if (previousKey) {
+      await this.userRepository.update(userId, { avatarKey: null });
+      this.signalProfileUpdated(userId, 'avatar');
+    }
+    return { previousKey };
+  }
+
   private signalProfileUpdated(userId: string, change: ProfileChange): void {
     this.eventEmitter.emit(ActionSignals.PROFILE_UPDATED, {
       accountType: AccountType.CUSTOMER,

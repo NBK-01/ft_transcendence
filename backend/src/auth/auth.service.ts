@@ -4,6 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AccountType } from '../common/context/auth-context.types';
 import { ActionSignals } from '../notifications/action-signals';
 import { ConfigService } from '@nestjs/config';
+import { I18nService } from 'nestjs-i18n';
 import { UsersService } from '../users/users.service';
 import { AuthProvider } from '../users/user.entity';
 import { OtpService } from '../otp/otp.service';
@@ -64,9 +65,10 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly authContext: AuthContextService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly i18n: I18nService,
   ) {}
 
-  async register(dto: RegisterDto) {
+  async register(dto: RegisterDto, lang = 'en') {
     const existingUser = await this.usersService.findByEmail(dto.email);
 
     if (existingUser?.isVerified) {
@@ -82,6 +84,7 @@ export class AuthService {
       dto.email,
       OTP_PREFIX,
       OtpPurpose.ACCOUNT_VERIFICATION,
+      lang,
     );
 
     return {
@@ -91,7 +94,7 @@ export class AuthService {
     };
   }
 
-  async resendOtp(dto: ResendOtpDto) {
+  async resendOtp(dto: ResendOtpDto, lang = 'en') {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) {
       throw new UserNotFoundException(dto.email);
@@ -104,6 +107,7 @@ export class AuthService {
       dto.email,
       OTP_PREFIX,
       OtpPurpose.ACCOUNT_VERIFICATION,
+      lang,
     );
     return {
       message: 'Verification code resent. Please check your email.',
@@ -230,7 +234,7 @@ export class AuthService {
     return { message: `Logged out of ${count} session(s)` };
   }
 
-  async forgotPassword(dto: ForgotPasswordDto) {
+  async forgotPassword(dto: ForgotPasswordDto, lang = 'en') {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) {
       // Don't reveal whether the email exists.
@@ -249,6 +253,8 @@ export class AuthService {
     const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
 
     const { subject, html } = EmailTemplates.passwordReset(
+      this.i18n,
+      lang,
       resetUrl,
       resetToken,
       this.passwordResetService.getTokenExpiryMinutes(),

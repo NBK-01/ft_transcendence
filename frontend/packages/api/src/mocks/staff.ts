@@ -18,6 +18,8 @@ const USER_NOT_FOUND = 8001;
 const USER_ALREADY_EXISTS = 8002;
 /** Backend AccessControlErrorCodes.RoleNotFound. */
 const ROLE_NOT_FOUND = 7004;
+/** Backend InternalUserErrorCodes.CannotRemoveLastAdmin. */
+const CANNOT_REMOVE_LAST_ADMIN = 8007;
 
 /** Who's acting: requireStaffAccess has already checked the token. */
 const actorOf = (request: Request): Who | null => {
@@ -101,6 +103,23 @@ export const staffHandlers = [
       if (changed.length > 0) notifyAction({ type: "STAFF_ACCOUNT_UPDATED", staff: user, changed }, actorOf(request));
     }
     return ok(user);
+  }),
+
+  // Permanent, distinct from PATCH isActive: false. Refuses the last active admin.
+  http.delete("*/api/internal-users/:id", ({ params }) => {
+    const index = internalUsers.findIndex((candidate) => candidate.id === params.id);
+    if (index === -1) return error(404, [`Staff member ${String(params.id)} not found`], USER_NOT_FOUND);
+    const user = internalUsers[index]!;
+    if (user.roleName === "admin" && user.isActive) {
+      const otherActiveAdmins = internalUsers.filter(
+        (candidate) => candidate.roleName === "admin" && candidate.isActive,
+      );
+      if (otherActiveAdmins.every((admin) => admin.id === user.id)) {
+        return error(409, ["Cannot remove the last admin"], CANNOT_REMOVE_LAST_ADMIN);
+      }
+    }
+    internalUsers.splice(index, 1);
+    return ok({ message: "Staff account deleted" });
   }),
 
   http.get("*/api/access-control/roles", () => ok(ROLES)),

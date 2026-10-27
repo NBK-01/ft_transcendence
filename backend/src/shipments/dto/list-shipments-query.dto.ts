@@ -10,6 +10,19 @@ import {
 } from 'class-validator';
 import { ShipmentState } from '../constants/shipment-state';
 
+/** Columns GET /admin/shipments can sort by, matching the admin board's own columns. */
+export enum ShipmentSortField {
+  TRACKING_ID = 'trackingId',
+  STATUS = 'status',
+  CREATED_AT = 'createdAt',
+  UPDATED_AT = 'updatedAt',
+}
+
+export enum SortOrder {
+  ASC = 'asc',
+  DESC = 'desc',
+}
+
 export class ListShipmentsQueryDto {
   @ApiProperty({ required: false, default: 1, minimum: 1 })
   @IsOptional()

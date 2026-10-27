@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -160,5 +161,21 @@ export class ShipmentsController {
     @Param('trackingId') trackingId: string,
   ) {
     return this.shipmentsService.listFiles(trackingId, user.id);
+  }
+
+  @Delete(':trackingId/files/:fileId')
+  @ApiOperation({
+    summary:
+      'Remove one of your own request photos (only while pending_sourcing, never the last one with no product link)',
+  })
+  @ApiResponse({ status: 404, description: "Not found, or not the caller's" })
+  @ApiResponse({ status: 409, description: "Can't be deleted right now" })
+  async deleteFile(
+    @CurrentUser() user: RequestUser,
+    @Param('trackingId') trackingId: string,
+    @Param('fileId') fileId: string,
+  ) {
+    await this.shipmentsService.deleteOwnFile(user.id, trackingId, fileId);
+    return { message: 'File removed' };
   }
 }

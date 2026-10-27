@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from "@trans/ui/components/dialog";
 import { Field, FieldError } from "@trans/ui/components/field";
+import { Progress } from "@trans/ui/components/progress";
 import { toast } from "@trans/ui/components/toaster";
 import { focusOnClose } from "@trans/ui/hooks/use-return-focus";
 
@@ -126,7 +127,7 @@ function UploadForm({ trackingId, onDone }: { trackingId: string; onDone: () => 
             </Field>
           )}
         />
-        {progress !== null && <UploadProgress fraction={progress} />}
+        {progress !== null && <UploadProgress value={progress} />}
         {errors.root?.message && <FieldError className="whitespace-pre-line">{errors.root.message}</FieldError>}
       </DialogBody>
       <DialogFooter>
@@ -143,27 +144,15 @@ function UploadForm({ trackingId, onDone }: { trackingId: string; onDone: () => 
   );
 }
 
-/** A bar that fills from the reading side, and the percentage in words for everyone. */
-function UploadProgress({ fraction }: { fraction: number }) {
+/** Labels the shared bar with this form's copy. */
+function UploadProgress({ value }: { value: number }) {
   const { t, i18n } = useTranslation("app");
-  const percent = new Intl.NumberFormat(`${i18n.language}-u-nu-latn`, { style: "percent" }).format(fraction);
+  const percent = new Intl.NumberFormat(`${i18n.language}-u-nu-latn`, { style: "percent" }).format(value);
   return (
-    <div className="flex flex-col gap-1.5">
-      <div
-        role="progressbar"
-        aria-label={t("shipment.uploadForm.progress")}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={Math.round(fraction * 100)}
-        aria-valuetext={percent}
-        className="h-1.5 overflow-hidden rounded-full bg-gray-alpha-200"
-      >
-        <div
-          className="h-full rounded-full bg-gray-1000 transition-[width] duration-150 ease-out"
-          style={{ width: `${fraction * 100}%` }}
-        />
-      </div>
-      <p className="text-label-12 text-gray-900 tabular-nums">{t("shipment.uploadForm.uploading", { percent })}</p>
-    </div>
+    <Progress
+      value={value}
+      label={t("shipment.uploadForm.progress")}
+      caption={t("shipment.uploadForm.uploading", { percent })}
+    />
   );
 }

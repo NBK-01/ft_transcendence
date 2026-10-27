@@ -1,12 +1,15 @@
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
+import { ConfirmDelete } from "@trans/ui/blocks/confirm-delete";
+import { Button } from "@trans/ui/components/button";
 import { Card } from "@trans/ui/components/card";
 
+import { useDeleteShipmentFile } from "./api";
 import { countryName, formatMoney, formatWeight } from "./format";
 import { ImageGrid } from "./image-grid";
-import type { Address, ShipmentDetail } from "./types";
+import type { Address, ImageRef, ShipmentDetail } from "./types";
 
 /**
  * Details tab, top to bottom as the order fills in: what the client asked for,
@@ -15,8 +18,10 @@ import type { Address, ShipmentDetail } from "./types";
  */
 export function ShipmentDetails({ shipment }: { shipment: ShipmentDetail }) {
   const { t, i18n } = useTranslation("app");
-  const { request, offer, payment, sender, recipient, weightKg, declaredValue } = shipment;
+  const { trackingId, request, offer, payment, sender, recipient, weightKg, declaredValue } = shipment;
   const lang = i18n.language;
+  // Matches the backend: a request photo is removable only while pending_sourcing.
+  const canRemovePhoto = shipment.status === "pending_sourcing";
 
   return (
     <div className="flex max-w-2xl flex-col gap-4">
@@ -33,7 +38,10 @@ export function ShipmentDetails({ shipment }: { shipment: ShipmentDetail }) {
             <ExternalLink aria-hidden="true" className="size-3.5 shrink-0" />
           </a>
         )}
-        <ImageGrid images={request.images} />
+        <ImageGrid
+          images={request.images}
+          renderAction={canRemovePhoto ? (image) => <RemoveRequestPhotoButton trackingId={trackingId} image={image} /> : undefined}
+        />
       </Section>
 
       {offer && payment && (
@@ -72,6 +80,29 @@ export function ShipmentDetails({ shipment }: { shipment: ShipmentDetail }) {
         <p className="text-copy-14 text-gray-900">{t("shipments.details.notLiveYet")}</p>
       )}
     </div>
+  );
+}
+
+function RemoveRequestPhotoButton({ trackingId, image }: { trackingId: string; image: ImageRef }) {
+  const { t } = useTranslation("app");
+  const deleteFile = useDeleteShipmentFile(trackingId);
+  return (
+    <ConfirmDelete
+      trigger={
+        <Button
+          variant="secondary"
+          size="tiny"
+          shape="circle"
+          aria-label={t("shipments.details.removePhoto", { name: image.name })}
+        >
+          <Trash2 aria-hidden="true" />
+        </Button>
+      }
+      title={t("shipments.details.removePhotoTitle")}
+      description={t("shipments.details.removePhotoBody")}
+      errorText={t("shipments.details.removePhotoError")}
+      onConfirm={() => deleteFile.mutateAsync(image.id)}
+    />
   );
 }
 

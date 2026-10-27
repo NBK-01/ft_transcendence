@@ -1,7 +1,9 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  Logger,
   Patch,
   Post,
   UploadedFile,
@@ -30,6 +32,8 @@ import { MissingRequiredDataException } from '../common/exceptions/validation-ex
 @ApiBearerAuth()
 @Controller('users')
 export class UsersController {
+  private readonly logger = new Logger(UsersController.name);
+
   constructor(
     private readonly usersService: UsersService,
     private readonly fileStorageService: FileStorageService,
@@ -59,6 +63,7 @@ export class UsersController {
     return this.usersService.updateProfile(currentUser.id, dto);
   }
 
+  @RequireCustomer()
   @Post('profile/avatar')
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(
@@ -91,6 +96,24 @@ export class UsersController {
       await this.fileStorageService.deleteFile(previousKey);
     }
     return { avatarUrl: url };
+  }
+
+  @RequireCustomer()
+  @Delete('profile/avatar')
+  @ApiOperation({ summary: "Remove the current user's avatar" })
+  @ApiResponse({ status: 200, description: 'Avatar removed' })
+  async deleteAvatar(@CurrentUser() currentUser: RequestUser) {
+    const { previousKey } = await this.usersService.removeAvatar(
+      currentUser.id,
+    );
+    if (previousKey) {
+      await this.fileStorageService.deleteFile(previousKey).catch((error) => {
+        this.logger.warn(
+          `Could not delete storage object ${previousKey}: ${String(error)}`,
+        );
+      });
+    }
+    return { message: 'Avatar removed' };
   }
 
   /** Every customer's email and name — admins only, like GET /internal-users. */

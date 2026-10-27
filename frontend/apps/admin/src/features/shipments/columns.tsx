@@ -4,6 +4,7 @@ import { Link } from "react-router";
 
 import type { AdminShipment } from "@trans/api";
 import { createDataTableColumnHelper } from "@trans/ui/blocks/data-table";
+import { DataTableColumnHeader } from "@trans/ui/blocks/data-table-column-header";
 import { ShipmentStateBadge } from "@trans/ui/blocks/shipment-state";
 
 import { useBranchFilter } from "../branches/use-branch-filter";
@@ -14,7 +15,9 @@ const column = createDataTableColumnHelper<AdminShipment>();
 
 /**
  * The shipments table: tracking ID (to the detail page), customer, branch,
- * route, status and dates. The API orders the rows, so the headers are plain labels.
+ * route, status and dates. The API orders and sorts the rows — tracking ID,
+ * status and the two dates are sortable (ShipmentSortField on the backend);
+ * customer/branch/route are derived/joined, so they stay plain labels.
  * Rebuilt when the language changes, so labels and dates follow.
  */
 export function useShipmentColumns() {
@@ -25,7 +28,7 @@ export function useShipmentColumns() {
     const dateFormat = new Intl.DateTimeFormat(`${i18n.language}-u-nu-latn`, { dateStyle: "medium" });
     return column.columns([
       column.accessor("trackingId", {
-        header: t("app:shipments.list.columns.trackingId"),
+        header: ({ column }) => <DataTableColumnHeader column={column} title={t("app:shipments.list.columns.trackingId")} />,
         cell: (info) => (
           <Link
             to={withBranch(`/shipments/${encodeURIComponent(info.getValue())}`)}
@@ -39,6 +42,7 @@ export function useShipmentColumns() {
       column.display({
         id: "customer",
         header: t("app:shipments.list.columns.customer"),
+        enableSorting: false,
         cell: ({ row }) => (
           <div className="flex min-w-0 flex-col">
             <span className="truncate text-label-14 text-gray-1000">{row.original.client.name}</span>
@@ -51,6 +55,7 @@ export function useShipmentColumns() {
       column.display({
         id: "branch",
         header: t("app:shipments.list.columns.branch"),
+        enableSorting: false,
         cell: ({ row }) =>
           row.original.organization ? (
             <Link
@@ -65,20 +70,25 @@ export function useShipmentColumns() {
       }),
       column.display({
         id: "route",
+        enableSorting: false,
         header: t("app:shipments.list.columns.route"),
         cell: ({ row }) => <ShipmentRoute origin={row.original.origin} destination={row.original.destination} />,
       }),
       column.accessor("status", {
-        header: t("app:shipments.list.columns.status"),
+        header: ({ column }) => <DataTableColumnHeader column={column} title={t("app:shipments.list.columns.status")} />,
         cell: (info) => <ShipmentStateBadge status={info.getValue()} size="sm" />,
       }),
       column.accessor("createdAt", {
-        header: t("app:shipments.list.columns.created"),
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t("app:shipments.list.columns.created")} />
+        ),
         cell: (info) => dateFormat.format(new Date(info.getValue())),
         meta: { align: "end" },
       }),
       column.accessor("updatedAt", {
-        header: t("app:shipments.list.columns.updatedAt"),
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t("app:shipments.list.columns.updatedAt")} />
+        ),
         cell: (info) => <LastUpdate at={info.getValue()} />,
         meta: { align: "end" },
       }),

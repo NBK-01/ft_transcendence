@@ -23,6 +23,7 @@ import {
   type PaginationState,
   type Row,
   type RowData,
+  type SortingState,
   type Table as CoreTable,
   type Updater,
 } from "@tanstack/react-table";
@@ -134,11 +135,13 @@ const isRangeEvent = (event: unknown) => Boolean((event as { shiftKey?: boolean 
 
 const SKELETON_ROWS = 5;
 
-/** What the API is asked for in server mode: the page, and the search and filter values by column id. */
+/** What the API is asked for in server mode: the page, the search/filter values by column id, and the sort. */
 export type DataTableServerState = {
   pagination: PaginationState;
   /** E.g. `[{ id: "trackingId", value: "TRK" }, { id: "status", value: ["delivered"] }]`. */
   columnFilters: ColumnFiltersState;
+  /** TanStack's own shape (`[{ id: "updatedAt", desc: true }]`); at most one column, since the API only sorts by one. Omit on a table with no sortable columns. */
+  sorting?: SortingState;
 };
 
 /** Server mode: `data` is one page, already searched, filtered and ordered by the API. */
@@ -154,23 +157,33 @@ export type DataTableServer = {
 };
 
 /**
- * TanStack's manual mode: nothing is filtered, sorted or paged in the browser.
- * The API has no sort, so the headers stay plain labels.
+ * TanStack's manual mode: nothing is filtered, sorted or paged in the
+ * browser — the API does all three. Sorting is only enabled when the caller
+ * passes a `sorting` state at all (a table with no sortable columns leaves
+ * it out, and its headers stay plain labels).
  */
 function serverOptions({ state, onStateChange, rowCount }: DataTableServer) {
   return {
     manualPagination: true,
     manualFiltering: true,
     manualSorting: true,
-    enableSorting: false,
+    enableSorting: state.sorting !== undefined,
+    enableMultiSort: false,
     rowCount,
     state,
     onPaginationChange: (updater: Updater<PaginationState>) =>
       onStateChange({ ...state, pagination: functionalUpdate(updater, state.pagination) }),
     onColumnFiltersChange: (updater: Updater<ColumnFiltersState>) =>
       onStateChange({
+        ...state,
         pagination: { ...state.pagination, pageIndex: 0 },
         columnFilters: functionalUpdate(updater, state.columnFilters),
+      }),
+    onSortingChange: (updater: Updater<SortingState>) =>
+      onStateChange({
+        ...state,
+        pagination: { ...state.pagination, pageIndex: 0 },
+        sorting: functionalUpdate(updater, state.sorting ?? []),
       }),
   };
 }

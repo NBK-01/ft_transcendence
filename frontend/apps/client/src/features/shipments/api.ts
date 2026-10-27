@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api } from "@trans/api";
+import { api, type UploadOptions } from "@trans/api";
 import { WAITING_ON_ADMIN } from "@trans/ui/blocks/shipment-state";
 
 import type { PaymentInput, Shipment, ShipmentDetail, ShipmentEvent, ShipmentFile, ShipmentFilters } from "./types";
@@ -69,17 +69,42 @@ function useInvalidateShipments() {
   return () => queryClient.invalidateQueries({ queryKey: shipmentKeys.all });
 }
 
-/** POST /shipments (multipart): a product link or up to 5 photos. Starts in pending_sourcing. */
+/**
+ * POST /shipments (multipart): a product link or up to 5 photos. Starts in
+ * pending_sourcing. Sent with api.upload, so photos' upload progress is
+ * reported (`onProgress`).
+ */
 export function useCreateShipment() {
   const invalidate = useInvalidateShipments();
   return useMutation({
-    mutationFn: (input: { productUrl: string } | { images: File[] }) => {
+    mutationFn: (
+      input: ({ productUrl: string } | { images: File[] }) & { onProgress?: UploadOptions["onProgress"] },
+    ) => {
       const form = new FormData();
       if ("productUrl" in input) form.set("productUrl", input.productUrl);
       else for (const image of input.images) form.append("images", image);
-      return api.post<ShipmentDetail>("/shipments", form);
+      return api.upload<ShipmentDetail>("/shipments", form, { onProgress: input.onProgress });
     },
     onSuccess: invalidate,
+  });
+}
+
+/**
+ * DELETE /shipments/:trackingId/files/:fileId — one of your own request
+ * photos. Only while pending_sourcing, and never the last one with no
+ * product link (409/3007 from the backend either way).
+ */
+export function useDeleteShipmentFile(trackingId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (fileId: string) => api.delete(shipmentPath(trackingId, `/files/${encodeURIComponent(fileId)}`)),
+    onSuccess: (_result, fileId) => {
+      queryClient.setQueryData<ShipmentDetail>(shipmentKeys.detail(trackingId), (shipment) =>
+        shipment
+          ? { ...shipment, request: { ...shipment.request, images: shipment.request.images.filter((image) => image.id !== fileId) } }
+          : shipment,
+      );
+    },
   });
 }
 

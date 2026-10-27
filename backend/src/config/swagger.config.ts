@@ -44,8 +44,10 @@ function configureSwaggerAuth(app: INestApplication): void {
     );
   }
 
+  // SwaggerModule also serves the raw spec at these two sibling paths —
+  // neither is a sub-path of DOCS_PATH, so each needs its own mount.
   app.use(
-    `/${DOCS_PATH}`,
+    [`/${DOCS_PATH}`, `/${DOCS_PATH}-json`, `/${DOCS_PATH}-yaml`],
     basicAuth({
       challenge: true,
       users: { [user || 'admin']: password },

@@ -17,6 +17,7 @@ import {
   MessagesPage,
   OverviewPage,
   ProfilePage,
+  RolesPage,
   ShipmentDetailPage,
   ShipmentsPage,
   StaffProfilePage,
@@ -82,6 +83,14 @@ export const router = createBrowserRouter(
               element: (
                 <RequireAdmin>
                   <UsersPage />
+                </RequireAdmin>
+              ),
+            },
+            {
+              path: "roles",
+              element: (
+                <RequireAdmin>
+                  <RolesPage />
                 </RequireAdmin>
               ),
             },

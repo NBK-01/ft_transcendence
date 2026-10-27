@@ -37,6 +37,22 @@ import { ListAdminShipmentsQueryDto } from './dto/list-admin-shipments-query.dto
 import { AssignBranchDto } from './dto/assign-branch.dto';
 
 /**
+ * Real magic-byte signatures — FileStorageService now sniffs the actual
+ * bytes, so a fixture's declared `mimetype` no longer drives validation; only
+ * these bytes do.
+ */
+const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0]);
+const PDF_BYTES = Buffer.from('%PDF-1.4\n%fake', 'ascii');
+/** Matches no known signature — stands in for any unsupported real file type. */
+const UNKNOWN_BYTES = Buffer.from('this is not a recognized file signature');
+
+function padded(signature: Buffer, size: number): Buffer {
+  const buffer = Buffer.alloc(size);
+  signature.copy(buffer);
+  return buffer;
+}
+
+/**
  * The business logic each admin action adds on top of the status-transition
  * mechanism — which shipment-transitions.spec.ts already covers end to end
  * (the `UPDATE ... WHERE status IN (:from)` guard, and which `from` states
@@ -120,6 +136,40 @@ class FakeShipmentStore {
     this.rows.set(shipment.id, shipment);
     return shipment;
   }
+
+  seedFile(
+    shipmentId: string,
+    overrides: Partial<ShipmentFile> = {},
+  ): ShipmentFile {
+    const file = Object.assign(new ShipmentFile(), {
+      id: `file-${this.nextId++}`,
+      shipmentId,
+      offerId: null,
+      kind: ShipmentFileKind.OTHER,
+      storageKey: `shipments/${TRACKING_ID}/seed-${this.nextId}.jpg`,
+      name: 'seed.jpg',
+      mimeType: 'image/jpeg',
+      sizeBytes: 100,
+      createdAt: new Date(),
+      ...overrides,
+    });
+    this.rows.get(shipmentId)!.files.push(file);
+    return file;
+  }
+
+  /** Backs the ShipmentFile repository injected into ShipmentsService. */
+  readonly fileRepository = {
+    findOne: ({
+      where,
+    }: {
+      where: { id: string; shipmentId: string };
+    }): Promise<ShipmentFile | null> => {
+      const row = this.rows.get(where.shipmentId);
+      return Promise.resolve(
+        row?.files.find((candidate) => candidate.id === where.id) ?? null,
+      );
+    },
+  };
 
   /** What a fresh SELECT returns: a separate copy, so it can go stale. */
   load(id: string): Shipment {
@@ -228,6 +278,17 @@ class FakeShipmentStore {
       }
       return Promise.resolve(entityOrArray);
     },
+    remove: <T>(entity: T): Promise<T> => {
+      if (entity instanceof ShipmentFile) {
+        const row = this.rows.get(entity.shipmentId);
+        if (row) {
+          row.files = row.files.filter(
+            (candidate) => candidate.id !== entity.id,
+          );
+        }
+      }
+      return Promise.resolve(entity);
+    },
   };
 
   readonly dataSource = {
@@ -244,7 +305,7 @@ function setup() {
   const shipments = new ShipmentsService(
     store.repository as unknown as Repository<Shipment>,
     emptyRepository as unknown as Repository<ShipmentEvent>,
-    emptyRepository as unknown as Repository<ShipmentFile>,
+    store.fileRepository as unknown as Repository<ShipmentFile>,
     store.dataSource as unknown as DataSource,
     fileStorage,
   );
@@ -267,7 +328,7 @@ function file(
     originalname: 'photo.jpg',
     encoding: '7bit',
     mimetype: 'image/jpeg',
-    buffer: Buffer.from('fake-image-bytes'),
+    buffer: JPEG_BYTES,
     size: 17,
     ...overrides,
   } as Express.Multer.File;
@@ -339,6 +400,18 @@ const expectInvalidState = (promise: Promise<unknown>) =>
     promise,
     HttpStatus.CONFLICT,
     ShipmentErrorCodes.InvalidShipmentState,
+  );
+const expectFileNotFound = (promise: Promise<unknown>) =>
+  expectDomainError(
+    promise,
+    HttpStatus.NOT_FOUND,
+    ShipmentErrorCodes.ShipmentFileNotFound,
+  );
+const expectFileNotDeletable = (promise: Promise<unknown>) =>
+  expectDomainError(
+    promise,
+    HttpStatus.CONFLICT,
+    ShipmentErrorCodes.ShipmentFileNotDeletable,
   );
 
 /** Runs class-validator the way the global ValidationPipe would. */
@@ -549,7 +622,7 @@ describe('sending an offer', () => {
 
     await expectInvalidFileType(
       admin.createOffer(STAFF_ID, TRACKING_ID, offerDto(), [
-        file({ mimetype: 'application/pdf' }),
+        file({ mimetype: 'application/pdf', buffer: PDF_BYTES }),
       ]),
     );
 
@@ -564,7 +637,7 @@ describe('sending an offer', () => {
 
     await expectFileTooLarge(
       admin.createOffer(STAFF_ID, TRACKING_ID, offerDto(), [
-        file({ buffer: Buffer.alloc(11 * 1024 * 1024) }),
+        file({ buffer: padded(JPEG_BYTES, 11 * 1024 * 1024) }),
       ]),
     );
   });
@@ -674,7 +747,11 @@ describe('uploading a file to the shipment', () => {
         STAFF_ID,
         TRACKING_ID,
         { kind: ShipmentFileKind.PROOF_OF_DELIVERY } as UploadFileDto,
-        file({ mimetype: 'application/pdf', originalname: 'pod.pdf' }),
+        file({
+          mimetype: 'application/pdf',
+          originalname: 'pod.pdf',
+          buffer: PDF_BYTES,
+        }),
       ),
     ).resolves.toMatchObject({ mimeType: 'application/pdf' });
   });
@@ -688,7 +765,7 @@ describe('uploading a file to the shipment', () => {
         STAFF_ID,
         TRACKING_ID,
         { kind: ShipmentFileKind.OTHER } as UploadFileDto,
-        file({ mimetype: 'video/mp4' }),
+        file({ mimetype: 'video/mp4', buffer: UNKNOWN_BYTES }),
       ),
     );
   });
@@ -702,7 +779,7 @@ describe('uploading a file to the shipment', () => {
         STAFF_ID,
         TRACKING_ID,
         { kind: ShipmentFileKind.OTHER } as UploadFileDto,
-        file({ buffer: Buffer.alloc(11 * 1024 * 1024) }),
+        file({ buffer: padded(JPEG_BYTES, 11 * 1024 * 1024) }),
       ),
     );
   });
@@ -803,6 +880,21 @@ describe('branch scope', () => {
     expect(provider.uploads).toEqual([]);
   });
 
+  it("won't let a dispatcher remove a file from another branch's shipment (404)", async () => {
+    const { store, admin, provider } = setup();
+    const row = Object.assign(store.seed(ShipmentState.CONFIRMED), {
+      organizationId: 'org-2',
+    });
+    const target = store.seedFile(row.id, { kind: ShipmentFileKind.OTHER });
+    store.scope = { all: false, organizationId: 'org-1' };
+
+    await expect(
+      admin.deleteFile(STAFF_ID, TRACKING_ID, target.id),
+    ).rejects.toMatchObject({ code: ShipmentErrorCodes.ShipmentNotFound });
+    expect(row.files).toHaveLength(1);
+    expect(provider.deleted).toEqual([]);
+  });
+
   it("lets a dispatcher work on their branch's shipment", async () => {
     const { store, admin } = setup();
     const row = Object.assign(store.seed(ShipmentState.CONFIRMED), {
@@ -896,6 +988,68 @@ describe('assignBranch', () => {
   });
 });
 
+describe('deleting a file', () => {
+  it('removes a Files-tab attachment regardless of shipment status, and best-effort cleans up storage', async () => {
+    const { store, admin, provider } = setup();
+    const row = store.seed(ShipmentState.CONFIRMED);
+    const target = store.seedFile(row.id, { kind: ShipmentFileKind.OTHER });
+
+    await admin.deleteFile(STAFF_ID, TRACKING_ID, target.id);
+
+    expect(row.files).toHaveLength(0);
+    expect(provider.deleted).toEqual([target.storageKey]);
+  });
+
+  it('removes an offer photo while the client is still deciding', async () => {
+    const { store, admin } = setup();
+    const row = store.seed(ShipmentState.PENDING_CLIENT_DECISION);
+    const target = store.seedFile(row.id, {
+      kind: ShipmentFileKind.OFFER_PHOTO,
+      offerId: 'offer-1',
+    });
+
+    await admin.deleteFile(STAFF_ID, TRACKING_ID, target.id);
+
+    expect(row.files).toHaveLength(0);
+  });
+
+  it('refuses to remove an offer photo once the client has moved past the decision (409, 3007)', async () => {
+    const { store, admin } = setup();
+    const row = store.seed(ShipmentState.PENDING_PAYMENT);
+    const target = store.seedFile(row.id, {
+      kind: ShipmentFileKind.OFFER_PHOTO,
+      offerId: 'offer-1',
+    });
+
+    await expectFileNotDeletable(
+      admin.deleteFile(STAFF_ID, TRACKING_ID, target.id),
+    );
+
+    expect(row.files).toHaveLength(1);
+  });
+
+  it("never removes the client's own request photos (409, 3007)", async () => {
+    const { store, admin } = setup();
+    const row = store.seed(ShipmentState.PENDING_SOURCING);
+    const target = store.seedFile(row.id, {
+      kind: ShipmentFileKind.REQUEST_PHOTO,
+    });
+
+    await expectFileNotDeletable(
+      admin.deleteFile(STAFF_ID, TRACKING_ID, target.id),
+    );
+
+    expect(row.files).toHaveLength(1);
+  });
+
+  it('a file id that is not attached to the shipment is a 404 (3006)', async () => {
+    const { store, admin } = setup();
+    store.seed(ShipmentState.CONFIRMED);
+
+    await expectFileNotFound(admin.deleteFile(STAFF_ID, TRACKING_ID, 'nope'));
+  });
+});
+
 describe('route protection', () => {
   const proto = AdminShipmentsController.prototype as unknown as Record<
     string,
@@ -918,10 +1072,13 @@ describe('route protection', () => {
     expect(permissionOf('assignBranch')).toBe('organizations:manage');
   });
 
-  it.each(['createOffer', 'confirmPayment', 'addEvent', 'uploadFile'])(
-    '%s mutates the shipment: shipments:update:org',
-    (method) => {
-      expect(permissionOf(method)).toBe('shipments:update:org');
-    },
-  );
+  it.each([
+    'createOffer',
+    'confirmPayment',
+    'addEvent',
+    'uploadFile',
+    'deleteFile',
+  ])('%s mutates the shipment: shipments:update:org', (method) => {
+    expect(permissionOf(method)).toBe('shipments:update:org');
+  });
 });

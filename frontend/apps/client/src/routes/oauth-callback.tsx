@@ -2,16 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
-import { isApiError, OAUTH_CODE_INVALID, useOAuthExchange } from "@trans/api";
+import { GOOGLE_EMAIL_NOT_VERIFIED, OAUTH_CODE_INVALID, isApiError, useOAuthExchange } from "@trans/api";
 import { AuthLayout } from "@trans/ui/blocks/auth-layout";
 import { Button } from "@trans/ui/components/button";
 import { Spinner } from "@trans/ui/components/spinner";
 
 /**
  * /auth/oauth-callback: where Google OAuth lands after consent. The backend
- * never returns tokens here — only a one-time `code` (or an `error`) on this
- * redirect. A URL-carried `error` or a missing `code` is known at render time
- * (no effect needed for those); only the actual exchange is an effect.
+ * never returns tokens here — only a one-time `code` (or a numeric `error`
+ * code) on this redirect. A URL-carried `error` or a missing `code` is known
+ * at render time (no effect needed for those); only the actual exchange is an effect.
  */
 export function OAuthCallbackPage() {
   const { t } = useTranslation(["common", "app"]);
@@ -19,7 +19,7 @@ export function OAuthCallbackPage() {
   const code = params.get("code");
   const urlError = params.get("error");
 
-  const failure = urlError ?? (code ? null : t("app:oauthCallback.missingCode"));
+  const failure = urlError ? messageForErrorCode(urlError, t) : code ? null : t("app:oauthCallback.missingCode");
 
   return (
     <AuthLayout title={t("app:oauthCallback.title")} showPanel={false}>
@@ -27,6 +27,16 @@ export function OAuthCallbackPage() {
       {failure ? <Failure message={failure} /> : <ExchangeCode code={code!} />}
     </AuthLayout>
   );
+}
+
+/** The backend sends a numeric AuthErrorCode; any other/unknown shape falls back to the generic message. */
+function messageForErrorCode(errorCode: string, t: (key: string) => string): string {
+  switch (Number(errorCode)) {
+    case GOOGLE_EMAIL_NOT_VERIFIED:
+      return t("app:oauthCallback.emailNotVerified");
+    default:
+      return t("app:oauthCallback.error");
+  }
 }
 
 function Failure({ message }: { message: string }) {

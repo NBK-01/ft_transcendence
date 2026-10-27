@@ -29,6 +29,8 @@ export const GOOGLE_EMAIL_NOT_VERIFIED = 2011;
 export const EMAIL_ALREADY_REGISTERED = 1002;
 export const OTP_INVALID = 15003;
 export const ACCOUNT_DEACTIVATED = 2012;
+/** The Google round-trip itself failed: denied consent, or a provider error. */
+export const GOOGLE_AUTH_FAILED = 2013;
 
 /** GET /auth/me — the signed-in user. Only runs when there's a session to use. */
 export function useMe() {
@@ -62,6 +64,9 @@ export function useSessionActions() {
 
   const startSession = useCallback(
     (response: AuthResponse) => {
+      // Nothing cached from a previous account (or a previous customer on this
+      // browser) may show to this one — same as staff's useStaffLogin.
+      queryClient.clear();
       tokens.set(response);
       // The login response only has id, email and name, so load the full user from /auth/me.
       void queryClient.invalidateQueries({ queryKey: keys.auth.me });

@@ -1,5 +1,6 @@
 import { http } from "msw/http";
 
+import { SHIPMENT_FILE_NOT_DELETABLE, SHIPMENT_FILE_NOT_FOUND, SHIPMENT_IMAGE_TYPES } from "@trans/api";
 import { error, ok, paginated } from "@trans/api/mocks";
 import { isShipmentState, type ShipmentState } from "@trans/ui/blocks/shipment-state";
 
@@ -404,7 +405,9 @@ export const handlers = [
     if (!productUrl && !images.length) return fail(400, "Add a product link or at least one photo.");
     if (productUrl && !isHttpUrl(productUrl)) return fail(400, "productUrl must be a URL address");
     if (images.length > MAX_IMAGES) return fail(400, `Up to ${MAX_IMAGES} photos.`);
-    if (images.some((file) => !file.type.startsWith("image/"))) return fail(400, "Photos must be images.");
+    if (images.some((file) => !(SHIPMENT_IMAGE_TYPES as readonly string[]).includes(file.type))) {
+      return fail(400, "Photos must be JPEG, PNG, WebP or GIF.");
+    }
     if (images.some((file) => file.size > MAX_IMAGE_BYTES)) return fail(400, "Each photo must be 10 MB or less.");
 
     const shipment: MockShipment = {
@@ -485,5 +488,23 @@ export const handlers = [
     const shipment = findShipment(params.trackingId);
     if (!shipment) return notFound();
     return ok<ShipmentFile[]>(filesFor(shipment));
+  }),
+
+  // One of your own request photos (ShipmentsService.deleteOwnFile): only
+  // while pending_sourcing, and never the last one with no product link.
+  http.delete("*/api/shipments/:trackingId/files/:fileId", ({ params }) => {
+    const shipment = findShipment(params.trackingId);
+    if (!shipment) return notFound();
+    const fileId = String(params.fileId);
+    const index = shipment.request.images.findIndex((image) => image.id === fileId);
+    if (index === -1) return error(404, ["File not found"], SHIPMENT_FILE_NOT_FOUND);
+    if (shipment.status !== "pending_sourcing") {
+      return error(409, ["This file can't be deleted right now"], SHIPMENT_FILE_NOT_DELETABLE);
+    }
+    if (!shipment.request.productUrl && shipment.request.images.length <= 1) {
+      return error(409, ["This file can't be deleted right now"], SHIPMENT_FILE_NOT_DELETABLE);
+    }
+    shipment.request.images.splice(index, 1);
+    return ok({ message: "File removed" });
   }),
 ];

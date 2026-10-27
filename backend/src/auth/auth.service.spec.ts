@@ -3,6 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { JwtService } from '@nestjs/jwt';
 import Redis from 'ioredis';
 import { Repository } from 'typeorm';
+import { I18nService } from 'nestjs-i18n';
 import { AuthContextService } from '../common/context';
 import { AccountType, RequestUser } from '../common/context/auth-context.types';
 import { CryptoService } from '../common/services/crypto.service';
@@ -170,6 +171,9 @@ function setup(env: Record<string, string> = {}) {
   const mail = outbox as unknown as CommunicationService;
   const jwt = new JwtService({ secret: JWT_SECRET });
   const oauthCodes = new OAuthCodeService(redis);
+  // The email templates only need `translate` to not throw; the tests read the
+  // OTP code/reset token out of the HTML, never the surrounding translated text.
+  const i18n = { translate: (key: string) => key } as unknown as I18nService;
   // deactivateAccount()/changePassword() read the acting user from here —
   // real AuthContextService is request-scoped (nestjs-cls), so tests set it
   // directly via `context.user` instead of threading a request through.
@@ -201,6 +205,7 @@ function setup(env: Record<string, string> = {}) {
       redis,
       new OtpConfigService(config),
       mail,
+      i18n,
       otpLogs as unknown as Repository<OtpLog>,
     ),
     new PasswordResetService(redis),
@@ -211,6 +216,7 @@ function setup(env: Record<string, string> = {}) {
     config,
     authContext,
     new EventEmitter2(),
+    i18n,
   );
   return { auth, jwt, users, sessions, outbox, oauthCodes, context };
 }

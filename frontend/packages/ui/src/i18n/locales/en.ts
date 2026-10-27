@@ -57,6 +57,7 @@ const en = {
     profile: "Profile",
     dashboard: "Overview",
     users: "Users",
+    roles: "Roles",
     branches: "Branches",
     apiKeys: "API keys",
     signOut: "Sign out",
