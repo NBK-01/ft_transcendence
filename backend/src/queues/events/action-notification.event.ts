@@ -81,7 +81,7 @@ export type ActionNotificationEvent = {
      * of every dedupe key. No ':' (BullMQ refuses it in job ids).
      */
     occurrence: string;
-    /** Who did it, left out of the recipients; null outside a request (a seed, a job). */
+    /** Who did it: they get a record of it rather than the news; null outside a request (a seed, a job). */
     actor: NotificationRecipient | null;
     data: ActionDataMap[T];
   };

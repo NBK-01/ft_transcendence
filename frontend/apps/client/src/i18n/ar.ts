@@ -150,6 +150,18 @@ const ar: ClientResources = {
         title: "تم تغيير كلمة المرور",
         message: "إذا لم تكن أنت من قام بذلك، أعد تعيين كلمة المرور فورًا.",
       },
+      supportStarted: {
+        title: "بدأت محادثة مع الدعم",
+        message: "سيرد عليك فريق الدعم في الرسائل.",
+      },
+    },
+    own: {
+      shipment: {
+        pending_sourcing: "أرسلت هذا الطلب. نبحث عن مورّد.",
+        pending_payment: "قبلت العرض. ادفع لتأكيده.",
+        pending_payment_confirmation: "دفعت. سنؤكد الدفع قريبًا.",
+        other: "أنت من أجرى هذا التغيير.",
+      },
     },
   },
   shipments: {

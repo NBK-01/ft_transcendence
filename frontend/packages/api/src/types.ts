@@ -539,7 +539,12 @@ export type ShipmentUpdatePayload = {
 };
 
 /** A branch, by its name when it happened. */
-export type BranchPayload = { organizationId: string; name: string };
+export type BranchPayload = {
+  organizationId: string;
+  name: string;
+  /** On BRANCH_STAFF_ADDED / _REMOVED: the member's name (missing on older rows). */
+  staffName?: string;
+};
 
 /** A staff account. */
 export type StaffAccountPayload = { internalUserId: string; name: string };
@@ -605,6 +610,8 @@ export type AppNotification = {
     title: string;
     message: string;
     payload: NotificationPayloads[T];
+    /** The reader is the one who acted: a record of their own action ("You created…"), not news. */
+    ownAction: boolean;
     createdAt: string;
     /** Null until read. */
     readAt: string | null;

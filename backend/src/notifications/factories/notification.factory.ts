@@ -10,6 +10,7 @@ export class NotificationFactory {
       title: notification.title,
       message: notification.message,
       payload: notification.payload,
+      ownAction: notification.ownAction,
       createdAt: notification.createdAt,
       readAt: notification.readAt,
     };

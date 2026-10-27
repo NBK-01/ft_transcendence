@@ -519,8 +519,8 @@ for (const row of shipments) {
         clientId: row.client.id,
         status: event.status,
         occurredAt: event.occurredAt,
-        actorType: event.actor?.type ?? null,
-        isNew: row.organization !== null && step === 0,
+        actor: event.actor,
+        isFirstEvent: step === 0,
       },
       { read: at < ago(DAY) },
     );
@@ -665,7 +665,7 @@ function moveTo(row: Row, status: ShipmentState, location: string, actor: Activi
     clientId: row.client.id,
     status,
     occurredAt: now,
-    actorType: actor?.type ?? null,
+    actor,
   });
 }
 

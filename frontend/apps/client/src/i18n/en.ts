@@ -149,6 +149,19 @@ const en = {
         title: "Password changed",
         message: "If this wasn't you, reset your password right away.",
       },
+      supportStarted: {
+        title: "Support conversation started",
+        message: "Our support team will answer you in Messages.",
+      },
+    },
+    /** The reader is the one who acted (ownAction): a record of what they did. */
+    own: {
+      shipment: {
+        pending_sourcing: "You sent this request. We're finding a supplier.",
+        pending_payment: "You accepted the offer. Pay to confirm it.",
+        pending_payment_confirmation: "You paid. We'll confirm the payment shortly.",
+        other: "You made this change.",
+      },
     },
   },
   shipments: {

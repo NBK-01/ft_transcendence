@@ -69,6 +69,8 @@ export interface ShipmentUpdatePayload {
 export interface BranchPayload {
   organizationId: string;
   name: string;
+  /** On BRANCH_STAFF_ADDED / _REMOVED: the member's name (missing on older rows). */
+  staffName?: string;
 }
 
 export interface StaffAccountPayload {

@@ -70,8 +70,8 @@ const isUnread = (row: Row) => row.status !== "READ";
 const newestFirst = (a: Row, b: Row) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id);
 
 /** NotificationFactory.toDto: no owner, dedupe key or delivery details. Rebuilt field by field, so TypeScript can't pair type and payload again. */
-const toDto = ({ id, type, status, title, message, payload, createdAt, readAt }: Row) =>
-  ({ id, type, status, title, message, payload, createdAt, readAt }) as AppNotification;
+const toDto = ({ id, type, status, title, message, payload, ownAction, createdAt, readAt }: Row) =>
+  ({ id, type, status, title, message, payload, ownAction, createdAt, readAt }) as AppNotification;
 
 /** ListNotificationsQueryDto under the ValidationPipe: every failing field, as a 400 without a code. */
 function queryProblems(params: URLSearchParams) {

@@ -52,6 +52,7 @@ class FakeNotifications {
       title: input.title,
       message: input.message,
       payload: input.payload,
+      ownAction: input.ownAction ?? false,
       status: NotificationStatus.PENDING,
       sentAt: null,
       readAt: null,
@@ -90,6 +91,16 @@ class FakeNotifications {
   all(): Notification[] {
     return [...this.rows.values()];
   }
+
+  /** The rows about the action, leaving out the actor's own record of it. */
+  news(): Notification[] {
+    return this.all().filter((row) => !row.ownAction);
+  }
+
+  /** The actor's own record of it, if any. */
+  own(): Notification[] {
+    return this.all().filter((row) => row.ownAction);
+  }
 }
 
 const CUSTOMER_ID = randomUUID();
@@ -101,6 +112,9 @@ const SUPPORT: NotificationRecipient = {
   id: randomUUID(),
   accountType: AccountType.STAFF,
 };
+/** The staff member who posts the staff steps. */
+const STAFF_ACTOR_ID = randomUUID();
+const API_KEY_ID = randomUUID();
 
 /** Written by AdminShipmentsService (staff): the customer hears about them. */
 const STAFF_ACTIONS = [
@@ -155,6 +169,7 @@ beforeEach(() => {
     clientId: CUSTOMER_ID,
     isFirstEvent: false,
     actorType: ShipmentActorType.STAFF,
+    actorId: STAFF_ACTOR_ID,
   };
   inactive = new Set();
   lookup = {
@@ -182,12 +197,21 @@ function jobFor(shipmentEventId: string): Job<ShipmentEventNotificationEvent> {
 
 const run = () => handler.run(jobFor(event.id), services);
 
+/** Whose id an event by each kind of actor records. */
+const ACTOR_IDS: Record<ShipmentActorType, string | null> = {
+  [ShipmentActorType.CUSTOMER]: CUSTOMER_ID,
+  [ShipmentActorType.STAFF]: STAFF_ACTOR_ID,
+  [ShipmentActorType.PARTNER]: API_KEY_ID,
+  [ShipmentActorType.CARRIER]: null,
+};
+
 /** The event as `actorType` wrote it. */
 const writtenBy = (
   actorType: ShipmentActorType | null,
   status: ShipmentState,
 ) => {
   event.actorType = actorType;
+  event.actorId = actorType && ACTOR_IDS[actorType];
   event.status = status;
 };
 
@@ -199,7 +223,7 @@ describe('shipmentEventNotificationHandler: who gets what', () => {
 
       await run();
 
-      expect(notifications.all()).toEqual([
+      expect(notifications.news()).toEqual([
         expect.objectContaining({
           userId: CUSTOMER_ID,
           accountType: AccountType.CUSTOMER,
@@ -220,7 +244,7 @@ describe('shipmentEventNotificationHandler: who gets what', () => {
 
       await run();
 
-      const rows = notifications.all();
+      const rows = notifications.news();
       expect(rows.map((row) => row.userId).sort()).toEqual(
         [ADMIN.id, SUPPORT.id].sort(),
       );
@@ -240,7 +264,9 @@ describe('shipmentEventNotificationHandler: who gets what', () => {
     async (actorType, status) => {
       writtenBy(actorType, status);
 
+      // A partner or the carrier isn't a person: no record for them.
       await expect(run()).resolves.toEqual({ recipients: 3, delivered: 3 });
+      expect(notifications.own()).toEqual([]);
 
       expect(
         notifications
@@ -267,8 +293,9 @@ describe('shipmentEventNotificationHandler: who gets what', () => {
   it('leaves out a deactivated customer', async () => {
     inactive.add(`customer:${CUSTOMER_ID}`);
 
-    await expect(run()).resolves.toEqual({ recipients: 0, delivered: 0 });
-    expect(notifications.all()).toEqual([]);
+    await run();
+
+    expect(notifications.news()).toEqual([]);
   });
 
   it('does nothing when the event is gone (its shipment was deleted)', async () => {
@@ -284,7 +311,7 @@ describe('shipmentEventNotificationHandler: who gets what', () => {
 
     await run();
 
-    expect(notifications.all()).toEqual([]);
+    expect(notifications.news()).toEqual([]);
   });
 });
 
@@ -335,7 +362,7 @@ describe('shipmentEventNotificationHandler: wording', () => {
 
     await run();
 
-    expect(notifications.all()[0]).toMatchObject({
+    expect(notifications.news()[0]).toMatchObject({
       title: 'Payment confirmed',
       message:
         "Your payment for TRK-4A6F90 is confirmed. We'll let you know when it ships.",
@@ -386,7 +413,7 @@ describe('shipmentEventNotificationHandler: wording', () => {
 
     await run();
 
-    expect(notifications.all()[0]).toMatchObject({
+    expect(notifications.news()[0]).toMatchObject({
       title: 'Payment to confirm',
       message:
         'The client paid for TRK-4A6F90. Confirm the payment to start the shipment.',
@@ -432,15 +459,86 @@ describe('shipmentEventNotificationHandler: wording', () => {
   );
 });
 
+describe('shipmentEventNotificationHandler: a record for whoever acted', () => {
+  it('gives the staff member who acted a record of it, and the customer who acted too', async () => {
+    writtenBy(ShipmentActorType.STAFF, ShipmentState.CONFIRMED);
+    await run();
+    expect(notifications.own()).toEqual([
+      expect.objectContaining({
+        userId: STAFF_ACTOR_ID,
+        accountType: AccountType.STAFF,
+        ownAction: true,
+        title: 'Payment confirmed',
+        message:
+          'You confirmed the payment for TRK-4A6F90. Tracking can start.',
+        dedupeKey: `shipment-event:${event.id}:staff:${STAFF_ACTOR_ID}`,
+      }),
+    ]);
+
+    notifications = new FakeNotifications();
+    services.notificationsService =
+      notifications as unknown as NotificationsService;
+    writtenBy(ShipmentActorType.CUSTOMER, ShipmentState.PENDING_PAYMENT);
+    await run();
+    expect(notifications.own()).toEqual([
+      expect.objectContaining({
+        userId: CUSTOMER_ID,
+        accountType: AccountType.CUSTOMER,
+        ownAction: true,
+        title: 'Offer accepted',
+      }),
+    ]);
+  });
+
+  it('tells a new request and a rejected offer apart in the customer’s record', async () => {
+    writtenBy(ShipmentActorType.CUSTOMER, ShipmentState.PENDING_SOURCING);
+    event.isFirstEvent = true;
+    await run();
+    expect(notifications.own()[0]?.title).toBe('Request sent');
+
+    notifications = new FakeNotifications();
+    services.notificationsService =
+      notifications as unknown as NotificationsService;
+    event.isFirstEvent = false;
+    await run();
+    expect(notifications.own()[0]?.title).toBe('Offer rejected');
+  });
+
+  /** What the person who acted is told: [status, isFirstEvent]. */
+  const OWN: Array<[ShipmentState, boolean]> = [
+    ...STAFF_ACTIONS.map((status): [ShipmentState, boolean] => [status, false]),
+    [ShipmentState.PENDING_SOURCING, true],
+    [ShipmentState.PENDING_SOURCING, false],
+    [ShipmentState.PENDING_PAYMENT, false],
+    [ShipmentState.PENDING_PAYMENT_CONFIRMATION, false],
+  ];
+
+  it.each(OWN)(
+    'has English copy for the one who moved it to %s (first event: %s)',
+    (status, isFirstEvent) => {
+      const copy = shipmentUpdateCopy(i18n, 'actor', {
+        status,
+        trackingId: 'TRK-4A6F90',
+        isFirstEvent,
+      });
+
+      expect(copy.title).not.toMatch(/^notifications\./);
+      expect(copy.message).toMatch(/^You /);
+      expect(copy.message).toContain('TRK-4A6F90');
+    },
+  );
+});
+
 describe('shipmentEventNotificationHandler: running again', () => {
   it('creates no new rows and sends nothing twice', async () => {
     writtenBy(ShipmentActorType.CUSTOMER, ShipmentState.PENDING_SOURCING);
 
-    await expect(run()).resolves.toEqual({ recipients: 2, delivered: 2 });
-    await expect(run()).resolves.toEqual({ recipients: 2, delivered: 0 });
+    // The customer's own record, and the two staff members.
+    await expect(run()).resolves.toEqual({ recipients: 3, delivered: 3 });
+    await expect(run()).resolves.toEqual({ recipients: 3, delivered: 0 });
 
-    expect(notifications.all()).toHaveLength(2);
-    expect(notifications.sent).toHaveLength(2);
+    expect(notifications.all()).toHaveLength(3);
+    expect(notifications.sent).toHaveLength(3);
   });
 
   it('a retry delivers only what the failed attempt left behind', async () => {
@@ -459,9 +557,9 @@ describe('shipmentEventNotificationHandler: running again', () => {
       });
 
     await expect(run()).rejects.toThrow('delivery failed');
-    await expect(run()).resolves.toEqual({ recipients: 2, delivered: 1 });
+    await expect(run()).resolves.toEqual({ recipients: 3, delivered: 1 });
 
-    expect(notifications.all()).toHaveLength(2);
+    expect(notifications.all()).toHaveLength(3);
     expect(
       notifications
         .all()

@@ -3,6 +3,7 @@ import { AccountType } from '../../common/context/auth-context.types';
 import {
   ApiKeyPayload,
   BranchPayload,
+  ContactPayload,
   NotificationPayloads,
   NotificationType,
   StaffAccountPayload,
@@ -33,6 +34,11 @@ export interface Resolution<TPayload> {
   args: Record<string, string>;
   /** Most specific first: someone in two audiences gets the first one's wording, once. */
   audiences: Audience[];
+  /**
+   * The payload and placeholders for the person who acted, when "the other
+   * person" is someone else for them (a contact request: the one they asked).
+   */
+  forActor?: { payload: TPayload; args: Record<string, string> };
 }
 
 /** Null when there's nothing left to say (e.g. a contact request declined before the job ran). */
@@ -65,16 +71,27 @@ async function branchChange(
   };
 }
 
-function branchMembership({
-  data,
-}: ActionEventOf<
-  NotificationType.BRANCH_STAFF_ADDED | NotificationType.BRANCH_STAFF_REMOVED
->): Promise<Resolution<BranchPayload>> {
-  return Promise.resolve({
-    payload: { organizationId: data.organizationId, name: data.name },
-    args: { name: data.name },
-    audiences: [{ copy: 'self', recipients: staff(data.internalUserId) }],
-  });
+async function branchMembership(
+  {
+    data,
+  }: ActionEventOf<
+    NotificationType.BRANCH_STAFF_ADDED | NotificationType.BRANCH_STAFF_REMOVED
+  >,
+  lookup: ActionLookupService,
+): Promise<Resolution<BranchPayload> | null> {
+  const member = await lookup.findStaff(data.internalUserId);
+  if (!member) {
+    return null;
+  }
+  return {
+    payload: {
+      organizationId: data.organizationId,
+      name: data.name,
+      staffName: member.name,
+    },
+    args: { name: data.name, staffName: member.name },
+    audiences: [{ copy: 'self', recipients: staff(member.id) }],
+  };
 }
 
 async function toAdmins(
@@ -90,6 +107,17 @@ async function toAdmins(
     payload: { internalUserId: data.internalUserId, name: data.name },
     args: { name: data.name },
     audiences: [{ copy: 'admins', recipients: await lookup.findAdmins() }],
+  };
+}
+
+/** A contact notice is about the other person: `other` for its reader. */
+function aboutContact(
+  contactId: string,
+  other: { id: string; name: string },
+): { payload: ContactPayload; args: Record<string, string> } {
+  return {
+    payload: { contactId, internalUserId: other.id, name: other.name },
+    args: { name: other.name },
   };
 }
 
@@ -110,8 +138,9 @@ async function apiKeyToAdmins(
 
 /**
  * Who hears about each action, and what they're told. Exhaustive: a new
- * action type doesn't compile until it has a resolver. The actor and
- * inactive accounts are dropped afterwards, for every action alike.
+ * action type doesn't compile until it has a resolver. The actor's own
+ * record, and leaving out inactive accounts, come afterwards, for every
+ * action alike (recipientsOf).
  */
 export const RESOLVERS: { [T in ActionType]: Resolver<T> } = {
   [NotificationType.BRANCH_CREATED]: async ({ data }, lookup) => ({
@@ -150,13 +179,9 @@ export const RESOLVERS: { [T in ActionType]: Resolver<T> } = {
     const contact = await lookup.findContact(data.contactId);
     return (
       contact && {
-        payload: {
-          contactId: data.contactId,
-          internalUserId: contact.requester.id,
-          name: contact.requester.name,
-        },
-        args: { name: contact.requester.name },
+        ...aboutContact(data.contactId, contact.requester),
         audiences: [{ copy: 'self', recipients: staff(contact.addressee.id) }],
+        forActor: aboutContact(data.contactId, contact.addressee),
       }
     );
   },
@@ -164,13 +189,9 @@ export const RESOLVERS: { [T in ActionType]: Resolver<T> } = {
     const contact = await lookup.findContact(data.contactId);
     return (
       contact && {
-        payload: {
-          contactId: data.contactId,
-          internalUserId: contact.addressee.id,
-          name: contact.addressee.name,
-        },
-        args: { name: contact.addressee.name },
+        ...aboutContact(data.contactId, contact.addressee),
         audiences: [{ copy: 'self', recipients: staff(contact.requester.id) }],
+        forActor: aboutContact(data.contactId, contact.requester),
       }
     );
   },
@@ -214,8 +235,11 @@ export const RESOLVERS: { [T in ActionType]: Resolver<T> } = {
   [NotificationType.API_KEY_REVOKED]: apiKeyToAdmins,
 };
 
-/** The one notice that also reaches the person who acted: if it wasn't them, they need to know. */
-const NOTIFIES_ACTOR: ReadonlySet<ActionType> = new Set([
+/**
+ * Notices that aren't kept as a record of the actor's own action: a password
+ * change warns its owner the same way whoever made it.
+ */
+const NO_ACTOR_RECORD: ReadonlySet<ActionType> = new Set([
   NotificationType.PASSWORD_CHANGED,
 ]);
 
@@ -229,30 +253,40 @@ export function actionDedupeKeyPrefix(
 const keyOf = (recipient: NotificationRecipient) =>
   `${recipient.accountType}:${recipient.id}`;
 
+interface Notified {
+  recipient: NotificationRecipient;
+  copy: string;
+  /** The recipient is the one who acted. */
+  ownAction: boolean;
+}
+
 /**
- * The audiences as one list: each person once (in their first audience),
- * without the actor (unless the action notifies them), and only while their
- * account is active.
+ * Everyone to notify, each once and only while their account is active: the
+ * person who acted first, with a record of their own action ("You…"), then
+ * the audiences, each person in the first one they're in.
  */
 async function recipientsOf(
   event: ActionNotificationEvent,
   audiences: Audience[],
   lookup: ActionLookupService,
-): Promise<Array<{ recipient: NotificationRecipient; copy: string }>> {
-  const actorKey = event.actor && keyOf(event.actor);
+): Promise<Notified[]> {
   const seen = new Set<string>();
-  const picked: Array<{ recipient: NotificationRecipient; copy: string }> = [];
-  for (const { copy, recipients } of audiences) {
-    for (const recipient of recipients) {
-      const key = keyOf(recipient);
-      if (seen.has(key)) {
-        continue;
-      }
-      seen.add(key);
-      if (key !== actorKey || NOTIFIES_ACTOR.has(event.type)) {
-        picked.push({ recipient, copy });
-      }
+  const picked: Notified[] = [];
+  const add = (
+    recipient: NotificationRecipient,
+    copy: string,
+    ownAction: boolean,
+  ) => {
+    if (!seen.has(keyOf(recipient))) {
+      seen.add(keyOf(recipient));
+      picked.push({ recipient, copy, ownAction });
     }
+  };
+  if (event.actor && !NO_ACTOR_RECORD.has(event.type)) {
+    add(event.actor, 'actor', true);
+  }
+  for (const { copy, recipients } of audiences) {
+    recipients.forEach((recipient) => add(recipient, copy, false));
   }
   const active = new Set(
     (await lookup.keepActive(picked.map(({ recipient }) => recipient))).map(
@@ -293,13 +327,16 @@ export const actionNotificationHandler: JobHandler<ActionNotificationEvent> = {
       services.actionLookupService,
     );
     let delivered = 0;
-    for (const { recipient, copy } of recipients) {
+    for (const { recipient, copy, ownAction } of recipients) {
+      const { payload, args } =
+        (ownAction && resolution.forActor) || resolution;
       const sent = await notifyOnce(services, {
         recipient,
         type: event.type,
-        payload: resolution.payload,
-        ...actionCopy(services.i18n, event.type, copy, resolution.args),
+        payload,
+        ...actionCopy(services.i18n, event.type, copy, args),
         dedupeKey: `${actionDedupeKeyPrefix(event)}${keyOf(recipient)}`,
+        ownAction,
       } as CreateNotificationInput);
       delivered += Number(sent);
     }

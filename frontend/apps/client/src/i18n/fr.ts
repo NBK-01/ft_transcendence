@@ -150,6 +150,18 @@ const fr: ClientResources = {
         title: "Mot de passe modifié",
         message: "Si ce n'était pas vous, réinitialisez votre mot de passe immédiatement.",
       },
+      supportStarted: {
+        title: "Conversation avec le support ouverte",
+        message: "Notre équipe de support vous répondra dans Messages.",
+      },
+    },
+    own: {
+      shipment: {
+        pending_sourcing: "Vous avez envoyé cette demande. Nous cherchons un fournisseur.",
+        pending_payment: "Vous avez accepté l'offre. Payez pour la confirmer.",
+        pending_payment_confirmation: "Vous avez payé. Nous confirmerons le paiement sous peu.",
+        other: "Vous avez fait ce changement.",
+      },
     },
   },
   shipments: {

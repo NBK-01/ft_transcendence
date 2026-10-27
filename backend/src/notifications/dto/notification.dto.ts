@@ -31,7 +31,7 @@ export class NotificationDto {
     description: [
       'Depends on type (see NotificationPayloads).',
       'SHIPMENT_UPDATE: { trackingId, status, isNew?, actorType? }.',
-      'BRANCH_*: { organizationId, name }.',
+      'BRANCH_*: { organizationId, name }; BRANCH_STAFF_* add staffName.',
       'STAFF_ACCOUNT_CREATED / _DEACTIVATED: { internalUserId, name };',
       'STAFF_ACCOUNT_UPDATED adds { changed, roleName, organizationId, organizationName }.',
       'CONTACT_REQUEST_*: { contactId, internalUserId, name } (the other person).',
@@ -42,6 +42,12 @@ export class NotificationDto {
     ].join(' '),
   })
   payload!: NotificationPayload;
+
+  @ApiProperty({
+    description:
+      'The reader is the one who acted: a record of their own action ("You created…"), not news.',
+  })
+  ownAction!: boolean;
 
   @ApiProperty({ type: Date })
   createdAt!: Date;

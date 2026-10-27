@@ -26,6 +26,8 @@ export interface ShipmentEventSummary {
   isFirstEvent: boolean;
   /** Who wrote it; null on events from before it was recorded. */
   actorType: ShipmentActorType | null;
+  /** A User id (customer), InternalUser id (staff) or ApiKey id (partner); null for the carrier and older events. */
+  actorId: string | null;
 }
 
 /** Read-only lookups for the shipment notification job: the event, and the staff to tell about it. */
@@ -60,6 +62,7 @@ export class ShipmentLookupService {
       clientId: event.shipment.clientId,
       isFirstEvent: !hasEarlierEvent,
       actorType: event.actorType,
+      actorId: event.actorId,
     };
   }
 

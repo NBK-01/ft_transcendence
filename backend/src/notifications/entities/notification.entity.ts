@@ -36,6 +36,10 @@ export class Notification extends BaseEntity {
   @Column({ type: 'jsonb' })
   payload!: NotificationPayload;
 
+  /** The recipient is the one who acted: a record of their own action rather than news. */
+  @Column({ name: 'own_action', default: false })
+  ownAction!: boolean;
+
   @Column({
     type: 'enum',
     enum: NotificationStatus,
@@ -53,7 +57,7 @@ export class Notification extends BaseEntity {
   dismissedAt!: Date | null;
 
   /**
-   * Identifies the source and the recipient, e.g. "shipment-event:<eventId>:<userId>".
+   * Identifies the source and the recipient, e.g. "shipment-event:<eventId>:<accountType>:<userId>".
    * Unique, so the same source can never create two rows for one person,
    * even when a job runs twice.
    */

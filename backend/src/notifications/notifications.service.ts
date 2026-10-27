@@ -25,8 +25,10 @@ export type CreateNotificationInput = {
     payload: NotificationPayloads[T];
     title: string;
     message: string;
-    /** Same source + same person = same key, e.g. "shipment-event:<eventId>:<userId>". */
+    /** Same source + same person = same key, e.g. "shipment-event:<eventId>:<accountType>:<userId>". */
     dedupeKey: string;
+    /** The recipient is the one who acted (false by default). */
+    ownAction?: boolean;
   };
 }[NotificationType];
 
@@ -155,6 +157,7 @@ export class NotificationsService {
         title: input.title,
         message: input.message,
         payload: input.payload,
+        ownAction: input.ownAction ?? false,
         status: NotificationStatus.PENDING,
         dedupeKey: input.dedupeKey,
       })

@@ -120,11 +120,19 @@ describe("notifications: access", () => {
     await expect(dismiss(UNKNOWN_ID)).rejects.toMatchObject(unauthorized);
   });
 
-  it("a customer gets her own shipments' staff actions, worded for her", async () => {
+  it("a customer gets her own shipments' staff actions, worded for her, and a record of her own steps", async () => {
     const hers = await aminasTrackingIds();
     await signInAsAmina();
-    const items = await shipmentUpdates();
+    const all = await shipmentUpdates();
+    const items = all.filter((item) => !item.ownAction);
     expect(items.length).toBeGreaterThan(0);
+    const own = all.filter((item) => item.ownAction);
+    expect(own.length).toBeGreaterThan(0);
+    for (const item of own) {
+      expect(hers.has(item.payload.trackingId)).toBe(true);
+      expect(item.payload.actorType).toBe("customer");
+      expect(item.message).toMatch(/^You /);
+    }
     for (const item of items) {
       expect(hers.has(item.payload.trackingId)).toBe(true);
       expect(CUSTOMER_HEARS).toContain(item.payload.status);
@@ -136,7 +144,7 @@ describe("notifications: access", () => {
   it("admins and support get customer, partner and carrier steps on shipments, worded for staff; dispatchers and drivers none", async () => {
     for (const staff of [nadia, maya]) {
       await signInAs(staff.email);
-      const items = await shipmentUpdates();
+      const items = (await shipmentUpdates()).filter((item) => !item.ownAction);
       expect(items.length).toBeGreaterThan(0);
       for (const { payload } of items) {
         const fromOutside = payload.actorType !== undefined && OUTSIDE_ACTORS.includes(payload.actorType);

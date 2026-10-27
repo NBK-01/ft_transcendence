@@ -74,13 +74,34 @@ export function isNewShipment(
   return event.isFirstEvent && event.status === ShipmentState.CONFIRMED;
 }
 
-/** English copy from i18n/en/notifications.json, worded for the audience. */
+/**
+ * What the person who moved it did, as their copy says it: a new request and
+ * a rejected offer both go back to pending_sourcing.
+ */
+function actorStep(
+  event: Pick<ShipmentEventSummary, 'status' | 'isFirstEvent'>,
+): string {
+  if (event.status === ShipmentState.PENDING_SOURCING) {
+    return event.isFirstEvent ? 'requested' : 'rejected';
+  }
+  return event.status;
+}
+
+/**
+ * English copy from i18n/en/notifications.json, worded for the audience, or
+ * for the person who acted ("You…").
+ */
 export function shipmentUpdateCopy(
   i18n: I18nService,
-  audience: AccountType,
+  audience: AccountType | 'actor',
   event: Pick<ShipmentEventSummary, 'status' | 'trackingId' | 'isFirstEvent'>,
 ): { title: string; message: string } {
-  const step = isNewShipment(event) ? 'created' : event.status;
+  const step =
+    audience === 'actor'
+      ? actorStep(event)
+      : isNewShipment(event)
+        ? 'created'
+        : event.status;
   const key = `notifications.${NotificationType.SHIPMENT_UPDATE}.${audience}.${step}`;
   const options = { lang: 'en', args: { trackingId: event.trackingId } };
   return {
@@ -89,16 +110,65 @@ export function shipmentUpdateCopy(
   };
 }
 
-async function recipientsFor(
-  audience: AccountType,
+/** The person who moved it, who gets a record of it; a partner or the carrier isn't one. */
+function actorOf(event: ShipmentEventSummary): NotificationRecipient | null {
+  if (!event.actorId) {
+    return null;
+  }
+  switch (event.actorType) {
+    case ShipmentActorType.CUSTOMER:
+      return { id: event.actorId, accountType: AccountType.CUSTOMER };
+    case ShipmentActorType.STAFF:
+      return { id: event.actorId, accountType: AccountType.STAFF };
+    default:
+      return null;
+  }
+}
+
+interface Notified {
+  recipient: NotificationRecipient;
+  copy: { title: string; message: string };
+  /** The recipient is the one who acted. */
+  ownAction: boolean;
+}
+
+/** The actor first, then each audience; each person once, and only while their account is active. */
+async function notifiedFor(
   event: ShipmentEventSummary,
   services: JobServices,
-): Promise<NotificationRecipient[]> {
-  const recipients =
-    audience === AccountType.CUSTOMER
-      ? [{ id: event.clientId, accountType: AccountType.CUSTOMER }]
-      : await services.shipmentLookupService.findShipmentStaff();
-  return services.actionLookupService.keepActive(recipients);
+): Promise<Notified[]> {
+  const notified: Notified[] = [];
+  const actor = actorOf(event);
+  if (actor) {
+    const copy = shipmentUpdateCopy(services.i18n, 'actor', event);
+    notified.push({ recipient: actor, copy, ownAction: true });
+  }
+  for (const audience of audiencesFor(event)) {
+    const copy = shipmentUpdateCopy(services.i18n, audience, event);
+    const recipients =
+      audience === AccountType.CUSTOMER
+        ? [{ id: event.clientId, accountType: AccountType.CUSTOMER }]
+        : await services.shipmentLookupService.findShipmentStaff();
+    for (const recipient of recipients) {
+      notified.push({ recipient, copy, ownAction: false });
+    }
+  }
+  const keyOf = ({ accountType, id }: NotificationRecipient) =>
+    `${accountType}:${id}`;
+  const active = new Set(
+    (
+      await services.actionLookupService.keepActive(
+        notified.map(({ recipient }) => recipient),
+      )
+    ).map(keyOf),
+  );
+  const seen = new Set<string>();
+  return notified.filter(({ recipient }) => {
+    const key = keyOf(recipient);
+    const keep = active.has(key) && !seen.has(key);
+    seen.add(key);
+    return keep;
+  });
 }
 
 export const shipmentEventNotificationHandler: JobHandler<ShipmentEventNotificationEvent> =
@@ -118,24 +188,20 @@ export const shipmentEventNotificationHandler: JobHandler<ShipmentEventNotificat
         ...(isNewShipment(event) && { isNew: true as const }),
         ...(event.actorType && { actorType: event.actorType }),
       };
-      let recipientCount = 0;
+      const notified = await notifiedFor(event, services);
       let delivered = 0;
-      for (const audience of audiencesFor(event)) {
-        const recipients = await recipientsFor(audience, event, services);
-        const copy = shipmentUpdateCopy(services.i18n, audience, event);
-        recipientCount += recipients.length;
-        for (const recipient of recipients) {
-          const sent = await notifyOnce(services, {
-            recipient,
-            type: NotificationType.SHIPMENT_UPDATE,
-            payload,
-            ...copy,
-            dedupeKey: dedupeKey(event.id, recipient),
-          });
-          delivered += Number(sent);
-        }
+      for (const { recipient, copy, ownAction } of notified) {
+        const sent = await notifyOnce(services, {
+          recipient,
+          type: NotificationType.SHIPMENT_UPDATE,
+          payload,
+          ...copy,
+          dedupeKey: dedupeKey(event.id, recipient),
+          ownAction,
+        });
+        delivered += Number(sent);
       }
-      return { recipients: recipientCount, delivered };
+      return { recipients: notified.length, delivered };
     },
 
     async onFinalFailure(job, services) {

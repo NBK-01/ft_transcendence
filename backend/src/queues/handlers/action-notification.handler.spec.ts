@@ -45,6 +45,7 @@ class FakeNotifications {
       title: input.title,
       message: input.message,
       payload: input.payload,
+      ownAction: input.ownAction ?? false,
       status: NotificationStatus.PENDING,
       dedupeKey: input.dedupeKey,
     } as Notification;
@@ -77,6 +78,23 @@ class FakeNotifications {
     return [...this.rows.values()]
       .map((row) => `${row.accountType}:${row.userId}`)
       .sort();
+  }
+
+  /** The rows about the action, leaving out the actor's own record of it. */
+  news(): Notification[] {
+    return [...this.rows.values()].filter((row) => !row.ownAction);
+  }
+
+  /** Who got news (not their own record), sorted like recipients(). */
+  newsRecipients(): string[] {
+    return this.news()
+      .map((row) => `${row.accountType}:${row.userId}`)
+      .sort();
+  }
+
+  /** The actor's own record of it. */
+  own(): Notification[] {
+    return [...this.rows.values()].filter((row) => row.ownAction);
   }
 }
 
@@ -278,7 +296,11 @@ const EVENTS: { [T in ActionType]: ActionNotificationEvent & { type: T } } = {
   },
 };
 
-/** Who each action reaches, given EVENTS: never the actor (but for the password notice), never an inactive account. */
+/**
+ * Who hears about each action, given EVENTS, besides the actor's own record:
+ * never an inactive account, and the actor only as their record (the password
+ * notice reaches its owner as news, whoever changed it).
+ */
 const EXPECTED: Record<ActionType, NotificationRecipient[]> = {
   [NotificationType.BRANCH_CREATED]: [OTHER_ADMIN],
   [NotificationType.BRANCH_UPDATED]: [MEMBER, OTHER_ADMIN],
@@ -303,8 +325,13 @@ describe('actionNotificationHandler: who gets what', () => {
     async (type, event) => {
       await run(event);
 
-      expect(notifications.recipients()).toEqual(
+      expect(notifications.newsRecipients()).toEqual(
         EXPECTED[type].map(key).sort(),
+      );
+      expect(
+        notifications.own().map((row) => `${row.accountType}:${row.userId}`),
+      ).toEqual(
+        type === NotificationType.PASSWORD_CHANGED ? [] : [key(event.actor!)],
       );
       for (const row of notifications.rows.values()) {
         expect(row).toMatchObject({
@@ -321,14 +348,32 @@ describe('actionNotificationHandler: who gets what', () => {
     },
   );
 
-  it('leaves out the actor, even when they belong to the audience', async () => {
-    // ADMIN is in the support audience; as the one who acted, they're left out.
+  it('gives the actor one row, their own record, even when they belong to an audience', async () => {
+    // ADMIN is in the support audience; as the one who acted, they get their record instead.
     await run({
       ...EVENTS[NotificationType.SUPPORT_CONVERSATION_STARTED],
       actor: ADMIN,
     });
 
-    expect(notifications.recipients()).toEqual([key(SUPPORT)]);
+    expect(notifications.recipients()).toEqual(
+      [key(ADMIN), key(SUPPORT)].sort(),
+    );
+    expect(notifications.own()).toEqual([
+      expect.objectContaining({
+        userId: ADMIN.id,
+        ownAction: true,
+        title: 'Support conversation started',
+      }),
+    ]);
+  });
+
+  it('records nothing for the actor when nobody acted (a seed or a job)', async () => {
+    await run({ ...EVENTS[NotificationType.BRANCH_CREATED], actor: null });
+
+    expect(notifications.own()).toEqual([]);
+    expect(notifications.newsRecipients()).toEqual(
+      [key(ADMIN), key(OTHER_ADMIN)].sort(),
+    );
   });
 
   it('a password notice reaches the owner even when they changed it, and without an actor (a reset)', async () => {
@@ -362,10 +407,9 @@ describe('actionNotificationHandler: who gets what', () => {
       clientId: INACTIVE_CUSTOMER.id,
     });
 
-    await expect(
-      run(EVENTS[NotificationType.SHIPMENT_FILE_ADDED]),
-    ).resolves.toEqual({ recipients: 0, delivered: 0 });
-    expect(notifications.rows.size).toBe(0);
+    await run(EVENTS[NotificationType.SHIPMENT_FILE_ADDED]);
+
+    expect(notifications.news()).toEqual([]);
   });
 
   it('a member who is also an admin gets one notification, worded for the branch', async () => {
@@ -377,8 +421,8 @@ describe('actionNotificationHandler: who gets what', () => {
       },
     });
 
-    const [row] = [...notifications.rows.values()];
-    expect(notifications.rows.size).toBe(1);
+    const [row] = notifications.news();
+    expect(notifications.news()).toHaveLength(1);
     expect(row).toMatchObject({
       userId: OTHER_ADMIN.id,
       title: 'Your branch was updated',
@@ -415,7 +459,7 @@ describe('actionNotificationHandler: wording and payload', () => {
       data: { shipmentId: 'shipment-1', kind, fileName: 'scan.pdf' },
     });
 
-    const [row] = [...notifications.rows.values()];
+    const [row] = notifications.news();
     expect(row.message).toContain('TRK-4A6F90');
     expect(row.payload).toEqual({
       trackingId: 'TRK-4A6F90',
@@ -425,13 +469,65 @@ describe('actionNotificationHandler: wording and payload', () => {
   });
 });
 
+describe('actionNotificationHandler: the actor’s own record', () => {
+  it('words it for them, with ownAction set', async () => {
+    await run(EVENTS[NotificationType.BRANCH_STAFF_ADDED]);
+
+    expect(notifications.own()).toEqual([
+      expect.objectContaining({
+        userId: ADMIN.id,
+        ownAction: true,
+        title: 'Member added',
+        message: 'You added Rami Khoury to Beirut Central.',
+        payload: {
+          organizationId: 'org-1',
+          name: 'Beirut Central',
+          staffName: 'Rami Khoury',
+        },
+      }),
+    ]);
+    expect(notifications.news()[0]?.ownAction).toBe(false);
+  });
+
+  it('names the other person in a contact notice, for each side', async () => {
+    await run(EVENTS[NotificationType.CONTACT_REQUEST_RECEIVED]);
+
+    // MEMBER (Rami) asked OTHER_ADMIN (Youssef).
+    const [own] = notifications.own();
+    const [news] = notifications.news();
+    expect(own).toMatchObject({
+      userId: MEMBER.id,
+      message: 'You asked Youssef Benali to be a contact.',
+      payload: { internalUserId: OTHER_ADMIN.id, name: 'Youssef Benali' },
+    });
+    expect(news).toMatchObject({
+      userId: OTHER_ADMIN.id,
+      payload: { internalUserId: MEMBER.id, name: 'Rami Khoury' },
+    });
+  });
+
+  it('has English copy for the actor of every action but the password notice', async () => {
+    for (const event of Object.values(EVENTS)) {
+      notifications = new FakeNotifications();
+      services.notificationsService =
+        notifications as unknown as NotificationsService;
+      await run(event);
+      for (const row of notifications.own()) {
+        expect(row.title).not.toMatch(/^notifications\./);
+        expect(row.message).toMatch(/^(You|Our) /);
+      }
+    }
+  });
+});
+
 describe('actionNotificationHandler: running again', () => {
   it('creates no new rows and delivers nothing twice', async () => {
     const event = EVENTS[NotificationType.BRANCH_UPDATED];
 
-    await expect(run(event)).resolves.toEqual({ recipients: 2, delivered: 2 });
-    await expect(run(event)).resolves.toEqual({ recipients: 2, delivered: 0 });
-    expect(notifications.rows.size).toBe(2);
+    // ADMIN's own record, MEMBER and OTHER_ADMIN.
+    await expect(run(event)).resolves.toEqual({ recipients: 3, delivered: 3 });
+    await expect(run(event)).resolves.toEqual({ recipients: 3, delivered: 0 });
+    expect(notifications.rows.size).toBe(3);
   });
 
   it("onFinalFailure fails this occurrence's undelivered rows only", async () => {
