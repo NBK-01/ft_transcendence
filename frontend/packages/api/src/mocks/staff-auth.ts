@@ -142,6 +142,8 @@ export const staffAuthHandlers = [
     const { caller, response } = staffCaller(request);
     if (!caller) return response;
     signedOutUpTo.set(caller.id, counter);
+    const owner = { id: caller.id, accountType: "staff" as const };
+    notifyAction({ type: "SESSIONS_REVOKED", account: owner }, owner);
     return ok<MessageResponse>({ message: "Logged out of all sessions" });
   }),
 

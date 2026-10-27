@@ -492,8 +492,9 @@ export type NotificationStatus = "PENDING" | "SENT" | "FAILED" | "READ";
 /**
  * What a notification is about (backend NotificationType). SHIPMENT_UPDATE is
  * a new step on a shipment's timeline; the others say that something was
- * created, changed or deleted, and go to whoever it affects, never to whoever
- * did it (PASSWORD_CHANGED, a security notice, is the exception).
+ * created, changed or deleted, and go to whoever it affects. Whoever did it
+ * gets a record of it (`ownAction`), except for the security notices and
+ * messages.
  */
 export type NotificationType =
   | "SHIPMENT_UPDATE"
@@ -526,7 +527,27 @@ export type NotificationType =
   /** An admin created a partner API key. To the other admins. */
   | "API_KEY_CREATED"
   /** An admin revoked one. To the other admins. */
-  | "API_KEY_REVOKED";
+  | "API_KEY_REVOKED"
+  /** A customer signed up. A welcome to them, and to the admins. */
+  | "CUSTOMER_REGISTERED"
+  /** Profile details or photo changed. To the account's owner. */
+  | "PROFILE_UPDATED"
+  /** A customer closed their account. To the admins. */
+  | "CUSTOMER_ACCOUNT_DEACTIVATED"
+  /** "Sign out everywhere": a security notice to the account's owner. */
+  | "SESSIONS_REVOKED"
+  /** Only a record for whoever declined the request. */
+  | "CONTACT_REQUEST_DECLINED"
+  /** Only a record for whoever withdrew their request. */
+  | "CONTACT_REQUEST_CANCELLED"
+  /** Only a record for whoever removed the contact. */
+  | "CONTACT_REMOVED"
+  /** Only a record for whoever blocked the contact. */
+  | "CONTACT_BLOCKED"
+  /** A staff member opened a direct conversation. To the other one. */
+  | "CONVERSATION_STARTED"
+  /** New messages: to the other side of the conversation, at most one per sender every 10 minutes. */
+  | "MESSAGE_RECEIVED";
 
 /** SHIPMENT_UPDATE: a new step on a shipment's timeline. Link to the shipment, and word it from its status. */
 export type ShipmentUpdatePayload = {
@@ -560,8 +581,20 @@ export type StaffAccountUpdatedPayload = StaffAccountPayload & {
   organizationName: string | null;
 };
 
-/** The other person: who sent the request, or who accepted it. */
+/** The other person, for the reader: who sent the request, who accepted it, who they declined… */
 export type ContactNotificationPayload = { contactId: string; internalUserId: string; name: string };
+
+export type CustomerPayload = { customerId: string; name: string };
+
+/** What changed on a profile (backend ProfileChange). */
+export type ProfileChange = "details" | "avatar";
+
+export type ProfilePayload = { change: ProfileChange };
+
+/** A direct conversation, and the other person in it for the reader. */
+export type ConversationPayload = { conversationId: string; internalUserId: string; name: string };
+
+export type MessagePayload = { conversationId: string; conversationType: ConversationType; senderName: string };
 
 export type SupportConversationPayload = { conversationId: string; customerName: string };
 
@@ -594,6 +627,16 @@ export type NotificationPayloads = {
   PASSWORD_CHANGED: Record<string, never>;
   API_KEY_CREATED: ApiKeyPayload;
   API_KEY_REVOKED: ApiKeyPayload;
+  CUSTOMER_REGISTERED: CustomerPayload;
+  PROFILE_UPDATED: ProfilePayload;
+  CUSTOMER_ACCOUNT_DEACTIVATED: CustomerPayload;
+  SESSIONS_REVOKED: Record<string, never>;
+  CONTACT_REQUEST_DECLINED: ContactNotificationPayload;
+  CONTACT_REQUEST_CANCELLED: ContactNotificationPayload;
+  CONTACT_REMOVED: ContactNotificationPayload;
+  CONTACT_BLOCKED: ContactNotificationPayload;
+  CONVERSATION_STARTED: ConversationPayload;
+  MESSAGE_RECEIVED: MessagePayload;
 };
 
 /**

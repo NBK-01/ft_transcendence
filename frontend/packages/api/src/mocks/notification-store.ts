@@ -6,7 +6,9 @@ import type {
   AttachmentKind,
   InternalUser,
   NotificationPayloads,
+  Conversation,
   NotificationType,
+  ProfileChange,
   ShipmentActorType,
   ShipmentState,
   StaffChange,
@@ -226,8 +228,23 @@ export type ActionNotice =
     }
   | { type: "SUPPORT_CONVERSATION_STARTED"; conversationId: string; customerName: string }
   | { type: "SHIPMENT_FILE_ADDED"; trackingId: string; clientId: string; kind: AttachmentKind; fileName: string }
-  | { type: "PASSWORD_CHANGED"; account: Who }
-  | { type: "API_KEY_CREATED" | "API_KEY_REVOKED"; apiKey: ApiKeyPayload };
+  | { type: "PASSWORD_CHANGED" | "SESSIONS_REVOKED"; account: Who }
+  | { type: "API_KEY_CREATED" | "API_KEY_REVOKED"; apiKey: ApiKeyPayload }
+  | { type: "CUSTOMER_REGISTERED"; customerId: string; name: string }
+  | { type: "PROFILE_UPDATED"; account: Who; change: ProfileChange }
+  /** Only a record for the one who did it; `other` is the other person. */
+  | {
+      type: "CONTACT_REQUEST_DECLINED" | "CONTACT_REQUEST_CANCELLED" | "CONTACT_REMOVED" | "CONTACT_BLOCKED";
+      contactId: string;
+      other: InternalUser;
+    }
+  | { type: "CONVERSATION_STARTED"; conversationId: string; opener: InternalUser; other: InternalUser }
+  | {
+      type: "MESSAGE_RECEIVED";
+      conversation: Pick<Conversation, "id" | "type" | "participantAId" | "participantBId" | "customerId">;
+      sender: Who;
+      senderName: string;
+    };
 
 type ActionType = ActionNotice["type"];
 
@@ -296,6 +313,33 @@ const ACTION_COPY = {
   API_KEY_REVOKED: {
     admins: ["API key revoked", "{name} for {branch} was revoked. It no longer works."],
     actor: ["API key revoked", "You revoked {name} for {branch}. It no longer works."],
+  },
+  CUSTOMER_REGISTERED: {
+    self: ["Welcome to ShipTrack", "Your account is ready. Request a shipment whenever you like."],
+    admins: ["New customer", "{name} created an account."],
+    actor: ["Welcome to ShipTrack", "Your account is ready. Request a shipment whenever you like."],
+  },
+  PROFILE_UPDATED: {
+    self: ["Profile updated", "Your profile was changed."],
+    actor: ["Profile updated", "You updated your profile."],
+  },
+  SESSIONS_REVOKED: {
+    self: [
+      "Signed out everywhere",
+      "Every session on your account was ended. If this wasn't you, change your password now.",
+    ],
+  },
+  CONTACT_REQUEST_DECLINED: { actor: ["Contact request declined", "You declined {name}'s contact request."] },
+  CONTACT_REQUEST_CANCELLED: { actor: ["Contact request withdrawn", "You withdrew your contact request to {name}."] },
+  CONTACT_REMOVED: { actor: ["Contact removed", "You removed {name} from your contacts."] },
+  CONTACT_BLOCKED: { actor: ["Contact blocked", "You blocked {name}."] },
+  CONVERSATION_STARTED: {
+    self: ["New conversation", "{name} started a conversation with you."],
+    actor: ["Conversation started", "You started a conversation with {name}."],
+  },
+  MESSAGE_RECEIVED: {
+    self: ["New message", "{senderName} sent you a message."],
+    support: ["New support message", "{senderName} wrote to support."],
   },
 } as const satisfies Record<ActionType, Record<string, Copy>>;
 
@@ -397,7 +441,65 @@ function resolve(notice: ActionNotice): Resolution {
         ],
       };
     case "PASSWORD_CHANGED":
-      return { payload: {}, args: {}, audiences: [{ copy: ACTION_COPY.PASSWORD_CHANGED.self, recipients: [notice.account] }] };
+    case "SESSIONS_REVOKED":
+      return { payload: {}, args: {}, audiences: [{ copy: ACTION_COPY[notice.type].self, recipients: [notice.account] }] };
+    case "CUSTOMER_REGISTERED":
+      return {
+        payload: { customerId: notice.customerId, name: notice.name },
+        args: { name: notice.name },
+        audiences: [
+          { copy: ACTION_COPY.CUSTOMER_REGISTERED.self, recipients: [{ id: notice.customerId, accountType: "customer" }] },
+          { copy: ACTION_COPY.CUSTOMER_REGISTERED.admins, recipients: admins() },
+        ],
+      };
+    case "PROFILE_UPDATED":
+      return {
+        payload: { change: notice.change },
+        args: {},
+        audiences: [{ copy: ACTION_COPY.PROFILE_UPDATED.self, recipients: [notice.account] }],
+      };
+    case "CONTACT_REQUEST_DECLINED":
+    case "CONTACT_REQUEST_CANCELLED":
+    case "CONTACT_REMOVED":
+    case "CONTACT_BLOCKED":
+      // Nobody but the one who did it is told.
+      return {
+        payload: { contactId: notice.contactId, internalUserId: notice.other.id, name: notice.other.name },
+        args: { name: notice.other.name },
+        audiences: [],
+      };
+    case "CONVERSATION_STARTED": {
+      const about = (person: InternalUser): About => ({
+        payload: { conversationId: notice.conversationId, internalUserId: person.id, name: person.name },
+        args: { name: person.name },
+      });
+      return {
+        ...about(notice.opener),
+        audiences: [{ copy: ACTION_COPY.CONVERSATION_STARTED.self, recipients: staffIds(notice.other.id) }],
+        forActor: about(notice.other),
+      };
+    }
+    case "MESSAGE_RECEIVED": {
+      const { conversation, sender } = notice;
+      const payload = { conversationId: conversation.id, conversationType: conversation.type, senderName: notice.senderName };
+      const audience =
+        conversation.type === "staff_dm"
+          ? {
+              copy: ACTION_COPY.MESSAGE_RECEIVED.self,
+              recipients: staffIds(
+                ...[conversation.participantAId, conversation.participantBId].filter(
+                  (id): id is string => Boolean(id) && id !== sender.id,
+                ),
+              ),
+            }
+          : sender.accountType === "customer"
+            ? { copy: ACTION_COPY.MESSAGE_RECEIVED.support, recipients: staffWith("chat:support:access") }
+            : {
+                copy: ACTION_COPY.MESSAGE_RECEIVED.self,
+                recipients: [{ id: conversation.customerId!, accountType: "customer" as const }],
+              };
+      return { payload, args: { senderName: notice.senderName }, audiences: [audience] };
+    }
     case "API_KEY_CREATED":
     case "API_KEY_REVOKED":
       return {
@@ -412,10 +514,14 @@ const keyOf = (who: Who) => `${who.accountType}:${who.id}`;
 
 /**
  * What the backend's ACTION_NOTIFICATION job does: the person who acted
- * first, with a record of their own action (but for a password notice, which
- * warns its owner the same way whoever changed it), then each other person
- * once (in their first audience); only while their account is active.
+ * first, with a record of their own action (but for the security notices,
+ * which warn their owner the same way whoever acted, and messages), then each
+ * other person once (in their first audience); only while their account is
+ * active.
  */
+/** Notices that aren't kept as a record of the actor's own action (backend NO_ACTOR_RECORD). */
+const NO_ACTOR_RECORD: ReadonlySet<ActionType> = new Set(["PASSWORD_CHANGED", "SESSIONS_REVOKED", "MESSAGE_RECEIVED"]);
+
 export function notifyAction(notice: ActionNotice, actor: Who | null, when: When = {}) {
   const resolution = resolve(notice);
   const seen = new Set<string>();
@@ -427,8 +533,9 @@ export function notifyAction(notice: ActionNotice, actor: Who | null, when: When
     const filled = copy.map((text) => fill(text, args)) as unknown as Copy;
     push(recipient, notice.type, payload, filled, when, ownAction);
   };
-  if (actor && notice.type !== "PASSWORD_CHANGED") {
-    notify(actor, ACTION_COPY[notice.type].actor, resolution.forActor ?? resolution, true);
+  if (actor && !NO_ACTOR_RECORD.has(notice.type) && "actor" in ACTION_COPY[notice.type]) {
+    const copy = (ACTION_COPY[notice.type] as { actor: Copy }).actor;
+    notify(actor, copy, resolution.forActor ?? resolution, true);
   }
   for (const { copy, recipients } of resolution.audiences) {
     for (const recipient of recipients) notify(recipient, copy, resolution, false);

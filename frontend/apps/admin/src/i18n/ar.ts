@@ -592,6 +592,24 @@ const ar: AdminResources = {
         title: "أُلغي مفتاح API: {{name}}",
         message: "لم يعد مفتاح فرع {{branch}} يعمل.",
       },
+      customerRegistered: { title: "عميل جديد: {{name}}", message: "أنشأ حسابًا في تطبيق العملاء." },
+      customerDeactivated: { title: "تم إغلاق حساب عميل: {{name}}", message: "أغلق حسابه. تبقى شحناته محفوظة." },
+      profileUpdated: {
+        title: "تم تحديث الملف الشخصي",
+        details: "حدّثت بيانات ملفك الشخصي.",
+        avatar: "غيّرت صورة ملفك الشخصي.",
+      },
+      sessionsRevoked: {
+        title: "تم تسجيل الخروج من كل الأجهزة",
+        message: "تم إنهاء كل الجلسات على حسابك. إن لم تكن أنت، فغيّر كلمة المرور الآن.",
+      },
+      conversationStarted: { title: "محادثة جديدة", message: "بدأ {{name}} محادثة معك." },
+      message: {
+        title: "رسالة جديدة",
+        supportTitle: "رسالة دعم جديدة",
+        staff_dm: "أرسل إليك {{name}} رسالة.",
+        support: "كتب {{name}} إلى الدعم.",
+      },
     },
     own: {
       someone: "أحد الموظفين",
@@ -609,6 +627,11 @@ const ar: AdminResources = {
       fileAdded: { title: "تمت إضافة ملف إلى {{trackingId}}", message: "أضفت {{fileName}}." },
       apiKeyCreated: { title: "تم إنشاء مفتاح API: {{name}}", message: "أنشأته لفرع {{branchName}}." },
       apiKeyRevoked: { title: "تم إلغاء مفتاح API: {{name}}", message: "ألغيت مفتاح فرع {{branchName}}. لم يعد يعمل." },
+      contactDeclined: { title: "تم رفض طلب الاتصال", message: "رفضت طلب {{name}}." },
+      contactCancelled: { title: "تم سحب طلب الاتصال", message: "سحبت طلبك إلى {{name}}." },
+      contactRemoved: { title: "تمت إزالة جهة الاتصال", message: "أزلت {{name}} من جهات اتصالك." },
+      contactBlocked: { title: "تم حظر جهة الاتصال", message: "حظرت {{name}}." },
+      conversationStarted: { title: "بدأت المحادثة", message: "بدأت محادثة مع {{name}}." },
     },
   },
   apiKeys: {

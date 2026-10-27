@@ -598,6 +598,31 @@ const fr: AdminResources = {
         title: "Clé d'API révoquée : {{name}}",
         message: "La clé de {{branch}} ne fonctionne plus.",
       },
+      customerRegistered: {
+        title: "Nouveau client : {{name}}",
+        message: "La personne a créé un compte dans l'application client.",
+      },
+      customerDeactivated: {
+        title: "Compte client fermé : {{name}}",
+        message: "La personne a fermé son compte. Ses expéditions restent enregistrées.",
+      },
+      profileUpdated: {
+        title: "Profil mis à jour",
+        details: "Vous avez mis à jour les informations de votre profil.",
+        avatar: "Vous avez changé votre photo de profil.",
+      },
+      sessionsRevoked: {
+        title: "Déconnecté partout",
+        message:
+          "Toutes les sessions de votre compte ont été fermées. Si ce n'était pas vous, changez votre mot de passe maintenant.",
+      },
+      conversationStarted: { title: "Nouvelle conversation", message: "{{name}} a commencé une conversation avec vous." },
+      message: {
+        title: "Nouveau message",
+        supportTitle: "Nouveau message au support",
+        staff_dm: "{{name}} vous a envoyé un message.",
+        support: "{{name}} a écrit au support.",
+      },
     },
     own: {
       someone: "un membre du personnel",
@@ -621,6 +646,11 @@ const fr: AdminResources = {
         title: "Clé d'API révoquée : {{name}}",
         message: "Vous avez révoqué la clé de {{branchName}}. Elle ne fonctionne plus.",
       },
+      contactDeclined: { title: "Demande de contact refusée", message: "Vous avez refusé la demande de {{name}}." },
+      contactCancelled: { title: "Demande de contact retirée", message: "Vous avez retiré votre demande à {{name}}." },
+      contactRemoved: { title: "Contact supprimé", message: "Vous avez retiré {{name}} de vos contacts." },
+      contactBlocked: { title: "Contact bloqué", message: "Vous avez bloqué {{name}}." },
+      conversationStarted: { title: "Conversation commencée", message: "Vous avez commencé une conversation avec {{name}}." },
     },
   },
   apiKeys: {

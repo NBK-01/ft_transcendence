@@ -1,4 +1,4 @@
-import { Bell, FileText, Headset, KeyRound, Package, type LucideIcon } from "lucide-react";
+import { Bell, FileText, Headset, KeyRound, LogOut, MessageSquare, Package, PartyPopper, UserCog, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import type { AppNotification, NotificationType } from "@trans/api";
@@ -6,11 +6,12 @@ import type { AppNotification, NotificationType } from "@trans/api";
 /**
  * How the client shows each notification type: an icon, a title and a line of
  * text in the reader's language (from `type` + `payload`), and the page it
- * opens. A customer only ever gets these four of the backend's
- * NotificationType values: shipment updates, files and password notices, and
- * a record of opening a support conversation (ownAction). The rest are
- * staff-only, so they're left out here and fall back to the backend's English
- * title and message, same as admin does for a type it doesn't know.
+ * opens. A customer only ever gets the types below: shipment updates and
+ * files, the welcome, their profile, password and sign-out notices, support's
+ * messages, and a record of opening a support conversation (ownAction). The
+ * rest are staff-only, so they're left out here and fall back to the
+ * backend's English title and message, same as admin does for a type it
+ * doesn't know.
  */
 
 /** `t` from useTranslation("app"), narrowed to what the wording needs. */
@@ -26,7 +27,15 @@ export type NotificationView = {
   href: string | null;
 };
 
-type CustomerType = "SHIPMENT_UPDATE" | "SHIPMENT_FILE_ADDED" | "PASSWORD_CHANGED" | "SUPPORT_CONVERSATION_STARTED";
+type CustomerType =
+  | "SHIPMENT_UPDATE"
+  | "SHIPMENT_FILE_ADDED"
+  | "PASSWORD_CHANGED"
+  | "SUPPORT_CONVERSATION_STARTED"
+  | "CUSTOMER_REGISTERED"
+  | "PROFILE_UPDATED"
+  | "SESSIONS_REVOKED"
+  | "MESSAGE_RECEIVED";
 type Of<T extends NotificationType> = Extract<AppNotification, { type: T }>;
 type Wording = { title: string; message: string };
 
@@ -88,6 +97,39 @@ const KINDS: { [T in CustomerType]: Kind<T> } = {
     wording: (_, t) => ({
       title: t("notifications.types.supportStarted.title"),
       message: t("notifications.types.supportStarted.message"),
+    }),
+    href: () => "/app/messages",
+  },
+  CUSTOMER_REGISTERED: {
+    icon: PartyPopper,
+    wording: (_, t) => ({
+      title: t("notifications.types.welcome.title"),
+      message: t("notifications.types.welcome.message"),
+    }),
+    href: () => "/app/shipments/new",
+  },
+  // Only the customer changes their profile, so it's always "you".
+  PROFILE_UPDATED: {
+    icon: UserCog,
+    wording: ({ payload }, t) => ({
+      title: t("notifications.types.profileUpdated.title"),
+      message: t(`notifications.types.profileUpdated.${payload.change}`),
+    }),
+    href: () => "/app/profile",
+  },
+  SESSIONS_REVOKED: {
+    icon: LogOut,
+    wording: (_, t) => ({
+      title: t("notifications.types.sessionsRevoked.title"),
+      message: t("notifications.types.sessionsRevoked.message"),
+    }),
+    href: () => "/app/profile",
+  },
+  MESSAGE_RECEIVED: {
+    icon: MessageSquare,
+    wording: ({ payload }, t) => ({
+      title: t("notifications.types.message.title"),
+      message: t("notifications.types.message.message", { name: payload.senderName }),
     }),
     href: () => "/app/messages",
   },

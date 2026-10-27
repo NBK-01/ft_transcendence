@@ -585,6 +585,27 @@ const en = {
       passwordChanged: { title: "Password changed", message: "If this wasn't you, change it now and tell an admin." },
       apiKeyCreated: { title: "New API key: {{name}}", message: "Created for {{branch}}. Partners can use it with the public API." },
       apiKeyRevoked: { title: "API key revoked: {{name}}", message: "The key for {{branch}} no longer works." },
+      customerRegistered: { title: "New customer: {{name}}", message: "They created an account in the customer app." },
+      customerDeactivated: {
+        title: "Customer account closed: {{name}}",
+        message: "They closed their account. Their shipments stay on record.",
+      },
+      profileUpdated: {
+        title: "Profile updated",
+        details: "You updated your profile details.",
+        avatar: "You changed your profile photo.",
+      },
+      sessionsRevoked: {
+        title: "Signed out everywhere",
+        message: "Every session on your account was ended. If this wasn't you, change your password now.",
+      },
+      conversationStarted: { title: "New conversation", message: "{{name}} started a conversation with you." },
+      message: {
+        title: "New message",
+        supportTitle: "New support message",
+        staff_dm: "{{name}} sent you a message.",
+        support: "{{name}} wrote to support.",
+      },
     },
     /** The reader is the one who acted (ownAction): a record of what they did. */
     own: {
@@ -603,6 +624,11 @@ const en = {
       fileAdded: { title: "File added to {{trackingId}}", message: "You added {{fileName}}." },
       apiKeyCreated: { title: "API key created: {{name}}", message: "You created it for {{branchName}}." },
       apiKeyRevoked: { title: "API key revoked: {{name}}", message: "You revoked the key for {{branchName}}. It no longer works." },
+      contactDeclined: { title: "Contact request declined", message: "You declined {{name}}'s request." },
+      contactCancelled: { title: "Contact request withdrawn", message: "You withdrew your request to {{name}}." },
+      contactRemoved: { title: "Contact removed", message: "You removed {{name}} from your contacts." },
+      contactBlocked: { title: "Contact blocked", message: "You blocked {{name}}." },
+      conversationStarted: { title: "Conversation started", message: "You started a conversation with {{name}}." },
     },
   },
   apiKeys: {

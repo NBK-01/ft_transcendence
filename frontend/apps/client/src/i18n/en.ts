@@ -153,6 +153,20 @@ const en = {
         title: "Support conversation started",
         message: "Our support team will answer you in Messages.",
       },
+      welcome: {
+        title: "Welcome to ShipTrack",
+        message: "Your account is ready. Request a shipment whenever you like.",
+      },
+      profileUpdated: {
+        title: "Profile updated",
+        details: "You updated your profile details.",
+        avatar: "You changed your profile photo.",
+      },
+      sessionsRevoked: {
+        title: "Signed out everywhere",
+        message: "Every session on your account was ended. If this wasn't you, change your password now.",
+      },
+      message: { title: "New message", message: "{{name}} from support sent you a message." },
     },
     /** The reader is the one who acted (ownAction): a record of what they did. */
     own: {

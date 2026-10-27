@@ -283,6 +283,10 @@
     "admins": {
       "title": "New customer",
       "message": "{name} created an account."
+    },
+    "actor": {
+      "title": "Welcome to ShipTrack",
+      "message": "Your account is ready. Request a shipment whenever you like."
     }
   },
   "PROFILE_UPDATED": {

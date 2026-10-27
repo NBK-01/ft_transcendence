@@ -1,13 +1,17 @@
 import {
+  Ban,
   Bell,
   Building2,
   Contact,
   FileText,
   Headset,
   KeyRound,
+  LogOut,
+  MessageSquare,
   Package,
   UserCheck,
   UserCog,
+  UserMinus,
   UserPlus,
   UserX,
   type LucideIcon,
@@ -120,6 +124,23 @@ function staffChanges({ payload }: Of<"STAFF_ACCOUNT_UPDATED">, t: Translate, se
   };
 }
 
+const messagesPath = (conversationId: string) => `/messages/${encodeURIComponent(conversationId)}`;
+
+/** The reader's own profile: only they change it, so it's always "you". */
+const profileWording = ({ payload }: Of<"PROFILE_UPDATED">, t: Translate): Wording => ({
+  title: t("notifications.types.profileUpdated.title"),
+  message: t(`notifications.types.profileUpdated.${payload.change}`),
+});
+
+/** A contact declined, withdrawn, removed or blocked: only ever the reader's own record of it. */
+type ContactRecordType = "CONTACT_REQUEST_DECLINED" | "CONTACT_REQUEST_CANCELLED" | "CONTACT_REMOVED" | "CONTACT_BLOCKED";
+const contactRecord = <T extends ContactRecordType>(icon: LucideIcon, key: string): Kind<T> => ({
+  icon,
+  wording: () => null,
+  own: own(key),
+  href: () => "/contacts",
+});
+
 /** Partner API keys: admins only, like the page they link to. */
 const apiKeysPath = (reader: Reader) => (reader.isAdmin ? "/api-keys" : null);
 
@@ -212,7 +233,7 @@ const KINDS: { [T in NotificationType]: Kind<T> } = {
       title: t("notifications.types.supportStarted.title"),
       message: t("notifications.types.supportStarted.message", { name: payload.customerName }),
     }),
-    href: ({ payload }) => `/messages/${encodeURIComponent(payload.conversationId)}`,
+    href: ({ payload }) => messagesPath(payload.conversationId),
   },
   // Only customers hear about these (a file on their shipment); staff only get the record of adding one.
   SHIPMENT_FILE_ADDED: {
@@ -240,6 +261,36 @@ const KINDS: { [T in NotificationType]: Kind<T> } = {
     wording: apiKeyWording("apiKeyRevoked"),
     own: own("apiKeyRevoked"),
     href: (_, reader) => apiKeysPath(reader),
+  },
+  // Customers have no page in the admin: these link nowhere.
+  CUSTOMER_REGISTERED: { icon: UserPlus, wording: named("customerRegistered"), href: () => null },
+  CUSTOMER_ACCOUNT_DEACTIVATED: { icon: UserX, wording: named("customerDeactivated"), href: () => null },
+  PROFILE_UPDATED: { icon: UserCog, wording: profileWording, own: profileWording, href: () => "/profile" },
+  SESSIONS_REVOKED: {
+    icon: LogOut,
+    wording: (_, t) => ({
+      title: t("notifications.types.sessionsRevoked.title"),
+      message: t("notifications.types.sessionsRevoked.message"),
+    }),
+    href: () => "/profile",
+  },
+  CONTACT_REQUEST_DECLINED: contactRecord(UserX, "contactDeclined"),
+  CONTACT_REQUEST_CANCELLED: contactRecord(UserX, "contactCancelled"),
+  CONTACT_REMOVED: contactRecord(UserMinus, "contactRemoved"),
+  CONTACT_BLOCKED: contactRecord(Ban, "contactBlocked"),
+  CONVERSATION_STARTED: {
+    icon: MessageSquare,
+    wording: named("conversationStarted"),
+    own: own("conversationStarted"),
+    href: ({ payload }) => messagesPath(payload.conversationId),
+  },
+  MESSAGE_RECEIVED: {
+    icon: MessageSquare,
+    wording: ({ payload }, t) => ({
+      title: t(`notifications.types.message.${payload.conversationType === "support" ? "supportTitle" : "title"}`),
+      message: t(`notifications.types.message.${payload.conversationType}`, { name: payload.senderName }),
+    }),
+    href: ({ payload }) => messagesPath(payload.conversationId),
   },
 };
 

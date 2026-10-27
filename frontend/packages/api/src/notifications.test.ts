@@ -218,6 +218,35 @@ describe("notifications: the list", () => {
     }
   });
 
+  it("filters by any of the backend's types", async () => {
+    const types: NotificationType[] = [
+      "API_KEY_CREATED",
+      "API_KEY_REVOKED",
+      "CUSTOMER_REGISTERED",
+      "PROFILE_UPDATED",
+      "CUSTOMER_ACCOUNT_DEACTIVATED",
+      "SESSIONS_REVOKED",
+      "CONTACT_REQUEST_DECLINED",
+      "CONTACT_REQUEST_CANCELLED",
+      "CONTACT_REMOVED",
+      "CONTACT_BLOCKED",
+      "CONVERSATION_STARTED",
+      "MESSAGE_RECEIVED",
+    ];
+    for (const type of types) {
+      await expect(list({ type })).resolves.toMatchObject({ items: expect.any(Array) });
+    }
+  });
+
+  it("signing out everywhere leaves a security notice, not a record of your own action", async () => {
+    // As Nadia (this block's beforeEach); her tokens stop working, so she signs in again to read it.
+    await api.post("/staff-auth/logout-all");
+    await signInAs(nadia.email);
+
+    const [notice] = await all({ type: "SESSIONS_REVOKED" });
+    expect(notice).toMatchObject({ title: "Signed out everywhere", ownAction: false, status: "SENT" });
+  });
+
   it("refuses a bad query with a 400", async () => {
     for (const query of [{ unreadOnly: "yes" }, { limit: 101 }, { limit: 0 }, { page: 0 }, { page: "two" }, { type: "NOPE" }, { sort: "old" }]) {
       await expect(list(query)).rejects.toMatchObject(badRequest);

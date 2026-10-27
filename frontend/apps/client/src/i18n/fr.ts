@@ -154,6 +154,21 @@ const fr: ClientResources = {
         title: "Conversation avec le support ouverte",
         message: "Notre équipe de support vous répondra dans Messages.",
       },
+      welcome: {
+        title: "Bienvenue sur ShipTrack",
+        message: "Votre compte est prêt. Demandez un envoi quand vous voulez.",
+      },
+      profileUpdated: {
+        title: "Profil mis à jour",
+        details: "Vous avez mis à jour les informations de votre profil.",
+        avatar: "Vous avez changé votre photo de profil.",
+      },
+      sessionsRevoked: {
+        title: "Déconnecté partout",
+        message:
+          "Toutes les sessions de votre compte ont été fermées. Si ce n'était pas vous, changez votre mot de passe maintenant.",
+      },
+      message: { title: "Nouveau message", message: "{{name}}, du support, vous a envoyé un message." },
     },
     own: {
       shipment: {

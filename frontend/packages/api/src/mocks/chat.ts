@@ -66,6 +66,24 @@ function addMessage(conversation: Conversation, senderId: string, senderType: Ac
   return message;
 }
 
+const CUSTOMER_NAMES: Record<string, string> = { [MOCK_USER.id]: MOCK_USER.name, [customer2]: "Rania Khalil" };
+
+/** Occurrences already told: one notice per sender, conversation and 10 minutes, like the backend's job id. */
+const toldMessages = new Set<string>();
+
+/** A message sent now (not seed data): saved, and the other side told (backend MESSAGE_RECEIVED). */
+function sendMessage(conversation: Conversation, senderId: string, senderType: AccountType, content: string) {
+  const message = addMessage(conversation, senderId, senderType, content, new Date().toISOString());
+  const occurrence = `${conversation.id}-${senderId}-${Math.floor(Date.parse(message.createdAt) / 600_000)}`;
+  if (!toldMessages.has(occurrence)) {
+    toldMessages.add(occurrence);
+    const senderName =
+      senderType === "customer" ? (CUSTOMER_NAMES[senderId] ?? "") : (internalUsers.find((user) => user.id === senderId)?.name ?? "");
+    notifyAction({ type: "MESSAGE_RECEIVED", conversation, sender: { id: senderId, accountType: senderType }, senderName }, null);
+  }
+  return message;
+}
+
 // Seed: Nadia (admin) has DMs and, with support access, the support inbox; Rami (dispatcher) has his DM with her.
 {
   const withRami = addDm(nadia.id, rami.id, "2026-10-21T08:10:00.000Z");
@@ -185,7 +203,15 @@ export const chatHandlers = [
         [conversation.participantAId, conversation.participantBId].includes(caller.id) &&
         [conversation.participantAId, conversation.participantBId].includes(other),
     );
-    return ok(existing ?? addDm(caller.id, other, new Date().toISOString()), 201);
+    if (existing) return ok(existing, 201);
+    // Only a new one tells the other person.
+    const started = addDm(caller.id, other, new Date().toISOString());
+    const staffById = (id: string) => internalUsers.find((user) => user.id === id)!;
+    notifyAction(
+      { type: "CONVERSATION_STARTED", conversationId: started.id, opener: staffById(caller.id), other: staffById(other) },
+      { id: caller.id, accountType: "staff" },
+    );
+    return ok(started, 201);
   }),
 
   http.post("*/api/chat/support", ({ request }) => {
@@ -203,7 +229,7 @@ export const chatHandlers = [
     return ok(started, 201);
   }),
 
-  // Saves the message but, like the backend, tells no one live: the socket's sendMessage does that.
+  // Saves the message and leaves its notification but, like the backend, sends no message.new: the socket's sendMessage does that.
   http.post("*/api/chat/conversations/:id/messages", async ({ params, request }) => {
     const caller = callerFor(bearer(request));
     if (!caller) return error(401, ["Authentication failed"]);
@@ -212,7 +238,7 @@ export const chatHandlers = [
     if (invalid) return error(400, [invalid]);
     const result = check(caller, String(params.id), true);
     if (!("conversation" in result)) return refuse(result);
-    return ok(addMessage(result.conversation, caller.id, caller.type, String(content), new Date().toISOString()), 201);
+    return ok(sendMessage(result.conversation, caller.id, caller.type, String(content)), 201);
   }),
 
   http.patch("*/api/chat/conversations/:id/read", ({ params, request }) => {
@@ -296,10 +322,10 @@ export function createMockChatConnection(): ChatConnection {
       if (!("conversation" in result)) return exception(result);
       const { conversation } = result;
 
-      later(() => deliver(addMessage(conversation, caller.id, caller.type, content, new Date().toISOString()), conversation), 60);
+      later(() => deliver(sendMessage(conversation, caller.id, caller.type, content), conversation), 60);
       const replier = replierFor(conversation, caller.id);
       const reply = CANNED_REPLIES[replies++ % CANNED_REPLIES.length]!;
-      later(() => deliver(addMessage(conversation, replier.id, replier.type, reply, new Date().toISOString()), conversation), 1800);
+      later(() => deliver(sendMessage(conversation, replier.id, replier.type, reply), conversation), 1800);
     },
     connect() {
       later(() => {

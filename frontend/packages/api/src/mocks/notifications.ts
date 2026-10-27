@@ -15,9 +15,10 @@ import { staffForToken } from "./staff-auth";
  * (400 if it isn't a UUID), then the notification (404).
  *
  * The rows live in notification-store.ts. The mocks that change things add
- * them there like the backend's jobs do (shipment events, branches, staff
- * accounts, contacts, support conversations, shipment files, passwords), and
- * seed the last days. In-memory, like the rest.
+ * them there like the backend's jobs do (shipment events, and every create,
+ * update and delete: branches, staff, contacts, conversations and messages,
+ * files, sign-ups, profiles, passwords and sessions, API keys), and seed the
+ * last days. In-memory, like the rest.
  */
 
 const NOTIFICATION_TYPES: readonly NotificationType[] = [
@@ -35,6 +36,18 @@ const NOTIFICATION_TYPES: readonly NotificationType[] = [
   "SUPPORT_CONVERSATION_STARTED",
   "SHIPMENT_FILE_ADDED",
   "PASSWORD_CHANGED",
+  "API_KEY_CREATED",
+  "API_KEY_REVOKED",
+  "CUSTOMER_REGISTERED",
+  "PROFILE_UPDATED",
+  "CUSTOMER_ACCOUNT_DEACTIVATED",
+  "SESSIONS_REVOKED",
+  "CONTACT_REQUEST_DECLINED",
+  "CONTACT_REQUEST_CANCELLED",
+  "CONTACT_REMOVED",
+  "CONTACT_BLOCKED",
+  "CONVERSATION_STARTED",
+  "MESSAGE_RECEIVED",
 ];
 
 /* ---------------------------------------------------------------------------
