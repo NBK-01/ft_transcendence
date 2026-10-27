@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LessThan, Repository } from 'typeorm';
+import { ShipmentActorType } from '../shipments/constants/shipment-actor';
 import { ShipmentState } from '../shipments/constants/shipment-state';
 import { ShipmentEvent } from '../shipments/entities/shipment-event.entity';
 import { InternalUser } from '../internal-users/internal-user.entity';
@@ -23,6 +24,8 @@ export interface ShipmentEventSummary {
    * told about a new shipment, not a confirmed payment.
    */
   isFirstEvent: boolean;
+  /** Who wrote it; null on events from before it was recorded. */
+  actorType: ShipmentActorType | null;
 }
 
 /** Read-only lookups for the shipment notification job: the event, and the staff to tell about it. */
@@ -56,6 +59,7 @@ export class ShipmentLookupService {
       trackingId: event.shipment.trackingId,
       clientId: event.shipment.clientId,
       isFirstEvent: !hasEarlierEvent,
+      actorType: event.actorType,
     };
   }
 

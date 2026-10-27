@@ -7,6 +7,7 @@ import type {
   InternalUser,
   NotificationPayloads,
   NotificationType,
+  ShipmentActorType,
   ShipmentState,
   StaffChange,
 } from "../types";
@@ -64,6 +65,9 @@ function push(recipient: Who, type: NotificationType, payload: unknown, [title, 
   } as Row);
 }
 
+/** Whether the account may be notified: staff while active. No mock customer is deactivated. */
+const isActive = (who: Who) => who.accountType === "customer" || internalUsers.some((user) => user.id === who.id && user.isActive);
+
 /** Active staff whose role has `permission`, as their role is now (the backend reads the role → permission table). */
 const staffWith = (permission: Permission): Who[] =>
   internalUsers
@@ -74,10 +78,7 @@ const staffWith = (permission: Permission): Who[] =>
  * Shipment events (backend SHIPMENT_EVENT_NOTIFICATION)
  * ------------------------------------------------------------------------ */
 
-/**
- * Who hears about each status: the side that didn't cause it (backend
- * AUDIENCE_BY_STATUS). Customer actions go to staff, staff actions to the customer.
- */
+/** An event from before its actor was recorded: the side that didn't cause it, by status (backend AUDIENCE_BY_STATUS). */
 const AUDIENCE_BY_STATUS: Record<ShipmentState, AccountType | null> = {
   pending_sourcing: "staff",
   pending_client_decision: "customer",
@@ -91,14 +92,35 @@ const AUDIENCE_BY_STATUS: Record<ShipmentState, AccountType | null> = {
   cancelled: "customer",
 };
 
+/** The side that didn't act; a partner or the carrier is neither, so both hear (backend audiencesFor). */
+function audiencesFor(actorType: ShipmentActorType | null, status: ShipmentState): AccountType[] {
+  switch (actorType) {
+    case "customer":
+      return ["staff"];
+    case "staff":
+      return ["customer"];
+    case "partner":
+    case "carrier":
+      return ["customer", "staff"];
+    default: {
+      const audience = AUDIENCE_BY_STATUS[status];
+      return audience ? [audience] : [];
+    }
+  }
+}
+
+/** A step, or "created" for a partner's new shipment. */
+type ShipmentStep = ShipmentState | "created";
+
 /** The backend's English copy (backend/src/i18n/en/notifications.json). */
-const SHIPMENT_COPY: Record<AccountType, Partial<Record<ShipmentState, Copy>>> = {
+const SHIPMENT_COPY: Record<AccountType, Partial<Record<ShipmentStep, Copy>>> = {
   customer: {
     pending_client_decision: [
       "Your offer is ready",
       "We found a supplier for {trackingId}. Review the offer to accept or reject it.",
     ],
     confirmed: ["Payment confirmed", "Your payment for {trackingId} is confirmed. We'll let you know when it ships."],
+    created: ["New shipment", "A shipment, {trackingId}, was created for you. We'll let you know when it ships."],
     in_transit: ["In transit", "{trackingId} is on its way."],
     out_for_delivery: ["Out for delivery", "{trackingId} is out for delivery."],
     delivered: ["Delivered", "{trackingId} has been delivered."],
@@ -111,6 +133,11 @@ const SHIPMENT_COPY: Record<AccountType, Partial<Record<ShipmentState, Copy>>> =
       "Payment to confirm",
       "The client paid for {trackingId}. Confirm the payment to start the shipment.",
     ],
+    created: ["New partner shipment", "A partner created {trackingId} through the API."],
+    in_transit: ["In transit", "{trackingId} is on its way."],
+    out_for_delivery: ["Out for delivery", "{trackingId} is out for delivery."],
+    delivered: ["Delivered", "{trackingId} has been delivered."],
+    cancelled: ["Shipment cancelled", "{trackingId} has been cancelled."],
   },
 };
 
@@ -120,25 +147,30 @@ export type NotifiedShipmentEvent = {
   clientId: string;
   status: ShipmentState;
   occurredAt: string;
+  /** Who moved it; null for an event from before it was recorded. */
+  actorType: ShipmentActorType | null;
   /** Its first event, at `confirmed`: a partner created it through the public API. */
   isNew?: boolean;
 };
 
-/** The backend's "created" copy, for a shipment a partner created (isNewShipment in the backend's handler). */
-const NEW_SHIPMENT_COPY: Copy = ["New shipment", "A shipment, {trackingId}, was created for you. We'll let you know when it ships."];
-
 /** What the backend's job does for a committed shipment event: one row per recipient, already delivered (SENT). */
 export function notifyShipmentEvent(event: NotifiedShipmentEvent, { read = false }: { read?: boolean } = {}) {
-  const isNew = event.isNew && event.status === "confirmed";
-  const audience = AUDIENCE_BY_STATUS[event.status];
-  const copy = isNew ? NEW_SHIPMENT_COPY : audience && SHIPMENT_COPY[audience][event.status];
-  if (!audience || !copy) return;
-
-  const recipients: Who[] = audience === "customer" ? [{ id: event.clientId, accountType: "customer" }] : staffWith("shipments:read:all");
-  const filled = copy.map((text) => fill(text, { trackingId: event.trackingId })) as unknown as Copy;
-  const payload = { trackingId: event.trackingId, status: event.status, ...(isNew && { isNew: true as const }) };
-  for (const recipient of recipients) {
-    push(recipient, "SHIPMENT_UPDATE", payload, filled, { at: event.occurredAt, read });
+  const isNew = event.isNew === true && event.status === "confirmed";
+  const payload = {
+    trackingId: event.trackingId,
+    status: event.status,
+    ...(isNew && { isNew: true as const }),
+    ...(event.actorType && { actorType: event.actorType }),
+  };
+  for (const audience of audiencesFor(event.actorType, event.status)) {
+    const copy = SHIPMENT_COPY[audience][isNew ? "created" : event.status];
+    if (!copy) continue;
+    const recipients: Who[] =
+      audience === "customer" ? [{ id: event.clientId, accountType: "customer" }] : staffWith("shipments:read:all");
+    const filled = copy.map((text) => fill(text, { trackingId: event.trackingId })) as unknown as Copy;
+    for (const recipient of recipients.filter(isActive)) {
+      push(recipient, "SHIPMENT_UPDATE", payload, filled, { at: event.occurredAt, read });
+    }
   }
 }
 
@@ -304,12 +336,11 @@ function resolve(notice: ActionNotice): Resolution {
 }
 
 const keyOf = (who: Who) => `${who.accountType}:${who.id}`;
-const isActive = (who: Who) => who.accountType === "customer" || internalUsers.some((user) => user.id === who.id && user.isActive);
 
 /**
  * What the backend's ACTION_NOTIFICATION job does: each person once (in their
  * first audience), never the actor (except a password notice, a security
- * warning), and staff only while their account is active.
+ * warning), and only while their account is active.
  */
 export function notifyAction(notice: ActionNotice, actor: Who | null, when: When = {}) {
   const { payload, args, audiences } = resolve(notice);

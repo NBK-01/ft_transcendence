@@ -1,3 +1,4 @@
+import { ShipmentActorType } from '../../shipments/constants/shipment-actor';
 import {
   AttachmentKind,
   ShipmentState,
@@ -61,6 +62,8 @@ export interface ShipmentUpdatePayload {
   status: ShipmentState;
   /** Set on a shipment created straight at `confirmed` (by a partner): "new shipment", not "payment confirmed". */
   isNew?: true;
+  /** Who moved it; missing on events from before it was recorded. */
+  actorType?: ShipmentActorType;
 }
 
 export interface BranchPayload {

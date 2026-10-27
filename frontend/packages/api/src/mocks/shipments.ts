@@ -519,6 +519,7 @@ for (const row of shipments) {
         clientId: row.client.id,
         status: event.status,
         occurredAt: event.occurredAt,
+        actorType: event.actor?.type ?? null,
         isNew: row.organization !== null && step === 0,
       },
       { read: at < ago(DAY) },
@@ -652,15 +653,20 @@ const find = (trackingId: unknown) => shipments.find((row) => row.trackingId ===
 
 /**
  * ShipmentsService.transition, once the caller has checked where it may move
- * from, recording who did it. The new event notifies whoever didn't cause it,
- * here the customer.
+ * from, recording who did it. The new event notifies whoever didn't cause it.
  */
 function moveTo(row: Row, status: ShipmentState, location: string, actor: ActivityActor | null) {
   const now = new Date().toISOString();
   row.status = status;
   row.updatedAt = now;
   row.events.unshift({ id: crypto.randomUUID(), status, location, occurredAt: now, actor });
-  notifyShipmentEvent({ trackingId: row.trackingId, clientId: row.client.id, status, occurredAt: now });
+  notifyShipmentEvent({
+    trackingId: row.trackingId,
+    clientId: row.client.id,
+    status,
+    occurredAt: now,
+    actorType: actor?.type ?? null,
+  });
 }
 
 const json = async (request: Request) => {

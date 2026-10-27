@@ -29,6 +29,7 @@ import type {
   NotificationType,
   Organization,
   Page,
+  ShipmentActorType,
   ShipmentState,
   StaffAuthResponse,
 } from "./types";
@@ -91,6 +92,8 @@ const shipmentUpdates = async () =>
 /** The statuses each side is told about: staff actions reach the customer, customer actions the staff. */
 const CUSTOMER_HEARS: ShipmentState[] = ["pending_client_decision", "confirmed", "in_transit", "out_for_delivery", "delivered", "cancelled"];
 const STAFF_HEAR: ShipmentState[] = ["pending_sourcing", "pending_payment", "pending_payment_confirmation"];
+/** Partners (public API) and the carrier (webhook) act for neither side: both hear about their steps. */
+const OUTSIDE_ACTORS: ShipmentActorType[] = ["partner", "carrier"];
 
 const unauthorized = { status: 401, errorCode: undefined };
 const notFound = { status: 404, errorCode: 12001 };
@@ -130,13 +133,19 @@ describe("notifications: access", () => {
     expect(items.map((item) => item.title)).toContain("Out for delivery");
   });
 
-  it("admins and support get customer actions on shipments, worded for staff; dispatchers and drivers none", async () => {
+  it("admins and support get customer, partner and carrier steps on shipments, worded for staff; dispatchers and drivers none", async () => {
     for (const staff of [nadia, maya]) {
       await signInAs(staff.email);
       const items = await shipmentUpdates();
       expect(items.length).toBeGreaterThan(0);
-      expect(items.every((item) => STAFF_HEAR.includes(item.payload.status))).toBe(true);
-      expect(items.map((item) => item.title)).toContain("Needs a supplier");
+      for (const { payload } of items) {
+        const fromOutside = payload.actorType !== undefined && OUTSIDE_ACTORS.includes(payload.actorType);
+        expect(fromOutside || STAFF_HEAR.includes(payload.status)).toBe(true);
+        expect(payload.actorType).not.toBe("staff");
+      }
+      const titles = items.map((item) => item.title);
+      expect(titles).toContain("Needs a supplier");
+      expect(titles).toContain("New partner shipment");
     }
     for (const staff of [rami, karim]) {
       await signInAs(staff.email);

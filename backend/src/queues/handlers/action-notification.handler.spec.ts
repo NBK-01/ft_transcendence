@@ -88,7 +88,7 @@ const key = (recipient: NotificationRecipient) =>
   `${recipient.accountType}:${recipient.id}`;
 
 // The mock world: two admins (one acts), a branch with two members (one of
-// them deactivated), two support agents, a customer.
+// them deactivated), two support agents, a customer and a deactivated one.
 const ADMIN = staff('admin-1');
 const OTHER_ADMIN = staff('admin-2');
 const MEMBER = staff('member-1');
@@ -98,7 +98,11 @@ const CUSTOMER: NotificationRecipient = {
   id: 'customer-1',
   accountType: AccountType.CUSTOMER,
 };
-const INACTIVE = new Set([INACTIVE_MEMBER.id]);
+const INACTIVE_CUSTOMER: NotificationRecipient = {
+  id: 'customer-2',
+  accountType: AccountType.CUSTOMER,
+};
+const INACTIVE = new Set([key(INACTIVE_MEMBER), key(INACTIVE_CUSTOMER)]);
 
 let i18n: I18nService;
 let notifications: FakeNotifications;
@@ -116,8 +120,8 @@ beforeEach(() => {
   const lookup: Partial<Record<keyof ActionLookupService, jest.Mock>> = {
     findAdmins: jest.fn(async () => [ADMIN, OTHER_ADMIN]),
     findSupportStaff: jest.fn(async () => [SUPPORT, ADMIN]),
-    activeStaffIds: jest.fn(
-      async (ids: string[]) => new Set(ids.filter((id) => !INACTIVE.has(id))),
+    keepActive: jest.fn(async (recipients: NotificationRecipient[]) =>
+      recipients.filter((recipient) => !INACTIVE.has(key(recipient))),
     ),
     findStaff: jest.fn(async (id: string) => ({
       id,
@@ -346,6 +350,20 @@ describe('actionNotificationHandler: who gets what', () => {
 
     await expect(
       run(EVENTS[NotificationType.CONTACT_REQUEST_RECEIVED]),
+    ).resolves.toEqual({ recipients: 0, delivered: 0 });
+    expect(notifications.rows.size).toBe(0);
+  });
+
+  it('leaves out a deactivated customer (a file added to their old order)', async () => {
+    (
+      services.actionLookupService.findShipment as unknown as jest.Mock
+    ).mockResolvedValue({
+      trackingId: 'TRK-4A6F90',
+      clientId: INACTIVE_CUSTOMER.id,
+    });
+
+    await expect(
+      run(EVENTS[NotificationType.SHIPMENT_FILE_ADDED]),
     ).resolves.toEqual({ recipients: 0, delivered: 0 });
     expect(notifications.rows.size).toBe(0);
   });

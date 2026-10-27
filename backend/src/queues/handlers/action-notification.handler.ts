@@ -231,8 +231,8 @@ const keyOf = (recipient: NotificationRecipient) =>
 
 /**
  * The audiences as one list: each person once (in their first audience),
- * without the actor (unless the action notifies them), and staff only while
- * their account is active. Customer accounts can't be deactivated.
+ * without the actor (unless the action notifies them), and only while their
+ * account is active.
  */
 async function recipientsOf(
   event: ActionNotificationEvent,
@@ -254,14 +254,12 @@ async function recipientsOf(
       }
     }
   }
-  const isStaff = ({ recipient }: { recipient: NotificationRecipient }) =>
-    recipient.accountType === AccountType.STAFF;
-  const active = await lookup.activeStaffIds(
-    picked.filter(isStaff).map(({ recipient }) => recipient.id),
+  const active = new Set(
+    (await lookup.keepActive(picked.map(({ recipient }) => recipient))).map(
+      keyOf,
+    ),
   );
-  return picked.filter(
-    (entry) => !isStaff(entry) || active.has(entry.recipient.id),
-  );
+  return picked.filter(({ recipient }) => active.has(keyOf(recipient)));
 }
 
 /** English copy from i18n/en/notifications.json. */

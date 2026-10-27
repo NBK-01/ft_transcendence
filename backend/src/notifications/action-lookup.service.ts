@@ -62,16 +62,35 @@ export class ActionLookupService {
     );
   }
 
-  /** Which of these staff accounts are active: the only ones notified. */
-  async activeStaffIds(ids: string[]): Promise<Set<string>> {
-    if (!ids.length) {
-      return new Set();
-    }
-    const rows = await this.internalUserRepository.find({
+  /** The recipients whose account is still active, staff and customers alike: the only ones notified. */
+  async keepActive(
+    recipients: NotificationRecipient[],
+  ): Promise<NotificationRecipient[]> {
+    const idsOf = (accountType: AccountType) =>
+      recipients
+        .filter((recipient) => recipient.accountType === accountType)
+        .map(({ id }) => id);
+    const staffIds = idsOf(AccountType.STAFF);
+    const customerIds = idsOf(AccountType.CUSTOMER);
+    const query = (ids: string[]) => ({
       where: { id: In(ids), isActive: true },
       select: { id: true },
     });
-    return new Set(rows.map(({ id }) => id));
+    const [staff, customers] = await Promise.all([
+      staffIds.length
+        ? this.internalUserRepository.find(query(staffIds))
+        : Promise.resolve([]),
+      customerIds.length
+        ? this.userRepository.find(query(customerIds))
+        : Promise.resolve([]),
+    ]);
+    const active = new Set([
+      ...staff.map(({ id }) => `${AccountType.STAFF}:${id}`),
+      ...customers.map(({ id }) => `${AccountType.CUSTOMER}:${id}`),
+    ]);
+    return recipients.filter(({ id, accountType }) =>
+      active.has(`${accountType}:${id}`),
+    );
   }
 
   /** Everyone assigned to the branch, active or not (the job keeps the active ones). */

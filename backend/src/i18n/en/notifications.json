@@ -42,6 +42,26 @@
       "pending_payment_confirmation": {
         "title": "Payment to confirm",
         "message": "The client paid for {trackingId}. Confirm the payment to start the shipment."
+      },
+      "created": {
+        "title": "New partner shipment",
+        "message": "A partner created {trackingId} through the API."
+      },
+      "in_transit": {
+        "title": "In transit",
+        "message": "{trackingId} is on its way."
+      },
+      "out_for_delivery": {
+        "title": "Out for delivery",
+        "message": "{trackingId} is out for delivery."
+      },
+      "delivered": {
+        "title": "Delivered",
+        "message": "{trackingId} has been delivered."
+      },
+      "cancelled": {
+        "title": "Shipment cancelled",
+        "message": "{trackingId} has been cancelled."
       }
     }
   },

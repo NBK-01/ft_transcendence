@@ -65,8 +65,15 @@ type Kind<T extends NotificationType> = {
   href: (notification: Of<T>, reader: Reader) => string | null;
 };
 
-/** The shipment steps staff are told about (backend AUDIENCE_BY_STATUS): the customer acted. */
-const STAFF_STEPS: ReadonlySet<ShipmentState> = new Set(["pending_sourcing", "pending_payment", "pending_payment_confirmation"]);
+/** The customer's steps, worded by what they did; anything else staff hear about came from a partner or the carrier. */
+const CUSTOMER_STEPS: ReadonlySet<ShipmentState> = new Set(["pending_sourcing", "pending_payment", "pending_payment_confirmation"]);
+
+/** Which line explains a shipment step: what the customer did, or who moved it from outside. */
+function shipmentLine({ status, isNew, actorType }: Of<"SHIPMENT_UPDATE">["payload"]): string {
+  if (isNew) return "partnerCreated";
+  if (actorType === "partner" || actorType === "carrier") return actorType;
+  return CUSTOMER_STEPS.has(status) ? status : "other";
+}
 
 const shipmentPath = (trackingId: string, reader: Reader) =>
   reader.can("shipments:read:all") ? `/shipments/${encodeURIComponent(trackingId)}` : null;
@@ -121,7 +128,7 @@ const KINDS: { [T in NotificationType]: Kind<T> } = {
         trackingId: payload.trackingId,
         status: t(`common:status.${payload.status}`),
       }),
-      message: t(`notifications.types.shipment.${STAFF_STEPS.has(payload.status) ? payload.status : "other"}`),
+      message: t(`notifications.types.shipment.${shipmentLine(payload)}`),
     }),
     href: ({ payload }, reader) => shipmentPath(payload.trackingId, reader),
   },

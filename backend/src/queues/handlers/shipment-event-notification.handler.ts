@@ -1,5 +1,6 @@
 import { I18nService } from 'nestjs-i18n';
 import { AccountType } from '../../common/context/auth-context.types';
+import { ShipmentActorType } from '../../shipments/constants/shipment-actor';
 import { ShipmentState } from '../../shipments/constants/shipment-state';
 import { NotificationType } from '../../notifications/constants/notification.constants';
 import { NotificationRecipient } from '../../notifications/notifications.service';
@@ -9,17 +10,11 @@ import { JobHandler, JobServices } from '../interfaces/job-handler.interface';
 import { notifyOnce } from './notify-once';
 
 /**
- * Who to tell about each status: the side that didn't cause it. Today every
- * status is written by exactly one side, so the status alone says who acted:
- *  - the customer, in ShipmentsService: a new request or a rejected offer
- *    (pending_sourcing), an accepted offer (pending_payment), a submitted
- *    payment (pending_payment_confirmation) → tell the staff;
- *  - staff, in AdminShipmentsService: an offer (pending_client_decision), a
- *    confirmed payment (confirmed), tracking updates and cancellations
- *    (CreateEventDto) → tell the customer.
- * If a status ever becomes reachable from both sides (say, a customer
- * cancelling), this map can't tell them apart any more: read the event's
- * actorType (recorded on every event since ShipmentEventActor) instead.
+ * Who to tell about an event from before its actor was recorded: the side
+ * that didn't cause it, read from the status. Back then each status had one
+ * writer: the customer moved a shipment to pending_sourcing (a request or a
+ * rejected offer), pending_payment and pending_payment_confirmation; staff
+ * wrote every other step. audiencesFor reads the actor first.
  */
 export const AUDIENCE_BY_STATUS: Record<ShipmentState, AccountType | null> = {
   [ShipmentState.PENDING_SOURCING]: AccountType.STAFF,
@@ -35,6 +30,28 @@ export const AUDIENCE_BY_STATUS: Record<ShipmentState, AccountType | null> = {
   [ShipmentState.CANCELLED]: AccountType.CUSTOMER,
 };
 
+/**
+ * Who to tell: the side that didn't act. A partner (public API) or the
+ * carrier (webhook) is neither side, so both hear about it.
+ */
+export function audiencesFor(
+  event: Pick<ShipmentEventSummary, 'status' | 'actorType'>,
+): AccountType[] {
+  switch (event.actorType) {
+    case ShipmentActorType.CUSTOMER:
+      return [AccountType.STAFF];
+    case ShipmentActorType.STAFF:
+      return [AccountType.CUSTOMER];
+    case ShipmentActorType.PARTNER:
+    case ShipmentActorType.CARRIER:
+      return [AccountType.CUSTOMER, AccountType.STAFF];
+    default: {
+      const audience = AUDIENCE_BY_STATUS[event.status];
+      return audience ? [audience] : [];
+    }
+  }
+}
+
 /** Every row this job creates starts with it, which is how onFinalFailure finds them. */
 export function dedupeKeyPrefix(shipmentEventId: string): string {
   return `shipment-event:${shipmentEventId}:`;
@@ -49,7 +66,7 @@ function dedupeKey(
 
 /**
  * A shipment created straight at `confirmed` (by a partner, through the
- * public API): its customer hears about a new shipment, not a payment.
+ * public API): it's told as a new shipment, not a confirmed payment.
  */
 export function isNewShipment(
   event: Pick<ShipmentEventSummary, 'status' | 'isFirstEvent'>,
@@ -77,10 +94,11 @@ async function recipientsFor(
   event: ShipmentEventSummary,
   services: JobServices,
 ): Promise<NotificationRecipient[]> {
-  if (audience === AccountType.CUSTOMER) {
-    return [{ id: event.clientId, accountType: AccountType.CUSTOMER }];
-  }
-  return services.shipmentLookupService.findShipmentStaff();
+  const recipients =
+    audience === AccountType.CUSTOMER
+      ? [{ id: event.clientId, accountType: AccountType.CUSTOMER }]
+      : await services.shipmentLookupService.findShipmentStaff();
+  return services.actionLookupService.keepActive(recipients);
 }
 
 export const shipmentEventNotificationHandler: JobHandler<ShipmentEventNotificationEvent> =
@@ -90,30 +108,34 @@ export const shipmentEventNotificationHandler: JobHandler<ShipmentEventNotificat
         job.data.shipmentEventId,
       );
       // No event: deleted with its shipment before the job ran.
-      // No audience: a status nothing writes (see AUDIENCE_BY_STATUS).
-      const audience = event && AUDIENCE_BY_STATUS[event.status];
-      if (!event || !audience) {
+      if (!event) {
         return { recipients: 0, delivered: 0 };
       }
 
-      const recipients = await recipientsFor(audience, event, services);
-      const copy = shipmentUpdateCopy(services.i18n, audience, event);
+      const payload = {
+        trackingId: event.trackingId,
+        status: event.status,
+        ...(isNewShipment(event) && { isNew: true as const }),
+        ...(event.actorType && { actorType: event.actorType }),
+      };
+      let recipientCount = 0;
       let delivered = 0;
-      for (const recipient of recipients) {
-        const sent = await notifyOnce(services, {
-          recipient,
-          type: NotificationType.SHIPMENT_UPDATE,
-          payload: {
-            trackingId: event.trackingId,
-            status: event.status,
-            ...(isNewShipment(event) && { isNew: true }),
-          },
-          ...copy,
-          dedupeKey: dedupeKey(event.id, recipient),
-        });
-        delivered += Number(sent);
+      for (const audience of audiencesFor(event)) {
+        const recipients = await recipientsFor(audience, event, services);
+        const copy = shipmentUpdateCopy(services.i18n, audience, event);
+        recipientCount += recipients.length;
+        for (const recipient of recipients) {
+          const sent = await notifyOnce(services, {
+            recipient,
+            type: NotificationType.SHIPMENT_UPDATE,
+            payload,
+            ...copy,
+            dedupeKey: dedupeKey(event.id, recipient),
+          });
+          delivered += Number(sent);
+        }
       }
-      return { recipients: recipients.length, delivered };
+      return { recipients: recipientCount, delivered };
     },
 
     async onFinalFailure(job, services) {

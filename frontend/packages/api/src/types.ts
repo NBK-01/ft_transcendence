@@ -534,6 +534,8 @@ export type ShipmentUpdatePayload = {
   status: ShipmentState;
   /** A shipment created straight at `confirmed` (by a partner, through the public API): "new shipment", not "payment confirmed". */
   isNew?: true;
+  /** Who moved it; missing on events from before it was recorded. */
+  actorType?: ShipmentActorType;
 };
 
 /** A branch, by its name when it happened. */

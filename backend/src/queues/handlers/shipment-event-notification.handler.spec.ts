@@ -4,6 +4,7 @@ import { Job } from 'bullmq';
 import { I18nService } from 'nestjs-i18n';
 import { I18nModule } from '../../i18n/i18n.module';
 import { AccountType } from '../../common/context/auth-context.types';
+import { ShipmentActorType } from '../../shipments/constants/shipment-actor';
 import { ShipmentState } from '../../shipments/constants/shipment-state';
 import {
   NotificationStatus,
@@ -24,7 +25,6 @@ import { WebhooksService } from '../../webhooks/webhooks.service';
 import { ShipmentEventNotificationEvent } from '../events/shipment-event-notification.event';
 import { JobServices } from '../interfaces/job-handler.interface';
 import {
-  AUDIENCE_BY_STATUS,
   shipmentEventNotificationHandler as handler,
   shipmentUpdateCopy,
 } from './shipment-event-notification.handler';
@@ -102,7 +102,7 @@ const SUPPORT: NotificationRecipient = {
   accountType: AccountType.STAFF,
 };
 
-/** Written by AdminShipmentsService: the customer hears about them. */
+/** Written by AdminShipmentsService (staff): the customer hears about them. */
 const STAFF_ACTIONS = [
   ShipmentState.PENDING_CLIENT_DECISION,
   ShipmentState.CONFIRMED,
@@ -117,6 +117,16 @@ const CUSTOMER_ACTIONS = [
   ShipmentState.PENDING_PAYMENT,
   ShipmentState.PENDING_PAYMENT_CONFIRMATION,
 ];
+/** Written by a partner (public API) or the carrier (webhook): both sides hear about them. */
+const OUTSIDE_ACTIONS: Array<[ShipmentActorType, ShipmentState]> = [
+  [ShipmentActorType.PARTNER, ShipmentState.IN_TRANSIT],
+  [ShipmentActorType.PARTNER, ShipmentState.OUT_FOR_DELIVERY],
+  [ShipmentActorType.PARTNER, ShipmentState.DELIVERED],
+  [ShipmentActorType.PARTNER, ShipmentState.CANCELLED],
+  [ShipmentActorType.CARRIER, ShipmentState.IN_TRANSIT],
+  [ShipmentActorType.CARRIER, ShipmentState.OUT_FOR_DELIVERY],
+  [ShipmentActorType.CARRIER, ShipmentState.DELIVERED],
+];
 
 let i18n: I18nService;
 let notifications: FakeNotifications;
@@ -124,6 +134,8 @@ let lookup: {
   findEvent: jest.Mock<Promise<ShipmentEventSummary | null>, [string]>;
   findShipmentStaff: jest.Mock<Promise<NotificationRecipient[]>, []>;
 };
+/** Accounts keepActive leaves out, as `accountType:id`. */
+let inactive: Set<string>;
 let services: JobServices;
 let event: ShipmentEventSummary;
 
@@ -142,7 +154,9 @@ beforeEach(() => {
     trackingId: 'TRK-4A6F90',
     clientId: CUSTOMER_ID,
     isFirstEvent: false,
+    actorType: ShipmentActorType.STAFF,
   };
+  inactive = new Set();
   lookup = {
     findEvent: jest.fn((_id: string) => Promise.resolve(event)),
     findShipmentStaff: jest.fn(() => Promise.resolve([ADMIN, SUPPORT])),
@@ -150,7 +164,13 @@ beforeEach(() => {
   services = {
     notificationsService: notifications as unknown as NotificationsService,
     shipmentLookupService: lookup as unknown as ShipmentLookupService,
-    actionLookupService: {} as ActionLookupService,
+    actionLookupService: {
+      keepActive: jest.fn(async (recipients: NotificationRecipient[]) =>
+        recipients.filter(
+          ({ id, accountType }) => !inactive.has(`${accountType}:${id}`),
+        ),
+      ),
+    } as unknown as ActionLookupService,
     webhooksService: {} as WebhooksService,
     i18n,
   };
@@ -162,17 +182,20 @@ function jobFor(shipmentEventId: string): Job<ShipmentEventNotificationEvent> {
 
 const run = () => handler.run(jobFor(event.id), services);
 
-describe('shipmentEventNotificationHandler: who gets what', () => {
-  it('covers every shipment status', () => {
-    expect(
-      [...STAFF_ACTIONS, ...CUSTOMER_ACTIONS, ShipmentState.REQUESTED].sort(),
-    ).toEqual(Object.values(ShipmentState).sort());
-  });
+/** The event as `actorType` wrote it. */
+const writtenBy = (
+  actorType: ShipmentActorType | null,
+  status: ShipmentState,
+) => {
+  event.actorType = actorType;
+  event.status = status;
+};
 
+describe('shipmentEventNotificationHandler: who gets what', () => {
   it.each(STAFF_ACTIONS)(
-    '%s (a staff action) goes to the shipment’s customer only',
+    '%s, written by staff, goes to the shipment’s customer only',
     async (status) => {
-      event.status = status;
+      writtenBy(ShipmentActorType.STAFF, status);
 
       await run();
 
@@ -181,7 +204,7 @@ describe('shipmentEventNotificationHandler: who gets what', () => {
           userId: CUSTOMER_ID,
           accountType: AccountType.CUSTOMER,
           type: NotificationType.SHIPMENT_UPDATE,
-          payload: { trackingId: 'TRK-4A6F90', status },
+          payload: { trackingId: 'TRK-4A6F90', status, actorType: 'staff' },
           status: NotificationStatus.SENT,
           dedupeKey: `shipment-event:${event.id}:customer:${CUSTOMER_ID}`,
         }),
@@ -191,9 +214,9 @@ describe('shipmentEventNotificationHandler: who gets what', () => {
   );
 
   it.each(CUSTOMER_ACTIONS)(
-    '%s (a customer action) goes to every staff member who sees shipments',
+    '%s, written by the customer, goes to every staff member who sees shipments',
     async (status) => {
-      event.status = status;
+      writtenBy(ShipmentActorType.CUSTOMER, status);
 
       await run();
 
@@ -204,7 +227,7 @@ describe('shipmentEventNotificationHandler: who gets what', () => {
       for (const row of rows) {
         expect(row).toMatchObject({
           accountType: AccountType.STAFF,
-          payload: { trackingId: 'TRK-4A6F90', status },
+          payload: { trackingId: 'TRK-4A6F90', status, actorType: 'customer' },
           status: NotificationStatus.SENT,
           dedupeKey: `shipment-event:${event.id}:staff:${row.userId}`,
         });
@@ -212,8 +235,37 @@ describe('shipmentEventNotificationHandler: who gets what', () => {
     },
   );
 
-  it('notifies nobody for a status nothing writes', async () => {
-    event.status = ShipmentState.REQUESTED;
+  it.each(OUTSIDE_ACTIONS)(
+    'a %s moving it to %s tells the customer and the staff',
+    async (actorType, status) => {
+      writtenBy(actorType, status);
+
+      await expect(run()).resolves.toEqual({ recipients: 3, delivered: 3 });
+
+      expect(
+        notifications
+          .all()
+          .map((row) => `${row.accountType}:${row.userId}`)
+          .sort(),
+      ).toEqual(
+        [
+          `customer:${CUSTOMER_ID}`,
+          `staff:${ADMIN.id}`,
+          `staff:${SUPPORT.id}`,
+        ].sort(),
+      );
+      for (const row of notifications.all()) {
+        expect(row.payload).toEqual({
+          trackingId: 'TRK-4A6F90',
+          status,
+          actorType,
+        });
+      }
+    },
+  );
+
+  it('leaves out a deactivated customer', async () => {
+    inactive.add(`customer:${CUSTOMER_ID}`);
 
     await expect(run()).resolves.toEqual({ recipients: 0, delivered: 0 });
     expect(notifications.all()).toEqual([]);
@@ -227,7 +279,7 @@ describe('shipmentEventNotificationHandler: who gets what', () => {
   });
 
   it('does nothing when no staff member can see shipments', async () => {
-    event.status = ShipmentState.PENDING_SOURCING;
+    writtenBy(ShipmentActorType.CUSTOMER, ShipmentState.PENDING_SOURCING);
     lookup.findShipmentStaff.mockResolvedValue([]);
 
     await run();
@@ -236,9 +288,50 @@ describe('shipmentEventNotificationHandler: who gets what', () => {
   });
 });
 
+describe('shipmentEventNotificationHandler: an event from before the actor was recorded', () => {
+  it('covers every shipment status', () => {
+    expect(
+      [...STAFF_ACTIONS, ...CUSTOMER_ACTIONS, ShipmentState.REQUESTED].sort(),
+    ).toEqual(Object.values(ShipmentState).sort());
+  });
+
+  it.each(STAFF_ACTIONS)('%s goes to the customer', async (status) => {
+    writtenBy(null, status);
+
+    await run();
+
+    expect(notifications.all()).toEqual([
+      expect.objectContaining({
+        userId: CUSTOMER_ID,
+        payload: { trackingId: 'TRK-4A6F90', status },
+      }),
+    ]);
+  });
+
+  it.each(CUSTOMER_ACTIONS)('%s goes to the staff', async (status) => {
+    writtenBy(null, status);
+
+    await run();
+
+    expect(
+      notifications
+        .all()
+        .map((row) => row.userId)
+        .sort(),
+    ).toEqual([ADMIN.id, SUPPORT.id].sort());
+  });
+
+  it('notifies nobody for a status nothing writes', async () => {
+    writtenBy(null, ShipmentState.REQUESTED);
+
+    await expect(run()).resolves.toEqual({ recipients: 0, delivered: 0 });
+    expect(notifications.all()).toEqual([]);
+  });
+});
+
 describe('shipmentEventNotificationHandler: wording', () => {
   it('words it for the customer', async () => {
-    event.status = ShipmentState.CONFIRMED;
+    writtenBy(ShipmentActorType.STAFF, ShipmentState.CONFIRMED);
 
     await run();
 
@@ -249,17 +342,30 @@ describe('shipmentEventNotificationHandler: wording', () => {
     });
   });
 
-  it("calls a shipment that starts at confirmed (a partner's) a new shipment, not a payment", async () => {
+  it("calls a shipment that starts at confirmed (a partner's) a new shipment, for both sides", async () => {
+    writtenBy(ShipmentActorType.PARTNER, ShipmentState.CONFIRMED);
     event.isFirstEvent = true;
 
     await run();
 
-    expect(notifications.all()[0]).toMatchObject({
+    const rows = notifications.all();
+    expect(rows.find((row) => row.userId === CUSTOMER_ID)).toMatchObject({
       title: 'New shipment',
       message:
         "A shipment, TRK-4A6F90, was created for you. We'll let you know when it ships.",
-      payload: { trackingId: 'TRK-4A6F90', status: 'confirmed', isNew: true },
     });
+    expect(rows.find((row) => row.userId === ADMIN.id)).toMatchObject({
+      title: 'New partner shipment',
+      message: 'A partner created TRK-4A6F90 through the API.',
+    });
+    for (const row of rows) {
+      expect(row.payload).toEqual({
+        trackingId: 'TRK-4A6F90',
+        status: 'confirmed',
+        isNew: true,
+        actorType: 'partner',
+      });
+    }
   });
 
   it('keeps "Payment confirmed", without isNew, when confirmed comes later', async () => {
@@ -268,11 +374,15 @@ describe('shipmentEventNotificationHandler: wording', () => {
     expect(notifications.all()[0]?.payload).toEqual({
       trackingId: 'TRK-4A6F90',
       status: 'confirmed',
+      actorType: 'staff',
     });
   });
 
   it('words it for the staff', async () => {
-    event.status = ShipmentState.PENDING_PAYMENT_CONFIRMATION;
+    writtenBy(
+      ShipmentActorType.CUSTOMER,
+      ShipmentState.PENDING_PAYMENT_CONFIRMATION,
+    );
 
     await run();
 
@@ -283,25 +393,48 @@ describe('shipmentEventNotificationHandler: wording', () => {
     });
   });
 
-  it.each(
-    Object.entries(AUDIENCE_BY_STATUS).filter(([, audience]) => audience),
-  )('has English copy for %s, sent to %s', (status, audience) => {
-    const copy = shipmentUpdateCopy(i18n, audience!, {
-      status: status as ShipmentState,
-      trackingId: 'TRK-4A6F90',
-      isFirstEvent: false,
-    });
+  /** Every (audience, step, new shipment) a notification can be worded for. */
+  type Worded = [AccountType, ShipmentState, boolean];
+  const WORDED: Worded[] = [
+    ...STAFF_ACTIONS.map((status): Worded => [
+      AccountType.CUSTOMER,
+      status,
+      false,
+    ]),
+    ...CUSTOMER_ACTIONS.map((status): Worded => [
+      AccountType.STAFF,
+      status,
+      false,
+    ]),
+    ...OUTSIDE_ACTIONS.flatMap(([, status]): Worded[] => [
+      [AccountType.CUSTOMER, status, false],
+      [AccountType.STAFF, status, false],
+    ]),
+    // A partner's new shipment ("created").
+    [AccountType.CUSTOMER, ShipmentState.CONFIRMED, true],
+    [AccountType.STAFF, ShipmentState.CONFIRMED, true],
+  ];
 
-    // nestjs-i18n returns the key itself when a translation is missing.
-    expect(copy.title).not.toMatch(/^notifications\./);
-    expect(copy.message).not.toMatch(/^notifications\./);
-    expect(copy.message).toContain('TRK-4A6F90');
-  });
+  it.each(WORDED)(
+    'has English copy for the %s about %s (new: %s)',
+    (audience, status, isFirstEvent) => {
+      const copy = shipmentUpdateCopy(i18n, audience, {
+        status,
+        trackingId: 'TRK-4A6F90',
+        isFirstEvent,
+      });
+
+      // nestjs-i18n returns the key itself when a translation is missing.
+      expect(copy.title).not.toMatch(/^notifications\./);
+      expect(copy.message).not.toMatch(/^notifications\./);
+      expect(copy.message).toContain('TRK-4A6F90');
+    },
+  );
 });
 
 describe('shipmentEventNotificationHandler: running again', () => {
   it('creates no new rows and sends nothing twice', async () => {
-    event.status = ShipmentState.PENDING_SOURCING;
+    writtenBy(ShipmentActorType.CUSTOMER, ShipmentState.PENDING_SOURCING);
 
     await expect(run()).resolves.toEqual({ recipients: 2, delivered: 2 });
     await expect(run()).resolves.toEqual({ recipients: 2, delivered: 0 });
@@ -311,7 +444,7 @@ describe('shipmentEventNotificationHandler: running again', () => {
   });
 
   it('a retry delivers only what the failed attempt left behind', async () => {
-    event.status = ShipmentState.PENDING_SOURCING;
+    writtenBy(ShipmentActorType.CUSTOMER, ShipmentState.PENDING_SOURCING);
     lookup.findShipmentStaff.mockResolvedValue([ADMIN, SUPPORT]);
     // Fail SUPPORT's delivery once: its row is created on the first run.
     const original = notifications.createOnce.bind(notifications);
@@ -339,7 +472,7 @@ describe('shipmentEventNotificationHandler: running again', () => {
 
 describe('shipmentEventNotificationHandler.onFinalFailure', () => {
   it('fails the rows of this event that never went out, and only those', async () => {
-    event.status = ShipmentState.PENDING_SOURCING;
+    writtenBy(ShipmentActorType.CUSTOMER, ShipmentState.PENDING_SOURCING);
     await run();
     const [delivered] = notifications.all();
     const stuck = (
