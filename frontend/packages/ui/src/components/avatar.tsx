@@ -1,6 +1,7 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { Avatar as AvatarPrimitive } from "radix-ui";
 import type { ComponentProps } from "react";
+import { useTranslation } from "react-i18next";
 
 import { cn } from "@trans/ui/lib/utils";
 
@@ -36,6 +37,7 @@ export function Avatar({
   src,
   name,
   online,
+  statusLabel,
   ...props
 }: ComponentProps<typeof AvatarPrimitive.Root> &
   VariantProps<typeof avatarVariants> & {
@@ -44,7 +46,13 @@ export function Avatar({
     name: string;
     /** Presence dot. `undefined` hides it. */
     online?: boolean;
+    /**
+     * What the dot says to screen readers; "Online" or "Offline" by default.
+     * Read even when the avatar itself is aria-hidden next to the name.
+     */
+    statusLabel?: string;
   }) {
+  const { t } = useTranslation("common");
   return (
     <span className="relative inline-flex shrink-0">
       <AvatarPrimitive.Root data-slot="avatar" className={cn(avatarVariants({ size }), className)} {...props}>
@@ -65,6 +73,9 @@ export function Avatar({
             online ? "bg-green-700" : "bg-gray-600",
           )}
         />
+      )}
+      {online !== undefined && (
+        <span className="sr-only">{statusLabel ?? t(online ? "presence.online" : "presence.offline")}</span>
       )}
     </span>
   );

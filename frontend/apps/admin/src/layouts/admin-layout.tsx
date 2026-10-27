@@ -3,7 +3,14 @@ import { Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, Outlet } from "react-router";
 
-import { useStaffAccess, useStaffLogout, useStaffSession } from "@trans/api";
+import {
+  useChatConnection,
+  useLivePresence,
+  useStaffAccess,
+  useStaffLogout,
+  useStaffMe,
+  useStaffSession,
+} from "@trans/api";
 import { AppShell, type NavGroup } from "@trans/ui/blocks/app-shell";
 import { Logo } from "@trans/ui/blocks/logo";
 import { Badge } from "@trans/ui/components/badge";
@@ -71,7 +78,11 @@ export function AdminLayout() {
   const { user } = useStaffSession();
   const { isAdmin, can, organization } = useStaffAccess();
   const signOut = useStaffLogout();
+  // The photo isn't in the stored session (its URL expires): it comes from /me, as useStaffAccess reads it.
+  const avatarUrl = useStaffMe({ enabled: user !== null }).data?.avatarUrl;
   useNotificationToasts();
+  // Contacts' online dots follow presence.changed on any page.
+  useLivePresence(useChatConnection());
   // Requests waiting for an answer, as a count on the Contacts nav item.
   const contacts = useContacts();
   const requests = (contacts.data ?? []).filter((contact) => user && tabOf(contact, user.id) === "received").length;
@@ -130,6 +141,7 @@ export function AdminLayout() {
       user={{
         name: user?.name ?? "",
         email: user?.email ?? "",
+        avatarUrl,
         role: user?.roleName ? t(`app:users.roles.${user.roleName}`, { defaultValue: user.roleName }) : undefined,
       }}
       profileHref={withBranch("/profile")}

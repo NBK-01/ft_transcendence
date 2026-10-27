@@ -17,6 +17,19 @@ const fr: CommonResources = {
     typeToConfirm: "Saisissez <value>{{value}}</value> pour confirmer",
     error: "Échec de la suppression. Réessayez.",
   },
+  presence: {
+    online: "En ligne",
+    offline: "Hors ligne",
+  },
+  avatarUploader: {
+    add: "Ajouter une photo",
+    change: "Changer la photo",
+    remove: "Retirer la photo",
+    uploading: "Envoi… {{percent}} %",
+    hint: "JPG, PNG ou WebP, {{size}} Mo max.",
+    type: "Choisissez une image JPG, PNG ou WebP.",
+    size: "La photo ne doit pas dépasser {{size}} Mo.",
+  },
   status: {
     requested: "Demandée",
     confirmed: "Confirmée",

@@ -17,7 +17,8 @@ export function useContactPresence({ enabled = true }: { enabled?: boolean } = {
     queryKey: keys.contacts.presence(),
     queryFn: ({ signal }) => api.get<ContactPresence[]>("/contacts/presence", { signal }),
     enabled,
-    select: (rows) => new Set(rows.filter((row) => row.online).map((row) => row.internalUserId)),
+    // Contact id → online. Anyone missing isn't an accepted contact: show no status for them.
+    select: (rows) => new Map(rows.map((row) => [row.internalUserId, row.online])),
   });
 }
 

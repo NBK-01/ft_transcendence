@@ -25,3 +25,9 @@ export type CreateStaffValues = z.infer<typeof createStaffSchema>;
 /** Email and password can't be changed through PATCH /internal-users/:id. */
 export const editStaffSchema = z.object({ name, roleName, organizationId });
 export type EditStaffValues = z.infer<typeof editStaffSchema>;
+
+/** PATCH /staff-profile (UpdateStaffProfileDto): your own name, up to the backend's 100 characters. */
+export const staffProfileSchema = z.object({
+  name: z.string().trim().min(1, { error: "validation.required" }).max(100, { error: "validation.max100" }),
+});
+export type StaffProfileValues = z.infer<typeof staffProfileSchema>;

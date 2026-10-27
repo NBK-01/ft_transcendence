@@ -1,9 +1,16 @@
 import { Ban, Check, Contact as ContactIcon, MessageSquare, MoreHorizontal, UserMinus, UserPlus, X } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 
-import { isApiError, STAFF_NOT_CONNECTED, useOpenStaffConversation, useStaffSession, type Contact } from "@trans/api";
+import {
+  isApiError,
+  STAFF_NOT_CONNECTED,
+  useContactPresence,
+  useOpenStaffConversation,
+  useStaffSession,
+  type Contact,
+} from "@trans/api";
 import { ConfirmDelete } from "@trans/ui/blocks/confirm-delete";
 import { createDataTableColumnHelper, DataTable } from "@trans/ui/blocks/data-table";
 import { DataTableColumnHeader } from "@trans/ui/blocks/data-table-column-header";
@@ -51,6 +58,8 @@ export function ContactsPage() {
   const { user } = useStaffSession();
   const myId = user?.id ?? "";
   const contacts = useContacts();
+  // Online dots, for accepted contacts only (the backend tells no one else).
+  const presence = useContactPresence();
   const [tab, setTab] = useState<ContactTab>("accepted");
   const [addOpen, setAddOpen] = useState(false);
   const addButtonRef = useRef<HTMLButtonElement>(null);
@@ -138,11 +147,17 @@ export function ContactsPage() {
           header: ({ column }) => <DataTableColumnHeader column={column} title={t("app:contacts.columns.person")} />,
           cell: ({ row }) => {
             const person = otherParty(row.original, myId);
+            const online = tab === "accepted" ? presence.data?.get(person.id) : undefined;
             return (
               <div className="flex items-center gap-3">
-                <Avatar name={person.name} size="md" aria-hidden="true" />
+                <Avatar name={person.name} size="md" aria-hidden="true" online={online} />
                 <div className="flex min-w-0 flex-col">
-                  <span className="truncate text-label-14 text-gray-1000">{person.name}</span>
+                  <Link
+                    to={withBranch(`/profile/${encodeURIComponent(person.id)}`)}
+                    className="focus-ring w-fit max-w-full truncate rounded-sm text-label-14 text-gray-1000 hover:underline"
+                  >
+                    {person.name}
+                  </Link>
                   <span className="truncate text-copy-13 text-gray-900" dir="ltr">
                     {person.email}
                   </span>
@@ -265,6 +280,8 @@ export function ContactsPage() {
     i18n.language,
     tab,
     myId,
+    presence.data,
+    withBranch,
     quick,
     askConfirm,
     message,

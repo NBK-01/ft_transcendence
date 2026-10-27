@@ -59,9 +59,21 @@ export function Thread({
             <ArrowLeft className="rtl:-scale-x-100" />
           </Link>
         </Button>
-        <Avatar name={title.name} size="md" aria-hidden="true" />
+        <Avatar name={title.name} size="md" aria-hidden="true" online={title.online} />
         <div className="flex min-w-0 flex-col">
-          <h2 className="truncate text-label-16 text-gray-1000">{title.name}</h2>
+          <h2 className="truncate text-label-16 text-gray-1000">
+            {/* A colleague's name opens their profile; a customer has none here. */}
+            {title.otherId ? (
+              <Link
+                to={withBranch(`/profile/${encodeURIComponent(title.otherId)}`)}
+                className="focus-ring rounded-sm hover:underline"
+              >
+                {title.name}
+              </Link>
+            ) : (
+              title.name
+            )}
+          </h2>
           <p className="truncate text-copy-13 text-gray-900" dir="ltr">
             {title.detail}
           </p>

@@ -19,6 +19,7 @@ import {
   ProfilePage,
   ShipmentDetailPage,
   ShipmentsPage,
+  StaffProfilePage,
   UsersPage,
 } from "./routes/lazy-pages";
 import { LoginPage } from "./routes/login";
@@ -95,6 +96,8 @@ export const router = createBrowserRouter(
               ),
             },
             { path: "profile", element: <ProfilePage /> },
+            // Any colleague's page; every role may see one.
+            { path: "profile/:id", element: <StaffProfilePage /> },
           ],
         },
         { path: "*", element: <NotFoundPage /> },

@@ -20,6 +20,19 @@ const en = {
     typeToConfirm: "Type <value>{{value}}</value> to confirm",
     error: "Couldn't delete. Try again.",
   },
+  presence: {
+    online: "Online",
+    offline: "Offline",
+  },
+  avatarUploader: {
+    add: "Add photo",
+    change: "Change photo",
+    remove: "Remove photo",
+    uploading: "Uploading… {{percent}}%",
+    hint: "JPG, PNG or WebP, up to {{size}} MB.",
+    type: "Choose a JPG, PNG or WebP image.",
+    size: "The photo must be {{size}} MB or less.",
+  },
   status: {
     requested: "Requested",
     confirmed: "Confirmed",

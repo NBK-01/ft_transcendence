@@ -16,5 +16,6 @@ export const BranchDetailPage = lazy(() => import("./branch-detail").then((m) =>
 export const ContactsPage = lazy(() => import("./contacts").then((m) => ({ default: m.ContactsPage })));
 export const MessagesPage = lazy(() => import("./messages").then((m) => ({ default: m.MessagesPage })));
 export const ProfilePage = lazy(() => import("./profile").then((m) => ({ default: m.ProfilePage })));
+export const StaffProfilePage = lazy(() => import("./staff-profile").then((m) => ({ default: m.StaffProfilePage })));
 export const ApiKeysPage = lazy(() => import("./api-keys").then((m) => ({ default: m.ApiKeysPage })));
 export const LegalPage = lazy(() => import("@trans/ui/blocks/legal-layout").then((m) => ({ default: m.LegalPage })));
