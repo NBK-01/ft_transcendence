@@ -13,6 +13,8 @@ import {
  */
 @Entity('webhook_log')
 @Index(['provider', 'createdAt'])
+// A shipment's events, to find one applied after this one (WebhooksService).
+@Index(['provider', 'resourceId'])
 export class WebhookLog extends BaseEntity {
   @Column({ type: 'enum', enum: WebhookProvider })
   provider!: WebhookProvider;
@@ -52,6 +54,22 @@ export class WebhookLog extends BaseEntity {
     default: WebhookLogStatus.RECEIVED,
   })
   status!: WebhookLogStatus;
+
+  /**
+   * When it happened, by the carrier's clock (data.occurredAt), or when we
+   * received it if the carrier didn't say. Orders a shipment's events: one
+   * older than an event already applied is SUPERSEDED.
+   */
+  @Column({ name: 'occurred_at', type: 'timestamptz', nullable: true })
+  occurredAt!: Date | null;
+
+  /**
+   * The job holding the PROCESSING claim (its id: the delivery that queued
+   * it), so that job's own retry can take the claim back straight away.
+   * Null when no job has it.
+   */
+  @Column({ name: 'claimed_by', type: 'varchar', nullable: true })
+  claimedBy!: string | null;
 
   /** How many times a job started processing it. */
   @Column({ default: 0 })

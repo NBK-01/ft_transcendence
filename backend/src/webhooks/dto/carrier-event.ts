@@ -2,6 +2,7 @@ import {
   CARRIER_TRACKING_STATUSES,
   CARRIER_TRACKING_UPDATED,
   CarrierTrackingStatus,
+  OCCURRED_AT_MAX_SKEW_MS,
 } from '../constants/webhook.constants';
 import { InvalidWebhookPayloadException } from '../exceptions';
 
@@ -18,6 +19,8 @@ export interface CarrierTrackingUpdate {
   trackingId: string;
   status: CarrierTrackingStatus;
   location: string;
+  /** When it happened, if the carrier said (ISO 8601). */
+  occurredAt?: Date;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -71,5 +74,25 @@ export function parseTrackingUpdate(data: unknown): CarrierTrackingUpdate {
     trackingId: data.trackingId.trim().toUpperCase(),
     status: data.status as CarrierTrackingStatus,
     location: data.location.trim(),
+    occurredAt: parseOccurredAt(data.occurredAt),
   };
+}
+
+/** Optional. A date far ahead of ours would make every later event look older, so it's refused. */
+function parseOccurredAt(value: unknown): Date | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const date = typeof value === 'string' ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) {
+    throw new InvalidWebhookPayloadException(
+      'data.occurredAt must be an ISO 8601 date',
+    );
+  }
+  if (date.getTime() > Date.now() + OCCURRED_AT_MAX_SKEW_MS) {
+    throw new InvalidWebhookPayloadException(
+      'data.occurredAt is in the future',
+    );
+  }
+  return date;
 }

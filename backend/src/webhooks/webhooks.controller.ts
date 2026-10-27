@@ -57,6 +57,12 @@ export class WebhooksController {
             trackingId: { type: 'string', example: 'TRK-4A6F90' },
             status: { type: 'string', enum: [...CARRIER_TRACKING_STATUSES] },
             location: { type: 'string', example: 'Lyon hub' },
+            occurredAt: {
+              type: 'string',
+              format: 'date-time',
+              description:
+                'When it happened (optional; defaults to when we receive it). Orders the shipment’s events: an older one than the last applied is skipped',
+            },
           },
         },
       },

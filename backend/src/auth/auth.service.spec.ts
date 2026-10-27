@@ -571,6 +571,19 @@ describe('refresh', () => {
   });
 });
 
+describe('refresh: a deactivated account', () => {
+  it('refuses a deactivated account, even with a valid session', async () => {
+    const harness = setup();
+    const session = await verifiedAccount(harness);
+    harness.users.rows[0].isActive = false;
+
+    await expectCode(
+      harness.auth.refresh(session.refreshToken),
+      AuthErrorCodes.AccountDeactivated,
+    );
+  });
+});
+
 describe('password reset', () => {
   it('the emailed token sets a new password and signs out every session', async () => {
     const harness = setup();

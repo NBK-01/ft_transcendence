@@ -1,10 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, EntityManager, MoreThan, Repository } from 'typeorm';
 import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { CARRIER_ACTOR } from '../shipments/constants/shipment-actor';
-import { TRACKING_TRANSITIONS } from '../shipments/constants/shipment-state';
+import {
+  ShipmentState,
+  TRACKING_TRANSITIONS,
+} from '../shipments/constants/shipment-state';
+import { Shipment } from '../shipments/entities/shipment.entity';
 import {
   InvalidShipmentStateException,
   ShipmentNotFoundException,
@@ -18,9 +22,11 @@ import {
 import { WebhookLog } from './entities/webhook-log.entity';
 import {
   CarrierEnvelope,
+  CarrierTrackingUpdate,
   parseCarrierEnvelope,
   parseTrackingUpdate,
 } from './dto/carrier-event';
+import { InvalidWebhookPayloadException } from './exceptions';
 import { CarrierEventReceivedSignal, WebhookSignals } from './webhook-signals';
 
 export interface WebhookReceipt {
@@ -32,10 +38,30 @@ export interface WebhookReceipt {
 }
 
 /**
- * A PROCESSING claim older than this is a worker that died mid-job: a job
- * may take the event over (BullMQ re-runs a stalled job well within it).
+ * A PROCESSING claim older than this is a job that died for good: another
+ * job may take the event over. The job that holds it can take it back at
+ * any time (its retry, or BullMQ re-running it after a crash).
  */
 const STALE_CLAIM_MS = 5 * 60_000;
+
+/** No carrier move goes on from these, so an event that doesn't fit never will. */
+const FINAL_STATES: readonly ShipmentState[] = [
+  ShipmentState.DELIVERED,
+  ShipmentState.CANCELLED,
+];
+
+/**
+ * The shipment isn't where this event moves it from, but it may get there:
+ * an earlier event is likely still on its way (events can arrive, or be
+ * processed, out of order). Retried, so the earlier one can go first.
+ */
+export class CarrierEventTooEarlyError extends Error {
+  constructor(to: ShipmentState, current: ShipmentState) {
+    super(
+      `Can't move to ${to} from ${current} yet: waiting for an earlier event`,
+    );
+  }
+}
 
 /** An event a job may (re)process: not done, not failed for good, and not held by a live job. */
 const isClaimable = (log: Pick<WebhookLog, 'status' | 'updatedAt'>) =>
@@ -47,7 +73,8 @@ const isClaimable = (log: Pick<WebhookLog, 'status' | 'updatedAt'>) =>
 /** A processing failure no retry can fix: the event is marked FAILED, not retried. */
 const isPermanent = (error: unknown) =>
   error instanceof ShipmentNotFoundException ||
-  error instanceof InvalidShipmentStateException;
+  error instanceof InvalidShipmentStateException ||
+  error instanceof InvalidWebhookPayloadException;
 
 /**
  * Carrier webhooks: log every delivery, process each event once.
@@ -57,6 +84,11 @@ const isPermanent = (error: unknown) =>
  * tracking update through ShipmentsService.transition, the same path as an
  * admin's or a partner's, so the allowed moves and the customer's
  * notification are the same.
+ *
+ * A shipment's events apply in the order they happened (occurredAt), even
+ * when they arrive or are processed out of order: one that comes too early
+ * waits (retried) for the move before it, and one older than an event
+ * already applied is skipped (SUPERSEDED).
  */
 @Injectable()
 export class WebhooksService {
@@ -83,6 +115,7 @@ export class WebhooksService {
       eventType: envelope.type,
       resourceId: update.trackingId,
       payload: body as Record<string, unknown>,
+      occurredAt: update.occurredAt ?? new Date(),
     };
 
     const first = await this.insertFirstDelivery(envelope, values);
@@ -115,88 +148,180 @@ export class WebhooksService {
   }
 
   /**
-   * The job's work. Claims the event (RECEIVED, FAILED, or a stale
-   * PROCESSING → PROCESSING), so two live jobs never both apply it. The
-   * shipment's move and PROCESSED commit together, so a failure in between
-   * can't leave it applied but not marked (and applied again on retry). A
-   * failure no retry can fix (unknown tracking ID, a move not allowed from
-   * where the shipment is) is FAILED at once; anything else goes back to
-   * RECEIVED and is rethrown, so BullMQ retries it.
+   * The job's work; `claimant` is the job's id. Claims the event (RECEIVED,
+   * FAILED, PROCESSING held by this same job, or a stale PROCESSING), so two
+   * live jobs never both apply it, then applies it (see apply). A failure
+   * no retry can fix (an unknown tracking ID, a shipment delivered or
+   * cancelled) is FAILED at once; anything else, an event that came too
+   * early included, goes back to RECEIVED and is rethrown, so BullMQ
+   * retries it.
    */
   async processCarrierEvent(
     webhookLogId: string,
+    claimant: string,
   ): Promise<WebhookLogStatus | null> {
-    const claimed = await this.webhookLogRepository
-      .createQueryBuilder()
-      .update(WebhookLog)
-      .set({
-        status: WebhookLogStatus.PROCESSING,
-        attempts: () => 'attempts + 1',
-        // Stamped explicitly: it's what dates the claim (see STALE_CLAIM_MS).
-        updatedAt: () => 'now()',
-      })
-      .where('id = :id', { id: webhookLogId })
-      .andWhere(
-        '(status IN (:...from) OR (status = :processing AND updated_at < :staleBefore))',
-        {
-          from: [WebhookLogStatus.RECEIVED, WebhookLogStatus.FAILED],
-          processing: WebhookLogStatus.PROCESSING,
-          staleBefore: new Date(Date.now() - STALE_CLAIM_MS),
-        },
-      )
-      .execute();
-    if (!claimed.affected) {
-      // Already processed, or another job has it.
+    if (!(await this.claim(webhookLogId, claimant))) {
+      // Already done, or another live job has it.
       return null;
     }
-    const log = await this.webhookLogRepository.findOneByOrFail({
-      id: webhookLogId,
-    });
-
     try {
+      const log = await this.webhookLogRepository.findOneByOrFail({
+        id: webhookLogId,
+      });
       const update = parseTrackingUpdate(
         parseCarrierEnvelope(log.payload).data,
       );
-      const shipment = await this.shipmentsService.findOne(update.trackingId);
-      await this.dataSource.transaction(async (manager) => {
-        await this.shipmentsService.transition(manager, shipment, {
-          from: TRACKING_TRANSITIONS[update.status] ?? [],
-          to: update.status,
-          location: update.location,
-          actor: CARRIER_ACTOR,
-        });
-        await manager.update(WebhookLog, webhookLogId, {
-          status: WebhookLogStatus.PROCESSED,
-          processedAt: new Date(),
-          errorMessage: null,
-        });
-      });
-      return WebhookLogStatus.PROCESSED;
+      return await this.dataSource.transaction((manager) =>
+        this.apply(manager, log, update, claimant),
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (isPermanent(error)) {
-        await this.setStatus(webhookLogId, WebhookLogStatus.FAILED, {
+        await this.release(webhookLogId, claimant, WebhookLogStatus.FAILED, {
           errorMessage: message,
         });
         this.logger.warn(`Carrier event ${webhookLogId} failed: ${message}`);
         return WebhookLogStatus.FAILED;
       }
-      await this.setStatus(webhookLogId, WebhookLogStatus.RECEIVED, {
+      await this.release(webhookLogId, claimant, WebhookLogStatus.RECEIVED, {
         errorMessage: message,
       });
       throw error;
     }
   }
 
-  /** The job ran out of attempts: whatever it was doing, the event is FAILED. */
-  async markCarrierEventFailed(webhookLogId: string): Promise<void> {
-    await this.webhookLogRepository.update(
-      {
-        id: webhookLogId,
-        status: In([WebhookLogStatus.RECEIVED, WebhookLogStatus.PROCESSING]),
+  /** The job ran out of attempts: the event is FAILED, unless another job has taken it over since. */
+  async markCarrierEventFailed(
+    webhookLogId: string,
+    claimant: string,
+  ): Promise<void> {
+    await this.webhookLogRepository
+      .createQueryBuilder()
+      .update(WebhookLog)
+      .set({ status: WebhookLogStatus.FAILED, claimedBy: null })
+      .where('id = :id', { id: webhookLogId })
+      .andWhere(
+        '(status = :received OR (status = :processing AND claimed_by = :claimant))',
+        {
+          received: WebhookLogStatus.RECEIVED,
+          processing: WebhookLogStatus.PROCESSING,
+          claimant,
+        },
+      )
+      .execute();
+  }
+
+  /** RECEIVED, FAILED, PROCESSING held by this job, or a stale PROCESSING → PROCESSING, held by this job. */
+  private async claim(webhookLogId: string, claimant: string) {
+    const claimed = await this.webhookLogRepository
+      .createQueryBuilder()
+      .update(WebhookLog)
+      .set({
+        status: WebhookLogStatus.PROCESSING,
+        claimedBy: claimant,
+        attempts: () => 'attempts + 1',
+        // Stamped explicitly: it's what dates the claim (see STALE_CLAIM_MS).
+        updatedAt: () => 'now()',
+      })
+      .where('id = :id', { id: webhookLogId })
+      .andWhere(
+        '(status IN (:...from) OR (status = :processing AND (claimed_by = :claimant OR updated_at < :staleBefore)))',
+        {
+          from: [WebhookLogStatus.RECEIVED, WebhookLogStatus.FAILED],
+          processing: WebhookLogStatus.PROCESSING,
+          claimant,
+          staleBefore: new Date(Date.now() - STALE_CLAIM_MS),
+        },
+      )
+      .execute();
+    return Boolean(claimed.affected);
+  }
+
+  /**
+   * In one transaction, with the event's row and then the shipment's row
+   * locked (always in that order): a job that lost its claim meanwhile
+   * stops, and a shipment's events apply one at a time. An event older than
+   * one already applied is SUPERSEDED; one the shipment isn't ready for is
+   * too early (retried), unless the shipment is delivered or cancelled. The
+   * move and the event's new status commit together, so a failure in
+   * between can't leave it applied but not marked.
+   */
+  private async apply(
+    manager: EntityManager,
+    log: WebhookLog,
+    update: CarrierTrackingUpdate,
+    claimant: string,
+  ): Promise<WebhookLogStatus | null> {
+    const held = await manager.findOne(WebhookLog, {
+      where: {
+        id: log.id,
+        status: WebhookLogStatus.PROCESSING,
+        claimedBy: claimant,
       },
-      { status: WebhookLogStatus.FAILED },
-    );
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!held) {
+      // A stale claim another job took over: it's theirs now.
+      return null;
+    }
+    const shipment = await manager.findOne(Shipment, {
+      where: { trackingId: update.trackingId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!shipment) {
+      throw new ShipmentNotFoundException(update.trackingId);
+    }
+
+    if (await this.laterEventApplied(manager, log)) {
+      await this.finish(manager, log.id, WebhookLogStatus.SUPERSEDED);
+      return WebhookLogStatus.SUPERSEDED;
+    }
+    const from = TRACKING_TRANSITIONS[update.status] ?? [];
+    if (!from.includes(shipment.status)) {
+      throw FINAL_STATES.includes(shipment.status)
+        ? new InvalidShipmentStateException(shipment.status)
+        : new CarrierEventTooEarlyError(update.status, shipment.status);
+    }
+    await this.shipmentsService.transition(manager, shipment, {
+      from,
+      to: update.status,
+      location: update.location,
+      actor: CARRIER_ACTOR,
+    });
+    await this.finish(manager, log.id, WebhookLogStatus.PROCESSED);
+    return WebhookLogStatus.PROCESSED;
+  }
+
+  /** Whether an event for the same shipment that happened after this one was already applied. */
+  private laterEventApplied(
+    manager: EntityManager,
+    log: WebhookLog,
+  ): Promise<boolean> {
+    if (!log.occurredAt || !log.resourceId) {
+      return Promise.resolve(false);
+    }
+    return manager.exists(WebhookLog, {
+      where: {
+        provider: log.provider,
+        resourceId: log.resourceId,
+        status: WebhookLogStatus.PROCESSED,
+        occurredAt: MoreThan(log.occurredAt),
+      },
+    });
+  }
+
+  /** Done (PROCESSED or SUPERSEDED), in the transaction: the claim is let go. */
+  private async finish(
+    manager: EntityManager,
+    id: string,
+    status: WebhookLogStatus,
+  ): Promise<void> {
+    await manager.update(WebhookLog, id, {
+      status,
+      processedAt: new Date(),
+      errorMessage: null,
+      claimedBy: null,
+    });
   }
 
   /** The first delivery's row id, or null when the event was already logged (ON CONFLICT DO NOTHING). */
@@ -204,7 +329,7 @@ export class WebhooksService {
     envelope: CarrierEnvelope,
     values: Pick<
       WebhookLog,
-      'provider' | 'eventType' | 'resourceId' | 'payload'
+      'provider' | 'eventType' | 'resourceId' | 'payload' | 'occurredAt'
     >,
   ): Promise<string | null> {
     const result = await this.webhookLogRepository
@@ -224,12 +349,17 @@ export class WebhooksService {
     return row?.id ?? null;
   }
 
-  private async setStatus(
+  /** Lets the claim go (FAILED for good, or RECEIVED for a retry), if this job still holds it. */
+  private async release(
     id: string,
-    status: WebhookLogStatus,
-    changes: Partial<Pick<WebhookLog, 'processedAt' | 'errorMessage'>> = {},
+    claimant: string,
+    status: WebhookLogStatus.FAILED | WebhookLogStatus.RECEIVED,
+    changes: Partial<Pick<WebhookLog, 'errorMessage'>> = {},
   ): Promise<void> {
-    await this.webhookLogRepository.update(id, { status, ...changes });
+    await this.webhookLogRepository.update(
+      { id, status: WebhookLogStatus.PROCESSING, claimedBy: claimant },
+      { status, claimedBy: null, ...changes },
+    );
   }
 
   /** Awaited: if the job can't be queued, the request fails and the carrier redelivers. */

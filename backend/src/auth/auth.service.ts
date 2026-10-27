@@ -192,6 +192,10 @@ export class AuthService {
       rawToken,
       user,
     );
+    // Like login. After the token check, so only its holder learns the account is deactivated.
+    if (!user.isActive) {
+      throw new AccountDeactivatedException();
+    }
     return this.refreshTokenService.rotateRefreshToken(
       tokenRecord,
       user,

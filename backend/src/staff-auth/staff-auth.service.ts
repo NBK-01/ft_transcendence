@@ -77,6 +77,11 @@ export class StaffAuthService {
         rawToken,
         staff,
       );
+    // Like login: a deactivated account gets no new tokens (401, 7003, which
+    // signs the staff app out). After the token check, so only its holder learns it.
+    if (!staff.isActive) {
+      throw new InternalUserInactiveException();
+    }
     return this.internalRefreshTokenService.rotateRefreshToken(
       tokenRecord,
       staff,

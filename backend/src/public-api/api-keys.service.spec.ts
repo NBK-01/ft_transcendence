@@ -229,6 +229,12 @@ function createKey(name = 'Carrier tracking sync', organizationId = lyon.id) {
   return service.create({ name, organizationId }, admin.id);
 }
 
+/** Both of the guard's checks, in its order (it rate-limits in between). */
+async function verify(key: string) {
+  const found = await service.identify(key);
+  return found.valid ? service.confirm(key, found.record) : found;
+}
+
 // Top level, so it runs before every test in the file: each starts with empty tables.
 beforeEach(async () => {
   lyon = makeBranch('Lyon');
@@ -385,7 +391,7 @@ describe('ApiKeysService.revoke', () => {
     const revoked = await service.revoke(id);
 
     expect(revoked.revokedAt).toBeInstanceOf(Date);
-    await expect(service.verify(key)).resolves.toEqual({
+    await expect(verify(key)).resolves.toEqual({
       valid: false,
       reason: ApiKeyRejection.REVOKED,
     });
@@ -408,11 +414,11 @@ describe('ApiKeysService.revoke', () => {
   });
 });
 
-describe('ApiKeysService.verify', () => {
+describe('ApiKeysService.identify, then confirm', () => {
   it('accepts a valid key and says which branch it acts for', async () => {
     const { id, key } = await createKey('Partner sync');
 
-    await expect(service.verify(key)).resolves.toEqual({
+    await expect(verify(key)).resolves.toEqual({
       valid: true,
       apiKey: {
         id,
@@ -428,7 +434,7 @@ describe('ApiKeysService.verify', () => {
     const middle = randomBytes(28).toString('hex');
     const lookalike = `${key.slice(0, 8)}${middle}${key.slice(-4)}`;
 
-    await expect(service.verify(lookalike)).resolves.toEqual({
+    await expect(verify(lookalike)).resolves.toEqual({
       valid: false,
       reason: ApiKeyRejection.INVALID,
     });
@@ -437,7 +443,7 @@ describe('ApiKeysService.verify', () => {
   it('refuses an unknown key', async () => {
     await createKey();
 
-    await expect(service.verify(randomKey())).resolves.toEqual({
+    await expect(verify(randomKey())).resolves.toEqual({
       valid: false,
       reason: ApiKeyRejection.INVALID,
     });
@@ -455,7 +461,7 @@ describe('ApiKeysService.verify', () => {
       `${key}0`,
       ` ${key}`,
     ]) {
-      await expect(service.verify(candidate)).resolves.toEqual({
+      await expect(verify(candidate)).resolves.toEqual({
         valid: false,
         reason: ApiKeyRejection.INVALID,
       });
@@ -467,7 +473,7 @@ describe('ApiKeysService.verify', () => {
     const { id, key } = await createKey();
     storedRow(id).keyHash = await bcrypt.hash(randomKey(), 4);
 
-    await expect(service.verify(key)).resolves.toEqual({
+    await expect(verify(key)).resolves.toEqual({
       valid: false,
       reason: ApiKeyRejection.INVALID,
     });
@@ -477,16 +483,32 @@ describe('ApiKeysService.verify', () => {
     const { key } = await createKey();
 
     lyon.isActive = false;
-    await expect(service.verify(key)).resolves.toEqual({
+    await expect(verify(key)).resolves.toEqual({
       valid: false,
       reason: ApiKeyRejection.BRANCH_INACTIVE,
     });
 
     branches.delete(lyon.id);
-    await expect(service.verify(key)).resolves.toEqual({
+    await expect(verify(key)).resolves.toEqual({
       valid: false,
       reason: ApiKeyRejection.BRANCH_INACTIVE,
     });
+  });
+
+  it('finds a key, revoked or not, without the bcrypt check: only confirm runs it', async () => {
+    const { id, key } = await createKey();
+    const compare = jest.spyOn(bcrypt, 'compare');
+
+    await expect(service.identify(key)).resolves.toMatchObject({
+      valid: true,
+      record: { id },
+    });
+    await service.revoke(id);
+    await expect(service.identify(key)).resolves.toEqual({
+      valid: false,
+      reason: ApiKeyRejection.REVOKED,
+    });
+    expect(compare).not.toHaveBeenCalled();
   });
 
   it('only says REVOKED to someone holding the real key', async () => {
@@ -494,7 +516,7 @@ describe('ApiKeysService.verify', () => {
     await service.revoke(id);
     const lookalike = `${key.slice(0, -1)}${key.endsWith('0') ? '1' : '0'}`;
 
-    await expect(service.verify(lookalike)).resolves.toEqual({
+    await expect(verify(lookalike)).resolves.toEqual({
       valid: false,
       reason: ApiKeyRejection.INVALID,
     });
