@@ -30,7 +30,9 @@ export function TooltipContent({
         data-slot="tooltip-content"
         sideOffset={sideOffset}
         className={cn(
-          "z-40 max-w-64 rounded-md bg-gray-1000 px-2 py-1 text-label-12 text-pretty text-background-100",
+          // Same tier as dialog/sheet/toast (z-50) — a tooltip opened from inside one mounts
+          // later in the DOM, so equal z-index still paints it on top; see globals.css.
+          "z-50 max-w-64 rounded-md bg-gray-1000 px-2 py-1 text-label-12 text-pretty text-background-100",
           "origin-(--radix-tooltip-content-transform-origin)",
           "data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0 data-[state=delayed-open]:zoom-in-[0.97] data-[state=delayed-open]:duration-125",
           "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-75",

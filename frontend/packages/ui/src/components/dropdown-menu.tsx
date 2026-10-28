@@ -6,7 +6,9 @@ import { cn } from "@trans/ui/lib/utils";
 
 /** Floating menu surface — shared by DropdownMenu and Select. */
 export const menuSurfaceClasses = cn(
-  "z-40 min-w-44 overflow-hidden rounded-xl border border-gray-alpha-400 bg-background-100 p-1 shadow-lg",
+  // Same tier as dialog/sheet/toast (z-50) — a menu opened from inside one mounts
+  // later in the DOM, so equal z-index still paints it on top; see globals.css.
+  "z-50 min-w-44 overflow-hidden rounded-xl border border-gray-alpha-400 bg-background-100 p-1 shadow-lg",
   "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-[0.97]",
   "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-[0.97] data-[state=closed]:duration-100",
 );

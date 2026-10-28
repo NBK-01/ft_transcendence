@@ -28,7 +28,9 @@ export function PopoverContent({
         sideOffset={sideOffset}
         collisionPadding={collisionPadding}
         className={cn(
-          "z-40 w-72 max-w-[calc(100vw-1rem)] rounded-xl border border-gray-alpha-400 bg-background-100 p-4 shadow-lg outline-none",
+          // Same tier as dialog/sheet/toast (z-50) — a popover opened from inside one mounts
+          // later in the DOM, so equal z-index still paints it on top; see globals.css.
+          "z-50 w-72 max-w-[calc(100vw-1rem)] rounded-xl border border-gray-alpha-400 bg-background-100 p-4 shadow-lg outline-none",
           "origin-(--radix-popover-content-transform-origin)",
           "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-[0.97]",
           "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-[0.97] data-[state=closed]:duration-100",

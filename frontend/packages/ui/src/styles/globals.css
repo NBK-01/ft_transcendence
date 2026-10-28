@@ -14,7 +14,14 @@
  * colour — shipment states use blue / amber / green / red / gray.
  *
  * z-index scale (use only these): z-10 sticky, z-20 topbar, z-30 sidebar &
- * mobile nav, z-40 popovers / menus / tooltips, z-50 dialogs & toasts.
+ * mobile nav, z-50 everything else transient/portaled — popovers, menus,
+ * tooltips, dialogs, sheets. (Toasts are Sonner's own portal, which manages
+ * its own z-index well above this scale.) These share one tier instead of
+ * popovers sitting under dialogs: Radix portals mount to the end of <body>,
+ * so whichever of these opens later is later in the DOM and paints on top at
+ * equal z-index — this is what makes a select/popover/tooltip opened from
+ * inside an open dialog render above it, and a dialog opened from a menu
+ * render above that.
  */
 
 @import "tailwindcss";
