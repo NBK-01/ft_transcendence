@@ -159,6 +159,23 @@ function expireSession() {
  * For the chat socket, which signs in with the access token outside fetch.
  * ------------------------------------------------------------------------ */
 export const socketPath = () => config.socketPath;
+/**
+ * Origin the socket connects to. baseUrl is relative ("/api") in dev and in
+ * the combined-nginx deploy, where same-origin is correct (resolves to
+ * location.origin, below); a standalone deploy (e.g. Railway) sets it to the
+ * backend's full URL instead, and the socket must follow it there — same-
+ * origin would try to open a WebSocket against the frontend's own static
+ * host, which has no Socket.IO server, and just hang on "Connecting…".
+ */
+export const socketUrl = () => {
+  const base = typeof window === "undefined" ? undefined : window.location.origin;
+  try {
+    return new URL(config.baseUrl, base).origin;
+  } catch {
+    // Relative baseUrl ("/api") with no window to resolve it against (SSR/non-browser).
+    return "";
+  }
+};
 
 /** Before connecting: after a reload there's only a refresh token, so get an access token first. */
 export async function ensureAccessToken(): Promise<boolean> {

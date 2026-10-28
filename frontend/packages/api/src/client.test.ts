@@ -2,7 +2,7 @@ import { http, HttpResponse } from "msw/http";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { api, configureApi } from "./client";
+import { api, configureApi, socketUrl } from "./client";
 import { ApiError } from "./errors";
 import { handlers, ok, paginated } from "./mocks/handlers";
 import { internalUsers, MOCK_STAFF_PASSWORD, ORGANIZATIONS, staffPasswords } from "./mocks/data";
@@ -499,5 +499,28 @@ describe("contacts", () => {
     await signInAsStaff(youssef.email);
     await api.delete(`/contacts/${sent.id}`);
     expect((await list()).some((contact) => contact.id === sent.id)).toBe(false);
+  });
+});
+
+describe("socketUrl", () => {
+  afterEach(() => configureApi({ baseUrl: "http://api.test/api" })); // restore the suite-wide baseUrl
+
+  it("follows an absolute baseUrl to the backend's own origin, not the page's", () => {
+    configureApi({ baseUrl: "https://backend.example.com/api" });
+    expect(socketUrl()).toBe("https://backend.example.com");
+  });
+
+  it("resolves a relative baseUrl to the current page's origin (dev proxy / combined nginx)", () => {
+    vi.stubGlobal("window", { location: { origin: "http://page.test" } });
+    configureApi({ baseUrl: "/api" });
+    expect(socketUrl()).toBe("http://page.test");
+    vi.unstubAllGlobals();
+  });
+
+  it("has no origin to resolve a relative baseUrl against outside a browser", () => {
+    vi.stubGlobal("window", undefined);
+    configureApi({ baseUrl: "/api" });
+    expect(socketUrl()).toBe("");
+    vi.unstubAllGlobals();
   });
 });

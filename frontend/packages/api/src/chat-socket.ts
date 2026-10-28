@@ -1,7 +1,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 import type { Socket } from "socket.io-client";
 
-import { ensureAccessToken, renewAccessToken, socketPath } from "./client";
+import { ensureAccessToken, renewAccessToken, socketPath, socketUrl } from "./client";
 import { tokens } from "./session";
 import type { AppNotification, ChatMessage, PresenceEvent, SupportMessageEvent } from "./types";
 
@@ -58,7 +58,7 @@ function createSocketConnection(): ChatConnection {
 
   const ready = import("socket.io-client").then(({ io }) => {
     if (closed) return null;
-    socket = io({
+    socket = io(socketUrl(), {
       path: socketPath(),
       autoConnect: false,
       // Read on every (re)connect, so a renewed token is used.
