@@ -14,6 +14,7 @@ export function bullmqConfig(config: ConfigService): QueueOptions {
     connection: {
       host: config.get<string>('REDIS_HOST', 'localhost'),
       port: Number(config.get('REDIS_PORT', 6379)),
+      password: config.get<string>('REDIS_PASSWORD') || undefined,
       tls: config.get('REDIS_TLS') === 'true' ? {} : undefined,
       maxRetriesPerRequest: null,
     },
