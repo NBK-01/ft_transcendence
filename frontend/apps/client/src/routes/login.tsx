@@ -107,9 +107,16 @@ function LoginForm() {
         {t("auth.or")}
         <span className="h-px flex-1 bg-gray-alpha-400" />
       </div>
-      {/* Not a fetch call: a real navigation. The backend redirects to Google, then back to /auth/oauth-callback. */}
+      {/*
+        Not a fetch call: a real navigation. The backend redirects to Google, then back to
+        /auth/oauth-callback. Absolute via VITE_API_URL, not a bare "/api/..." — client is a
+        standalone deployment now (no shared origin with the backend to resolve a relative
+        link against), same reasoning as the chat socket and admin's "API docs" link.
+      */}
       <Button asChild variant="secondary" size="lg" className="w-full">
-        <a href="/api/auth/google">{t("app:login.continueWithGoogle")}</a>
+        <a href={`${import.meta.env.VITE_API_URL || "/api"}/auth/google`}>
+          {t("app:login.continueWithGoogle")}
+        </a>
       </Button>
     </form>
   );
