@@ -25,8 +25,10 @@ import { useActivityTime } from "../features/messages/use-activity-time";
 
 const column = createDataTableColumnHelper<ApiKey>();
 
-/** Swagger UI, served by the backend next to the API (behind basic auth outside development). */
-const API_DOCS_URL = "/api/docs";
+// Public, unauthenticated — the partner-facing subset of the backend's Swagger UI, safe
+// to share with partner developers. An absolute URL since admin is its own Railway
+// deployment now, not behind the same origin as the backend (relative /api/... 404s).
+const API_DOCS_URL = `${import.meta.env.VITE_API_URL || "/api"}/public-docs`;
 
 /**
  * /api-keys (admins only): the keys partner systems use to call the public
