@@ -13,7 +13,10 @@ export default defineConfig(({ mode }) => {
   const mocks = env.VITE_API_MOCKS === "true";
 
   return {
-    base: "/admin/",
+    // Nested under /admin/ behind the combined nginx (local Docker, and the
+    // monolithic deploy); set VITE_BASE_PATH=/ for a standalone deployment
+    // (e.g. Railway) where this app owns its own domain.
+    base: env.VITE_BASE_PATH || "/admin/",
     envDir,
     // `worker-only`: just serve mockServiceWorker.js; main.tsx starts the worker itself.
     plugins: [react(), tailwindcss(), mocks && msw({ mode: "worker-only" })],

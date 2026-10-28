@@ -25,7 +25,12 @@ import {
 } from "./routes/lazy-pages";
 import { LoginPage } from "./routes/login";
 
-/** Served under /admin (Vite `base` + router `basename`), so links here are relative to it. */
+// Nested under /admin behind the combined nginx by default; a standalone
+// deployment (VITE_BASE_PATH=/) owns its own domain, so no basename.
+const basePath = import.meta.env.VITE_BASE_PATH || "/admin/";
+const basename = basePath === "/" ? undefined : basePath.replace(/\/$/, "");
+
+/** Served under /admin (Vite `base` + router `basename`), so links here are relative to it — or at the root for a standalone deployment. */
 export const router = createBrowserRouter(
   [
     {
@@ -113,5 +118,5 @@ export const router = createBrowserRouter(
       ],
     },
   ],
-  { basename: "/admin" },
+  { basename },
 );

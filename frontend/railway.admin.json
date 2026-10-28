@@ -1,0 +1,11 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "pnpm --filter @trans/admin build"
+  },
+  "deploy": {
+    "startCommand": "npx serve -s apps/admin/dist -l $PORT",
+    "restartPolicyType": "ON_FAILURE"
+  }
+}
