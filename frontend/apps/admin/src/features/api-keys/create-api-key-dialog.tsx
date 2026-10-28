@@ -32,11 +32,15 @@ import { apiKeySchema, type ApiKeyValues } from "@trans/ui/schemas/api-key";
 import { useOrganizations } from "../branches/api";
 
 /**
- * Creates a key, then shows it in full, once. The content mounts with the
- * dialog, so the key lives only in its state and is gone when it closes; it
- * never reaches the query cache. While the key is shown, neither a click
- * outside nor Escape closes the dialog, so it isn't lost by accident: only
- * "I've copied it" does.
+ * Creates a key, then shows it in full, once; the key never reaches the
+ * query cache. While the key is shown, neither a click outside nor Escape
+ * closes the dialog, so it isn't lost by accident: only "I've copied it" does.
+ *
+ * `created` lives here, not in the content below — Radix keeps DialogContent
+ * mounted (hidden, not unmounted) between opens for its close animation, so
+ * state owned down there would survive a close and reappear stale on the next
+ * open (the previous key, not a fresh form). Resetting it in onOpenChange,
+ * which fires on every close, is what actually gives each open a clean form.
  */
 export function CreateApiKeyDialog({
   open,
@@ -50,12 +54,19 @@ export function CreateApiKeyDialog({
   defaultBranchId?: string | null;
   returnFocusTo?: RefObject<HTMLElement | null>;
 }) {
+  const [created, setCreated] = useState<CreatedApiKey | null>(null);
+  const handleOpenChange = (next: boolean) => {
+    if (!next) setCreated(null);
+    onOpenChange(next);
+  };
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <ApiKeyDialogContent
         defaultBranchId={defaultBranchId}
         returnFocusTo={returnFocusTo}
-        onDone={() => onOpenChange(false)}
+        created={created}
+        onCreated={setCreated}
+        onDone={() => handleOpenChange(false)}
       />
     </Dialog>
   );
@@ -64,13 +75,16 @@ export function CreateApiKeyDialog({
 function ApiKeyDialogContent({
   defaultBranchId,
   returnFocusTo,
+  created,
+  onCreated,
   onDone,
 }: {
   defaultBranchId?: string | null;
   returnFocusTo?: RefObject<HTMLElement | null>;
+  created: CreatedApiKey | null;
+  onCreated: (apiKey: CreatedApiKey) => void;
   onDone: () => void;
 }) {
-  const [created, setCreated] = useState<CreatedApiKey | null>(null);
   return (
     <DialogContent
       className="max-w-lg"
@@ -81,7 +95,7 @@ function ApiKeyDialogContent({
       {created ? (
         <CreatedKey apiKey={created} onDone={onDone} />
       ) : (
-        <CreateForm defaultBranchId={defaultBranchId} onCreated={setCreated} />
+        <CreateForm defaultBranchId={defaultBranchId} onCreated={onCreated} />
       )}
     </DialogContent>
   );
