@@ -25,9 +25,9 @@ Key features: roles and permissions, branches, live chat, notifications, file up
 
 | App | URL |
 | --- | --- |
-| Customers | https://localhost/ |
-| Staff | https://localhost/admin/ |
-| API docs | https://localhost/api/docs |
+| Customers | https://localhost:8443/ |
+| Staff | https://localhost:8443/admin/ |
+| API docs | https://localhost:8443/api/docs |
 
 The certificate is self-signed, so the browser warns the first time.
 
