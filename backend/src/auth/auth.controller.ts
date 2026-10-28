@@ -224,18 +224,36 @@ export class AuthController {
     return this.usersService.getProfile(user.id);
   }
 
-  // Lives here, not on UsersController: deactivating ends every session on the
-  // account (RefreshTokenService), the same session-lifecycle concern as
+  // Lives here, not on UsersController: both end every session on the account
+  // (RefreshTokenService), the same session-lifecycle concern as
   // change-password/logout-all above, and AuthService already holds that
   // collaborator — UsersModule doesn't import AuthModule, so it can't.
+  //
+  // Deactivate keeps the row (blocks login, history intact, reversible by
+  // support); delete is the one that's actually gone. POST, not DELETE, for
+  // deactivate — the HTTP verb matches what it does to the resource, not
+  // just the button it's wired to in the client.
   @RequireCustomer()
-  @Delete('account')
+  @Post('account/deactivate')
   @ApiBearerAuth()
   @ApiOperation({ summary: "Deactivate the authenticated user's own account" })
   @ApiResponse({ status: 200, description: 'Account deactivated' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async deactivateAccount() {
     return this.authService.deactivateAccount();
+  }
+
+  @RequireCustomer()
+  @Delete('account')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      "Permanently delete the authenticated user's own account and all owned data",
+  })
+  @ApiResponse({ status: 200, description: 'Account deleted' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async deleteAccount() {
+    return this.authService.deleteAccount();
   }
 
   private metadataFrom(req: Request): TokenMetadata {

@@ -2,7 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { JwtService } from '@nestjs/jwt';
 import Redis from 'ioredis';
-import { Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { I18nService } from 'nestjs-i18n';
 import { AuthContextService } from '../common/context';
 import { AccountType, RequestUser } from '../common/context/auth-context.types';
@@ -88,6 +88,38 @@ class InMemoryTable<T extends { id: string; createdAt: Date }> {
     return Object.entries(where).every(
       ([key, value]) => row[key as keyof T] === value,
     );
+  }
+}
+
+/**
+ * Fakes `DataSource.transaction()` for deleteAccount(): a `manager.delete`
+ * on User/RefreshToken actually mutates the real in-memory tables (so tests
+ * can assert the row is gone the normal way); OtpLog/Notification/Conversation
+ * have no in-memory table of their own here, so those calls are only
+ * recorded, not backed by real rows — deleteAccount() doesn't read them back.
+ */
+class FakeTransactionalDataSource {
+  readonly deletedCalls: { entity: string; criteria: unknown }[] = [];
+
+  constructor(
+    private readonly users: InMemoryTable<User>,
+    private readonly sessions: InMemoryTable<RefreshToken>,
+  ) {}
+
+  async transaction<T>(
+    work: (manager: EntityManager) => Promise<T>,
+  ): Promise<T> {
+    const manager = {
+      delete: async (entity: { name: string }, criteria: unknown) => {
+        this.deletedCalls.push({ entity: entity.name, criteria });
+        if (entity.name === 'User')
+          return this.users.delete(criteria as Partial<User>);
+        if (entity.name === 'RefreshToken')
+          return this.sessions.delete(criteria as Partial<RefreshToken>);
+        return { affected: 0 };
+      },
+    } as unknown as EntityManager;
+    return work(manager);
   }
 }
 
@@ -187,16 +219,27 @@ function setup(env: Record<string, string> = {}) {
     },
   } as unknown as AuthContextService;
 
+  const deletedFiles: string[] = [];
+  const fileStorage = {
+    deleteFile: (key: string) => {
+      deletedFiles.push(key);
+      return Promise.resolve();
+    },
+  } as unknown as FileStorageService;
   const usersService = new UsersService(
     users as unknown as Repository<User>,
     new CryptoService(),
-    {} as FileStorageService,
+    fileStorage,
     // Nothing listens in these tests: the notification signals it sends go nowhere.
     new EventEmitter2(),
   );
   const refreshTokens = new RefreshTokenService(
     sessions as unknown as Repository<RefreshToken>,
     jwt,
+  );
+  const transactionalDataSource = new FakeTransactionalDataSource(
+    users,
+    sessions,
   );
   const auth = new AuthService(
     jwt,
@@ -217,8 +260,20 @@ function setup(env: Record<string, string> = {}) {
     authContext,
     new EventEmitter2(),
     i18n,
+    fileStorage,
+    transactionalDataSource as unknown as DataSource,
   );
-  return { auth, jwt, users, sessions, outbox, oauthCodes, context };
+  return {
+    auth,
+    jwt,
+    users,
+    sessions,
+    outbox,
+    oauthCodes,
+    context,
+    deletedFiles,
+    transactionalDataSource,
+  };
 }
 
 type Harness = ReturnType<typeof setup>;
@@ -766,6 +821,97 @@ describe('deactivateAccount', () => {
     await expectCode(
       harness.auth.exchangeOAuthCode(code),
       AuthErrorCodes.AccountDeactivated,
+    );
+  });
+});
+
+describe('deleteAccount', () => {
+  it('removes the row entirely (not just isActive: false) and revokes every refresh token', async () => {
+    const harness = setup();
+    const session = await verifiedAccount(harness);
+    harness.context.user = {
+      id: session.user.id,
+      email: EMAIL,
+      accountType: AccountType.CUSTOMER,
+    };
+
+    const result = await harness.auth.deleteAccount();
+
+    expect(result).toEqual({ message: 'Account deleted' });
+    expect(harness.users.rows).toHaveLength(0);
+    expect(harness.sessions.rows).toHaveLength(0);
+  });
+
+  it('deletes the avatar object when one was set', async () => {
+    const harness = setup();
+    const session = await verifiedAccount(harness);
+    harness.users.rows[0].avatarKey = 'avatars/some-key.png';
+    harness.context.user = {
+      id: session.user.id,
+      email: EMAIL,
+      accountType: AccountType.CUSTOMER,
+    };
+
+    await harness.auth.deleteAccount();
+
+    expect(harness.deletedFiles).toEqual(['avatars/some-key.png']);
+  });
+
+  it('does not try to delete a storage object when no avatar was ever set', async () => {
+    const harness = setup();
+    const session = await verifiedAccount(harness);
+    harness.context.user = {
+      id: session.user.id,
+      email: EMAIL,
+      accountType: AccountType.CUSTOMER,
+    };
+
+    await harness.auth.deleteAccount();
+
+    expect(harness.deletedFiles).toEqual([]);
+  });
+
+  it('clears OTP log, notifications and the support conversation inside the same transaction as the user row', async () => {
+    const harness = setup();
+    const session = await verifiedAccount(harness);
+    harness.context.user = {
+      id: session.user.id,
+      email: EMAIL,
+      accountType: AccountType.CUSTOMER,
+    };
+
+    await harness.auth.deleteAccount();
+
+    const entities = harness.transactionalDataSource.deletedCalls.map(
+      (call) => call.entity,
+    );
+    expect(entities).toEqual(
+      expect.arrayContaining([
+        'OtpLog',
+        'RefreshToken',
+        'Notification',
+        'Conversation',
+        'User',
+      ]),
+    );
+  });
+
+  it('a deleted account can no longer log in — there is no account to find (2002, not 2012)', async () => {
+    const harness = setup();
+    const session = await verifiedAccount(harness);
+    harness.context.user = {
+      id: session.user.id,
+      email: EMAIL,
+      accountType: AccountType.CUSTOMER,
+    };
+    await harness.auth.deleteAccount();
+
+    // Unlike deactivateAccount, there's no row left to recognize as
+    // "deactivated" — login fails the same generic way as an email that
+    // was never registered, which is also the right privacy behavior here.
+    await expectCode(
+      harness.auth.login({ email: EMAIL, password: PASSWORD }),
+      AuthErrorCodes.InvalidCredentials,
     );
   });
 });

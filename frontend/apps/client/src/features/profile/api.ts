@@ -64,9 +64,23 @@ export function useDeleteAvatar() {
 }
 
 /**
- * DELETE /auth/account — self-deactivation, not a hard delete (blocks future
- * login, ends every session server-side). On success ends the session here
- * too; the caller navigates to /login.
+ * POST /auth/account/deactivate — blocks future login and ends every session
+ * server-side, but the row (and their shipment/message history) stays.
+ * Reversible by support. On success ends the session here too; the caller
+ * navigates to /login.
+ */
+export function useDeactivateAccount() {
+  const { endSession } = useSessionActions();
+  return useMutation({
+    mutationFn: () => api.post<MessageResponse>("/auth/account/deactivate"),
+    onSuccess: endSession,
+  });
+}
+
+/**
+ * DELETE /auth/account — permanent: the account, its shipments, messages and
+ * uploaded avatar are gone, not just locked out. On success ends the session
+ * here too; the caller navigates to /login.
  */
 export function useDeleteAccount() {
   const { endSession } = useSessionActions();

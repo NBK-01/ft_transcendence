@@ -17,6 +17,7 @@ import { jwtConfig } from '../config/jwt.config';
 import { UsersModule } from '../users/users.module';
 import { OtpModule } from '../otp/otp.module';
 import { InternalUsersModule } from '../internal-users/internal-users.module';
+import { FileStorageModule } from '../file-storage/file-storage.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { InternalUsersModule } from '../internal-users/internal-users.module';
     UsersModule,
     OtpModule,
     InternalUsersModule, // JwtStrategy resolves staff tokens via InternalUsersService
+    FileStorageModule, // deleteAccount cleans up the avatar object
   ],
   controllers: [AuthController],
   providers: [

@@ -10,10 +10,12 @@ import { useDeleteAccount } from "./api";
 
 /**
  * DELETE /auth/account, behind type-to-confirm (the account's own email) —
- * more consequential than sign-out-everywhere, so it gets the stricter
- * confirmation already used for admin's highest-stakes deletes. Ends the
- * session on success: the caller navigates away rather than relying on
- * RequireCustomer's next render, since this is a one-way action.
+ * genuinely permanent: the account, its shipments, messages and avatar are
+ * gone, not just locked out. More consequential than deactivating, so it
+ * gets the same stricter confirmation already used for admin's highest-
+ * stakes deletes. Ends the session on success: the caller navigates away
+ * rather than relying on RequireCustomer's next render, since this is a
+ * one-way action.
  */
 export function DeleteAccountCard({ email }: { email: string }) {
   const { t } = useTranslation("app");

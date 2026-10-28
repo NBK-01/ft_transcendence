@@ -1,14 +1,19 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { DataSource } from 'typeorm';
 import { AccountType } from '../common/context/auth-context.types';
 import { ActionSignals } from '../notifications/action-signals';
 import { ConfigService } from '@nestjs/config';
 import { I18nService } from 'nestjs-i18n';
 import { UsersService } from '../users/users.service';
-import { AuthProvider } from '../users/user.entity';
+import { AuthProvider, User } from '../users/user.entity';
 import { OtpService } from '../otp/otp.service';
-import { OtpPurpose } from '../otp/entities/otp-log.entity';
+import { OtpLog, OtpPurpose } from '../otp/entities/otp-log.entity';
+import { Notification } from '../notifications/entities/notification.entity';
+import { Conversation } from '../chat/entities/conversation.entity';
+import { FileStorageService } from '../file-storage/file-storage.service';
+import { RefreshToken } from './entities/refresh-token.entity';
 import { PasswordResetService } from './services/password-reset.service';
 import {
   RefreshTokenService,
@@ -52,6 +57,8 @@ export class AuthService {
   // This orchestrates auth end to end (register/login/OTP/refresh/password-reset/OAuth) and
   // genuinely needs each of these collaborators — splitting it up would just move the
   // coupling, not remove it.
+  private readonly logger = new Logger(AuthService.name);
+
   // eslint-disable-next-line max-params
   constructor(
     private readonly jwtService: JwtService,
@@ -66,6 +73,8 @@ export class AuthService {
     private readonly authContext: AuthContextService,
     private readonly eventEmitter: EventEmitter2,
     private readonly i18n: I18nService,
+    private readonly fileStorageService: FileStorageService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async register(dto: RegisterDto, lang = 'en') {
@@ -321,6 +330,46 @@ export class AuthService {
     await this.usersService.deactivate(contextUser.id);
     await this.refreshTokenService.deleteAllUserTokens(contextUser.id);
     return { message: 'Account deactivated' };
+  }
+
+  /**
+   * Permanent self-delete, distinct from deactivate (above) — the row is
+   * gone, not just locked out. Everything with no FK to user (sessions,
+   * OTP log, notifications, the one support conversation and its messages/
+   * participants) is cleared explicitly in one transaction; everything with
+   * an ON DELETE CASCADE FK (auth_provider_user, shipments and their
+   * offers/files/events/payments) is removed automatically by the final
+   * `delete(User, ...)`. The avatar object is storage, not a DB row, so it's
+   * best-effort cleanup after the transaction commits, same as elsewhere
+   * this service deletes storage objects.
+   */
+  async deleteAccount(): Promise<{ message: string }> {
+    const contextUser = this.authContext.requireUser();
+    const userId = contextUser.id;
+    const user = await this.usersService.findById(userId);
+
+    await this.dataSource.transaction(async (manager) => {
+      await manager.delete(OtpLog, { userId });
+      await manager.delete(RefreshToken, { userId });
+      await manager.delete(Notification, {
+        userId,
+        accountType: AccountType.CUSTOMER,
+      });
+      await manager.delete(Conversation, { customerId: userId });
+      await manager.delete(User, { id: userId });
+    });
+
+    if (user?.avatarKey) {
+      await this.fileStorageService
+        .deleteFile(user.avatarKey)
+        .catch((error) => {
+          this.logger.warn(
+            `Could not delete storage object ${user.avatarKey}: ${String(error)}`,
+          );
+        });
+    }
+
+    return { message: 'Account deleted' };
   }
 
   /**

@@ -11,6 +11,7 @@ import { Skeleton } from "@trans/ui/components/skeleton";
 import { useProfile } from "../features/profile/api";
 import { AvatarSection } from "../features/profile/avatar-section";
 import { ChangePasswordCard } from "../features/profile/change-password-card";
+import { DeactivateAccountCard } from "../features/profile/deactivate-account-card";
 import { DeleteAccountCard } from "../features/profile/delete-account-card";
 import { ProfileDetails } from "../features/profile/profile-details";
 import { ProfileForm } from "../features/profile/profile-form";
@@ -66,6 +67,7 @@ export function ProfilePage() {
           </Card>
           <ChangePasswordCard email={profile.email} />
           <SignOutEverywhereCard />
+          <DeactivateAccountCard email={profile.email} />
           <DeleteAccountCard email={profile.email} />
         </div>
       )}
