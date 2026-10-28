@@ -107,10 +107,9 @@ export class AuthController {
     @Req() req: RequestWithGoogleFailure,
     @Res() res: Response,
   ): Promise<void> {
-    const frontendUrl = this.configService.get<string>(
-      'FRONTEND_URL',
-      'http://localhost:5173',
-    );
+    const frontendUrl = this.configService
+      .get<string>('FRONTEND_URL', 'http://localhost:5173')
+      .replace(/\/+$/, '');
     const redirectWithError = (error: unknown) => {
       const code =
         error instanceof DomainException

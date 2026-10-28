@@ -255,10 +255,9 @@ export class AuthService {
     const resetToken = await this.passwordResetService.generateResetToken(
       dto.email,
     );
-    const frontendUrl = this.configService.get<string>(
-      'FRONTEND_URL',
-      'http://localhost:5173',
-    );
+    const frontendUrl = this.configService
+      .get<string>('FRONTEND_URL', 'http://localhost:5173')
+      .replace(/\/+$/, '');
     const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
 
     const { subject, html } = EmailTemplates.passwordReset(
