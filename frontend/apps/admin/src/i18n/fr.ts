@@ -500,7 +500,7 @@ const fr: AdminResources = {
       email: "E-mail",
       emailLocked: "L'e-mail ne peut pas être modifié.",
       emailTaken: "Un compte du personnel utilise déjà cet e-mail.",
-      password: "Mot de passe temporaire",
+      password: "Mot de passe",
       passwordHint: "Au moins 8 caractères, avec une lettre et un chiffre. Transmettez-le de façon sécurisée.",
       role: "Rôle",
       rolePlaceholder: "Choisir un rôle",

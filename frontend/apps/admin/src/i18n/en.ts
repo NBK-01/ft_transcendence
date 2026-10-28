@@ -498,7 +498,7 @@ const en = {
       email: "Email",
       emailLocked: "The email can't be changed.",
       emailTaken: "A staff account with this email already exists.",
-      password: "Temporary password",
+      password: "Password",
       passwordHint: "At least 8 characters, with a letter and a number. Share it with them securely.",
       role: "Role",
       rolePlaceholder: "Choose a role",
