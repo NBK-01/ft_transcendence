@@ -6,18 +6,25 @@ import {
   Param,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiHeader,
 } from '@nestjs/swagger';
 import { InternalUsersService } from './internal-users.service';
 import { InternalUserFactory } from './factories/internal-user.factory';
 import { CreateInternalUserDto } from './dto/create-internal-user.dto';
 import { UpdateInternalUserDto } from './dto/update-internal-user.dto';
-import { RequireRole } from '../common/decorators/access-control.decorator';
+import {
+  RequireRole,
+  SkipAccessControl,
+} from '../common/decorators/access-control.decorator';
+import { Public } from '../common/decorators/public.decorator';
+import { BootstrapSecretGuard } from '../auth/guards/bootstrap-secret.guard';
 
 /** Every route here is admin-only for now — staff provisioning isn't self-service. */
 @ApiTags('Internal Users')
@@ -32,6 +39,39 @@ export class InternalUsersController {
   @ApiResponse({ status: 201, description: 'Staff account created' })
   @ApiResponse({ status: 409, description: 'Email already in use' })
   async create(@Body() dto: CreateInternalUserDto) {
+    const user = await this.internalUsersService.create(dto);
+    return InternalUserFactory.toDto(user);
+  }
+
+  /**
+   * Break-glass: creates the first staff account on a fresh environment,
+   * before any InternalUser or JWT exists. Gated by a secret header instead
+   * of a JWT — @Public() + @SkipAccessControl() opt this route out of the
+   * global JwtAuthGuard/AccessControlGuard (which would otherwise reject a
+   * request with no token at all), leaving BootstrapSecretGuard as the sole
+   * check. Unset ADMIN_BOOTSTRAP_SECRET disables this route entirely.
+   */
+  @Post('bootstrap')
+  @Public()
+  @SkipAccessControl()
+  @UseGuards(BootstrapSecretGuard)
+  @ApiHeader({
+    name: 'x-bootstrap-secret',
+    required: true,
+    description: 'Must match ADMIN_BOOTSTRAP_SECRET.',
+  })
+  @ApiOperation({
+    summary:
+      'Create the first staff account on a fresh environment (no JWT required)',
+  })
+  @ApiResponse({ status: 201, description: 'Staff account created' })
+  @ApiResponse({
+    status: 401,
+    description:
+      'Missing/invalid bootstrap secret, or ADMIN_BOOTSTRAP_SECRET unset',
+  })
+  @ApiResponse({ status: 409, description: 'Email already in use' })
+  async bootstrap(@Body() dto: CreateInternalUserDto) {
     const user = await this.internalUsersService.create(dto);
     return InternalUserFactory.toDto(user);
   }

@@ -357,6 +357,8 @@ const OPEN_ROUTES: Record<string, string> = {
   'POST /staff-auth/login': 'public',
   'POST /staff-auth/refresh': 'public',
   'POST /staff-auth/logout': 'public',
+  // Break-glass: creates the first admin with no JWT, via BootstrapSecretGuard instead.
+  'POST /internal-users/bootstrap': 'public',
 
   // The caller's own account — only ever reads or changes the token's own user.
   'GET /auth/me': 'any signed-in user',
